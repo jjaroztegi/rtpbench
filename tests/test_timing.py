@@ -93,3 +93,12 @@ def test_agent_places_onset_at_the_injected_delay(delay: float) -> None:
     turn = r.turns[0]
     assert turn["onset_seq"] == (65530 + m.start() // FRAME) & 0xFFFF
     assert turn["onset_off"] == m.start() % FRAME
+
+
+def test_reordered_onset_counts_from_the_onset_packet() -> None:
+    cap = call(caller_end=9_003, onset=17_777, net_ns=0)
+    want = latencies(cap, PT, "wire")
+    i = 17_777 // FRAME  # packet carrying the onset; the next one overtakes it by 5 ms
+    (t1, p1), (t2, p2) = cap.down[i], cap.down[i + 1]
+    cap.down[i], cap.down[i + 1] = (t2 - 25_000_000, p2), (t1, p1)
+    assert latencies(cap, PT, "wire") == want

@@ -4,9 +4,11 @@ Convention: sample k of a packet captured at time t sits at t + k/8000 s. Both e
 packetisation cancels and only network delay and method artefacts remain.
 
 Methods (caller pcap only):
-  wire    capture order and time, sample-accurate onset and end
-  packet  capture time of the first/last packet holding speech
-  rtp     RTP timestamps anchored at each stream's first packet
+  wire    packets in RTP sequence order, each at its capture time, sample-accurate: the onset is
+          the first voiced sample by sequence, when its packet arrived (the earliest an in-order
+          player could play it)
+  packet  as wire, but at packet granularity (first/last voiced packet)
+  rtp     RTP timestamps anchored at the first packet to arrive, as a jitter-buffered recorder
   concat  payloads appended in arrival order, as a naive two-channel recorder does
 
 Truth uses event positions from the agent and caller logs (which packet and sample), times from
@@ -25,7 +27,8 @@ from rtpbench import g711, pcap, rtp
 from rtpbench.voice import GATE
 
 METHODS = ("wire", "packet", "rtp", "concat")
-SEGMENT_GAP_NS = 250_000_000
+CALLER_GAP_NS = 1_000_000_000  # pauses inside one caller turn are shorter than this
+AGENT_GAP_NS = 250_000_000
 S = rtp.SAMPLE_NS
 
 Timed = list[tuple[int, rtp.Packet]]
@@ -50,24 +53,36 @@ def load(path: Path) -> Capture:
     return Capture(up, down)
 
 
+def by_seq(packets: Timed) -> Timed:
+    """Sequence order (first copy of duplicates), unwrapping seq in arrival order."""
+    seen: dict[int, tuple[int, rtp.Packet]] = {}
+    ext, last = 0, packets[0][1].seq if packets else 0
+    for t, p in packets:
+        ext += ((p.seq - last + 0x8000) & 0xFFFF) - 0x8000
+        last = p.seq
+        seen.setdefault(ext, (t, p))
+    return [seen[k] for k in sorted(seen)]
+
+
 def view(packets: Timed, method: str) -> Iterable[tuple[int, bytes]]:
-    """(time of sample 0, payload) per packet, in capture order."""
+    """(time of sample 0, payload) per packet, in the order the method reads them."""
     if not packets:
         return
     t0, ts0 = packets[0][0], packets[0][1].ts
-    total = 0
-    for t, p in packets:
-        if method == "rtp":
-            t = t0 + ((p.ts - ts0) & 0xFFFFFFFF) * S
-        elif method == "concat":
-            t, total = t0 + total * S, total + len(p.payload)
-        yield t, p.payload
+    if method == "concat":
+        total = 0
+        for _, p in packets:
+            yield t0 + total * S, p.payload
+            total += len(p.payload)
+        return
+    for t, p in by_seq(packets):
+        yield (t0 + ((p.ts - ts0) & 0xFFFFFFFF) * S if method == "rtp" else t), p.payload
 
 
 def segments(
-    timed: Iterable[tuple[int, bytes]], gate: re.Pattern[bytes], samples: bool
+    timed: Iterable[tuple[int, bytes]], gate: re.Pattern[bytes], samples: bool, gap_ns: int
 ) -> list[list[int]]:
-    """[onset, end] of each burst of activity, bursts split by SEGMENT_GAP_NS of silence."""
+    """[onset, end] of each burst of activity: onset of its first voiced packet, latest end."""
     segs: list[list[int]] = []
     for t, payload in timed:
         if not (first := gate.search(payload)):
@@ -77,19 +92,19 @@ def segments(
             last = gate.search(payload[::-1])
             assert last is not None
             on, end = t + first.start() * S, t + (len(payload) - 1 - last.start()) * S
-        if segs and on - segs[-1][1] <= SEGMENT_GAP_NS:
-            segs[-1] = [min(segs[-1][0], on), max(segs[-1][1], end)]
+        if segs and on - segs[-1][1] <= gap_ns:
+            segs[-1][1] = max(segs[-1][1], end)
         else:
             segs.append([on, end])
-    return sorted(segs)
+    return segs
 
 
 def latencies(cap: Capture, pt: int, method: str) -> list[int | None]:
     """Per caller turn: first agent onset after the caller's end, minus that end (ns)."""
     gate, samples = g711.gate(pt, GATE), method != "packet"
     mode = "wire" if method == "packet" else method
-    ends = [s[1] for s in segments(view(cap.up, mode), gate, samples)]
-    onsets = [s[0] for s in segments(view(cap.down, mode), gate, samples)]
+    ends = [s[1] for s in segments(view(cap.up, mode), gate, samples, CALLER_GAP_NS)]
+    onsets = [s[0] for s in segments(view(cap.down, mode), gate, samples, AGENT_GAP_NS)]
     out: list[int | None] = []
     for i, end in enumerate(ends):
         nxt = ends[i + 1] if i + 1 < len(ends) else None
@@ -99,14 +114,14 @@ def latencies(cap: Capture, pt: int, method: str) -> list[int | None]:
 
 
 def _at(packets: Timed, seq: int, off: int, later: bool = False) -> tuple[int, bool] | None:
-    """Capture time of sample `off` of packet `seq`; if lost and `later`, the next one received."""
+    """Capture time of sample `off` of packet `seq`; if lost and `later`, of the next one by seq."""
     times = [t for t, p in packets if p.seq == seq]
     if times:
         return min(times) + off * S, False
     if later:
-        after = [t for t, p in packets if 0 < (p.seq - seq) & 0xFFFF < 50]
+        after = [((p.seq - seq) & 0xFFFF, t) for t, p in packets if 0 < (p.seq - seq) & 0xFFFF < 50]
         if after:
-            return min(after), True
+            return min(after)[1], True
     return None
 
 
