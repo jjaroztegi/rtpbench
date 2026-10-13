@@ -287,12 +287,20 @@ class Dialog:
         ack.headers = [(k, cseq if k == "CSeq" else v) for k, v in ack.headers]
         self.send(ack)
 
-    def ack_failure(self, invite: Message, resp: Message) -> None:
-        """ACK a non-2xx final response: the INVITE's branch, Request-URI and CSeq number."""
+    def _same_transaction(self, invite: Message, method: str, to: str) -> Message:
+        """ACK of a non-2xx, or CANCEL: the INVITE's branch, Request-URI and CSeq number."""
         keep = ("Via", "Route", "Max-Forwards", "From", "Call-ID")
         headers = [(k, v) for k, v in invite.headers if k in keep]
-        headers += [("To", resp.get("to")), ("CSeq", invite.get("cseq").split()[0] + " ACK")]
-        self.send(Message(f"ACK {invite.first.split()[1]} SIP/2.0", headers))
+        headers += [("To", to), ("CSeq", invite.get("cseq").split()[0] + " " + method)]
+        return Message(f"{method} {invite.first.split()[1]} SIP/2.0", headers)
+
+    def ack_failure(self, invite: Message, resp: Message) -> None:
+        self.send(self._same_transaction(invite, "ACK", resp.get("to")))
+
+    def cancel(self, invite: Message) -> Message:
+        msg = self._same_transaction(invite, "CANCEL", invite.get("to"))
+        self.send(msg)
+        return msg
 
     def reply(self, req: Message, status: int = 200, reason: str = "OK", body: bytes = b"") -> None:
         extra = [("Contact", self.contact)] if req.method == "INVITE" else []

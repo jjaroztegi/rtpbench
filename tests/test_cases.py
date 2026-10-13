@@ -4,7 +4,7 @@ from collections.abc import Iterator
 import pytest
 
 from rtpbench import sip
-from rtpbench.cases import Check, Result
+from rtpbench.cases import Check, Result, Wire, check_cancel
 
 
 @pytest.fixture
@@ -77,3 +77,21 @@ def test_verdict() -> None:
     assert Result([Check("a", True), Check("b", None)]).verdict == "inconclusive"
     assert Result([Check("a", False), Check("b", None)]).verdict == "fail"
     assert Result([Check("a", True)]).verdict == "pass"
+
+
+def msg(first: str, cseq: str) -> sip.Message:
+    return sip.Message(first, [("CSeq", cseq)])
+
+
+@pytest.mark.parametrize(
+    ("answered_at", "verdict"), [(5, "inconclusive"), (3000, "fail"), (None, "pass")]
+)
+def test_cancel_race_is_not_a_failure(answered_at: int | None, verdict: str) -> None:
+    final = msg("SIP/2.0 200 OK", "1 INVITE") if answered_at else msg("SIP/2.0 487 X", "1 INVITE")
+    msgs = [
+        (0, True, msg("CANCEL sip:a SIP/2.0", "1 CANCEL")),
+        (answered_at or 2, False, final),
+        (10, False, msg("SIP/2.0 200 OK", "1 CANCEL")),
+    ]
+    w = Wire({}, None, sorted(msgs, key=lambda m: m[0]), [], [])
+    assert check_cancel(w).verdict == verdict

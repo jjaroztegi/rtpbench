@@ -19,14 +19,19 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from rtpbench import analyze, detect, g711, pcap, rtp, sip, speechcal
+from rtpbench import analyze, detect, g711, pcap, rtp, sip, speech, speechcal
 from rtpbench.agent import Behaviour
-from rtpbench.caller import Media, Session
+from rtpbench.caller import Media, Session, speech_utterances
 
 CODECS = (g711.PCMU, g711.PCMA)
 QUIET_NS = 1_500_000_000  # agent silence that ends what it was saying
 GREETING_WAIT_S = 10.0
 GREETING_MAX_MS = 2000  # a caller left in silence longer than this starts saying "hello?"
+REPLY_WAIT_S = 15.0
+BYE_AFTER_NS = 1_000_000_000  # into the agent's speech
+CANCEL_AFTER_S = 0.2  # after the first provisional response
+MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be on its way
+WATCH_S = 2.0  # listen after the call ends for media that should have stopped
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
@@ -102,6 +107,13 @@ class Script(Media):
         if self.queue:
             self.said.append(self.play(n, self.queue.pop(0)) | {"tick_ns": tick})
 
+    def say(self, name: str, pcm: list[int]) -> None:
+        self.queue.append((name, g711.encode(self.pt, pcm), speech.label(pcm)))
+
+    def busy(self) -> bool:
+        with self.lock:
+            return bool(self.queue or self.audio)
+
     def speech_after(self, t_ns: int) -> int | None:
         with self.lock:
             return next((on for on, _ in self.bursts if on > t_ns), None)
@@ -127,6 +139,44 @@ def greeting(dial: Dial, seed: int) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
+def _talking(s: Session, m: Script, seed: int) -> int | None:
+    """When the agent started talking: its greeting, or else its reply to a question."""
+    t0 = time.time_ns()
+    if s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S):
+        return m.speech_after(t0)
+    m.say(*speech_utterances(seed)[0])
+    s.wait(lambda: s.remote_bye or not m.busy(), 30)
+    t1 = time.time_ns()
+    s.wait(lambda: s.remote_bye or m.speech_after(t1) is not None, REPLY_WAIT_S)
+    return m.speech_after(t1)
+
+
+def bye(dial: Dial, seed: int) -> dict[str, Any]:
+    """Get the agent talking, BYE a second into it, then watch for media."""
+    s = dial()
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    if (onset := _talking(s, m, seed)) is not None:
+        s.wait(lambda: s.remote_bye or time.time_ns() >= onset + BYE_AFTER_NS, 5)
+    s.hangup()
+    s.wait(lambda: False, WATCH_S)
+    return s.meta(seed, s.remote_bye) | {"said": m.said}
+
+
+def cancel(dial: Dial, seed: int) -> dict[str, Any]:
+    """INVITE, CANCEL it once it rings, then watch for media."""
+    s = dial()
+    if s.wait(lambda: s.final is not None or s.ringing, 32) and s.final is None:
+        if not s.wait(lambda: s.final is not None, CANCEL_AFTER_S):
+            s.cancel()
+        s.wait(lambda: s.final is not None, 32)
+    if s.final is not None and s.final.status < 300:  # answered after all: end it properly
+        s.hangup()
+    s.wait(lambda: False, WATCH_S)
+    return s.meta(seed, s.remote_bye)
+
+
 @dataclass
 class Wire:
     """One case call as the caller's capture saw it, plus the logs."""
@@ -138,11 +188,16 @@ class Wire:
     down: analyze.Timed  # RTP the caller received
 
     def find(
-        self, pred: Callable[[sip.Message], bool], sent: bool, after: int = 0
+        self, pred: Callable[[sip.Message], bool], sent: bool, after: int | None = None
     ) -> tuple[int, sip.Message] | None:
         """First message sent (or received) after `after` matching `pred`."""
         return next(
-            ((t, m) for t, out, m in self.msgs if out == sent and t > after and pred(m)), None
+            (
+                (t, m)
+                for t, out, m in self.msgs
+                if out == sent and (after is None or t > after) and pred(m)
+            ),
+            None,
         )
 
     @cached_property
@@ -214,6 +269,60 @@ def check_greeting(w: Wire) -> Result:
     return r
 
 
+def _final(method: str) -> Callable[[sip.Message], bool]:
+    return lambda m: m.status >= 200 and m.cseq_method == method
+
+
+def check_bye(w: Wire) -> Result:
+    r = Result()
+    bye = w.find(lambda m: m.method == "BYE", sent=True)
+    if bye is None:
+        r.checks.append(Check("caller hung up", None, "the agent hung up first"))
+        return r
+    t = bye[0]
+    talking = any(a <= t <= b + analyze.AGENT_GAP_NS for a, b in w.speech)
+    r.checks.append(Check("agent was talking at the BYE", talking or None))
+    ok = w.find(_final("BYE"), sent=False)
+    r.checks.append(
+        Check("BYE answered 2xx", ok is not None and ok[1].status < 300, ok[1].first if ok else "")
+    )
+    if ok:
+        r.timings.append(Timing("BYE to its response", (ok[0] - t) / 1e6, WIRE))
+    if w.down:
+        ms = (w.down[-1][0] - t) / 1e6
+        r.timings.append(Timing("BYE to the agent's last RTP", ms, WIRE))
+        r.checks.append(Check(f"agent RTP stops within {MEDIA_GRACE_MS} ms", ms <= MEDIA_GRACE_MS))
+    return r
+
+
+def check_cancel(w: Wire) -> Result:
+    r = Result()
+    cancel = w.find(lambda m: m.method == "CANCEL", sent=True)
+    if cancel is None:
+        r.checks.append(Check("CANCEL sent while ringing", None, "no provisional response first"))
+        return r
+    t = cancel[0]
+    ok = w.find(_final("CANCEL"), sent=False)
+    r.checks.append(
+        Check(
+            "CANCEL answered 2xx", ok is not None and ok[1].status < 300, ok[1].first if ok else ""
+        )
+    )
+    final = w.find(_final("INVITE"), sent=False)
+    if final is None:
+        r.checks.append(Check("INVITE ended 487", False, "no final response"))
+    elif final[1].status < 300 and ok is not None and final[0] < ok[0]:
+        r.checks.append(Check("INVITE ended 487", None, "answered before the CANCEL arrived"))
+    else:
+        r.checks.append(Check("INVITE ended 487", final[1].status == 487, final[1].first))
+        r.timings.append(
+            Timing("CANCEL to the INVITE's final response", (final[0] - t) / 1e6, WIRE)
+        )
+    late = [u for u, _ in w.down if u > t + MEDIA_GRACE_MS * 1_000_000]
+    r.checks.append(Check("no agent RTP after the CANCEL", not late, f"{len(late)} packets"))
+    return r
+
+
 @dataclass(frozen=True)
 class Case:
     """A caller script, its check, and the reference agent behaviours that pass and fail it."""
@@ -233,6 +342,18 @@ CASES = {
         check_greeting,
         Behaviour(greet_s=0.8),
         {"late": Behaviour(greet_s=3.0), "silent": Behaviour()},
+    ),
+    "bye": Case(
+        bye,
+        check_bye,
+        Behaviour(greet_s=0.5, greeting="long"),
+        {"linger": Behaviour(greet_s=0.5, greeting="long", linger_s=3.0)},
+    ),
+    "cancel": Case(
+        cancel,
+        check_cancel,
+        Behaviour(ring_s=3.0),
+        {"answers": Behaviour(ring_s=3.0, cancel=False)},
     ),
 }
 

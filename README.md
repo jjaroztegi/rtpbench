@@ -69,6 +69,8 @@ cases call your agent from this machine (after `uv sync --extra vad`; capturing 
 | case | what passes |
 | --- | --- |
 | `greeting` | the agent speaks first, within 2 s of its 200 OK |
+| `bye` | caller hangs up a second into the agent's speech: 2xx to BYE, agent RTP stops within 500 ms |
+| `cancel` | caller cancels a ringing INVITE: 2xx to CANCEL, 487 to the INVITE, no RTP after |
 
 ## Development
 

@@ -17,6 +17,7 @@ import secrets
 import socket
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,8 +41,11 @@ Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled spee
 class Behaviour:
     """What the reference agent does in a conformance case (see `cases`)."""
 
+    ring_s: float = 0.0  # send 180 Ringing and answer this long after the INVITE
+    cancel: bool = True  # a CANCEL while ringing ends the call (487); else answer anyway
     greet_s: float | None = None  # greet this long after sending the 200 OK
     greeting: str = "short"  # a short corpus clip, or a long one (9-15 s)
+    linger_s: float = 0.0  # keep sending RTP this long after answering BYE
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -181,6 +185,124 @@ def _local_ip(peer: tuple[str, int]) -> str:
         return str(s.getsockname()[0])
 
 
+class Uas:
+    """The reference agent's SIP side of one call: answers (after ringing, if the case says so),
+    resends its final response to the INVITE until ACKed, and takes CANCEL and BYE as the case
+    says."""
+
+    def __init__(
+        self,
+        sock: socket.socket,
+        rtp: socket.socket,
+        case: Behaviour,
+        responder: Callable[[int, int], Responder],
+        greeting: int,
+    ) -> None:
+        self.sock, self.rtp, self.case = sock, rtp, case
+        self.make, self.greeting = responder, greeting
+        self.to_tag = secrets.token_hex(4)
+        self.invite: sip.Message | None = None
+        self.addr = ("", 0)
+        self.last = b""  # latest response to the INVITE, resent if the INVITE is
+        self.unacked = b""  # final response to the INVITE, resent until ACKed
+        self.resend_at, self.interval = 0.0, sip.T1
+        self.answer_at: float | None = None
+        self.end_at: float | None = None
+        self.done = False
+        self.responder: Responder | None = None
+        self.threads: list[Sender | Receiver] = []
+        self.meta: dict[str, Any] = {}
+
+    def _send(self, resp: sip.Message, final: bool = False) -> None:
+        data = resp.render()
+        self.sock.sendto(data, self.addr)
+        if resp.cseq_method == "INVITE":
+            self.last = data
+            if final:
+                self.unacked, self.resend_at, self.interval = (
+                    data,
+                    time.monotonic() + sip.T1,
+                    sip.T1,
+                )
+
+    def handle(self, msg: sip.Message, addr: tuple[str, int]) -> None:
+        inv = self.invite
+        if msg.status:
+            return
+        if inv is None and msg.method == "INVITE":
+            self.addr = addr
+            self._invite(msg)
+        elif inv is None or msg.get("call-id") != inv.get("call-id"):
+            if msg.method not in ("ACK", "INVITE"):
+                self.sock.sendto(sip.response(msg, 481, "Call Does Not Exist").render(), addr)
+        elif msg.method == "INVITE" and msg.branch == inv.branch:
+            self.sock.sendto(self.last, addr)  # retransmission
+        elif msg.method == "ACK":
+            self.unacked = b""
+            self.done |= self.responder is None  # ACK for a 487: the call never was
+        elif msg.method == "CANCEL":
+            self._send(sip.response(msg, 200, "OK", self.to_tag))
+            if self.answer_at is not None and self.case.cancel:  # still ringing
+                self.answer_at = None
+                self._send(sip.response(inv, 487, "Request Terminated", self.to_tag), final=True)
+                self.end_at = time.monotonic() + 64 * sip.T1
+        elif msg.method == "BYE":
+            self._send(sip.response(msg, 200, "OK", self.to_tag))
+            self.end_at = time.monotonic() + self.case.linger_s
+        else:
+            self._send(sip.response(msg, 200, "OK", self.to_tag))
+
+    def _invite(self, msg: sip.Message) -> None:
+        self.invite = msg
+        self._send(sip.response(msg, 100, "Trying"))
+        if not [pt for pt in sip.parse_sdp(msg.body)[2] if pt in g711.NAMES]:
+            self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
+            self.end_at = time.monotonic() + 64 * sip.T1
+        elif self.case.ring_s:
+            self._send(sip.response(msg, 180, "Ringing", self.to_tag))
+            self.answer_at = time.monotonic() + self.case.ring_s
+        else:
+            self._answer()
+
+    def _answer(self) -> None:
+        assert self.invite is not None
+        ip, port, pts = sip.parse_sdp(self.invite.body)
+        pt, local = next(pt for pt in pts if pt in g711.NAMES), _local_ip(self.addr)
+        seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
+        self.responder = r = self.make(pt, seq0)
+        contact = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
+        body = sip.sdp(local, self.rtp.getsockname()[1], [pt])
+        self._send(sip.response(self.invite, 200, "OK", self.to_tag, body, contact), final=True)
+        start = time.time_ns() + PTIME_NS
+        self.threads = [
+            Sender(self.rtp, (ip, port), pt, r.source, start, seq0, ssrc),
+            Receiver(self.rtp, r.on_packet),
+        ]
+        for t in self.threads:
+            t.start()
+        if self.case.greet_s is not None:
+            r.speak(time.time_ns() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
+        self.meta = {"pt": pt, "ssrc": ssrc, "seq0": seq0}
+
+    def tick(self) -> None:
+        now = time.monotonic()
+        if self.answer_at is not None and now >= self.answer_at:
+            self.answer_at = None
+            self._answer()
+        if self.unacked and now >= self.resend_at:
+            self.sock.sendto(self.unacked, self.addr)
+            self.interval = min(self.interval * 2, sip.T2)
+            self.resend_at = now + self.interval
+        if self.end_at is not None and now >= self.end_at:
+            self.done = True
+
+    def stop(self) -> None:
+        for t in self.threads:
+            t.stop.set()
+        for t in self.threads:
+            t.join()
+
+
 def serve(
     ready: Path,
     sip_port: int = 5060,
@@ -201,9 +323,13 @@ def serve(
     rng = random.Random(seed)
     delays = [rng.uniform(*(SPEECH_DELAY_RANGE if real else DELAY_RANGE)) for _ in range(1000)]
     clips = speech_replies(seed, replies, long=barge) if real else None
+    greeting = 0
     if case:
         delays, short = [], speech_replies(seed)
-        clips = short + speech_replies(seed, long=True)
+        clips, greeting = (
+            short + speech_replies(seed, long=True),
+            len(short) * (case.greeting == "long"),
+        )
     plan = bargein.plan(seed) if barge else None
     hangover = SPEECH_HANGOVER_NS if real else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -211,63 +337,20 @@ def serve(
     rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rtp.bind(("0.0.0.0", rtp_port))
     ready.touch()
-    to_tag, ok, ok_to, acked = secrets.token_hex(4), b"", ("", 0), False
-    call_id, resend_at, interval = "", 0.0, sip.T1
-    responder: Responder | None = None
-    threads: list[Sender | Receiver] = []
-    meta: dict[str, Any] = {}
-    while True:
-        sock.settimeout(0.1)
+
+    def responder(pt: int, seq0: int) -> Responder:
+        return Responder(pt, seq0, delays, clips, hangover, plan)
+
+    call = Uas(sock, rtp, case or Behaviour(), responder, greeting)
+    sock.settimeout(0.02)
+    while not call.done:
         try:
             data, addr = sock.recvfrom(65535)
         except TimeoutError:
-            if ok and not acked and time.monotonic() >= resend_at:
-                sock.sendto(ok, ok_to)
-                interval = min(interval * 2, 4.0)
-                resend_at = time.monotonic() + interval
-            continue
-        msg = sip.parse(data)
-        if msg.status:
-            continue
-        if msg.method == "INVITE" and msg.get("call-id") == call_id:
-            sock.sendto(ok, addr)  # retransmitted INVITE
-        elif msg.method == "INVITE" and not call_id:
-            ip, port, pts = sip.parse_sdp(msg.body)
-            codecs = [pt for pt in pts if pt in g711.NAMES]
-            if not codecs:
-                sock.sendto(sip.response(msg, 488, "Not Acceptable Here", to_tag).render(), addr)
-                continue
-            pt, local = codecs[0], _local_ip(addr)
-            call_id = msg.get("call-id")
-            seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
-            responder = Responder(pt, seq0, delays, clips, hangover, plan)
-            contact = [("Contact", f"<sip:agent@{local}:{sip_port}>")]
-            body = sip.sdp(local, rtp_port, [pt])
-            ok = sip.response(msg, 200, "OK", to_tag, body, contact).render()
-            sock.sendto(sip.response(msg, 100, "Trying").render(), addr)
-            sock.sendto(ok, addr)
-            ok_to, resend_at = addr, time.monotonic() + interval
-            start = time.time_ns() + PTIME_NS
-            threads = [
-                Sender(rtp, (ip, port), pt, responder.source, start, seq0, ssrc),
-                Receiver(rtp, responder.on_packet),
-            ]
-            for t in threads:
-                t.start()
-            if case and case.greet_s is not None:
-                greeting = 0 if case.greeting == "short" else len(short)
-                responder.speak(time.time_ns() + round(case.greet_s * 1e9), greeting, "greeting")
-            meta = {"pt": pt, "ssrc": ssrc, "seq0": seq0, "seed": seed}
-        elif msg.method == "ACK":
-            acked = True
-        elif msg.method == "BYE" and msg.get("call-id") == call_id:
-            sock.sendto(sip.response(msg, 200, "OK").render(), addr)
-            break
-        elif msg.method in ("OPTIONS", "BYE"):
-            sock.sendto(sip.response(msg, 200, "OK", to_tag).render(), addr)
-    for t in threads:
-        t.stop.set()
-    for t in threads:
-        t.join()
-    assert responder is not None
-    return meta | {"turns": responder.turns}
+            pass
+        else:
+            call.handle(sip.parse(data), addr)
+        call.tick()
+    call.stop()
+    turns = call.responder.turns if call.responder else []
+    return call.meta | {"seed": seed, "turns": turns}

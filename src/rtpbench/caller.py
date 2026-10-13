@@ -145,6 +145,14 @@ class Session:
             self.pump(min(left, 0.05))
         return True
 
+    @property
+    def ringing(self) -> bool:
+        """A provisional response to the INVITE arrived (so it may be cancelled)."""
+        return any(r.branch == self.invite.branch and r.status < 200 for r in self.responses)
+
+    def cancel(self) -> None:
+        self.dialog.cancel(self.invite)
+
     def answer(self, timeout: float = 32.0) -> sip.Message:
         """The 2xx to the INVITE (ACKed); raises on a failure or no answer."""
         self.wait(lambda: self.final is not None, timeout)
