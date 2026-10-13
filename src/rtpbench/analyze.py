@@ -126,36 +126,42 @@ def _at(packets: Timed, seq: int, off: int, later: bool = False) -> tuple[int, b
 
 
 def turns(run: Path) -> list[dict[str, Any]]:
-    """One record per turn of one call: delay, truth, decomposition, latency per method (ms)."""
-    agent_log = json.loads((run / "agent.json").read_text())
+    """One record per caller turn: latency per method (ms) and, with an agent log, the truth."""
     caller_log = json.loads((run / "caller.json").read_text())
-    caller, agent = load(run / "caller.pcap"), load(run / "agent.pcap")
+    caller = load(run / "caller.pcap")
     pt = caller_log["pt"]
     measured = {m: latencies(caller, pt, m) for m in METHODS}
-    if len(agent_log["turns"]) != len(caller_log["turns"]):
-        raise ValueError(
-            f"{run}: agent answered {len(agent_log['turns'])} turns, "
-            f"caller spoke {len(caller_log['turns'])}"
-        )
+    agent_turns: list[dict[str, Any]] = []
+    if (run / "agent.json").exists():
+        agent_turns = json.loads((run / "agent.json").read_text())["turns"]
+        agent = load(run / "agent.pcap")
+        if len(agent_turns) != len(caller_log["turns"]):
+            raise ValueError(
+                f"{run}: agent answered {len(agent_turns)} turns, "
+                f"caller spoke {len(caller_log['turns'])}"
+            )
     out = []
-    for i, (a, c) in enumerate(zip(agent_log["turns"], caller_log["turns"], strict=True)):
-        rec: dict[str, Any] = {"turn": i, "delay_ms": a["delay_ns"] / 1e6}
-        end = _at(caller.up, c["end_seq"], c["end_off"])
-        onset = _at(caller.down, a["onset_seq"], a["onset_off"], later=True)
-        agent_end = _at(agent.up, a["end_seq"], a["end_off"])
-        agent_on = _at(agent.down, a["onset_seq"], a["onset_off"])
-        if end and onset and agent_end and agent_on:
-            rec |= {
-                "truth_ms": (onset[0] - end[0]) / 1e6,
-                "onset_lost": onset[1],
-                "sched_err_ms": (agent_on[0] - agent_end[0] - a["delay_ns"]) / 1e6,
-                "up_ms": (agent_end[0] - end[0]) / 1e6,
-                "down_ms": (onset[0] - agent_on[0]) / 1e6,
-                "stamp_ms": (agent_end[0] - a["end_ns"]) / 1e6,  # tcpdump vs SO_TIMESTAMPNS
-            }
+    for i, c in enumerate(caller_log["turns"]):
+        rec: dict[str, Any] = {"turn": i}
         for m in METHODS:
             v = measured[m][i] if i < len(measured[m]) else None
             rec[m + "_ms"] = None if v is None else v / 1e6
+        if agent_turns:
+            a = agent_turns[i]
+            rec["delay_ms"] = a["delay_ns"] / 1e6
+            end = _at(caller.up, c["end_seq"], c["end_off"])
+            onset = _at(caller.down, a["onset_seq"], a["onset_off"], later=True)
+            agent_end = _at(agent.up, a["end_seq"], a["end_off"])
+            agent_on = _at(agent.down, a["onset_seq"], a["onset_off"])
+            if end and onset and agent_end and agent_on:
+                rec |= {
+                    "truth_ms": (onset[0] - end[0]) / 1e6,
+                    "onset_lost": onset[1],
+                    "sched_err_ms": (agent_on[0] - agent_end[0] - a["delay_ns"]) / 1e6,
+                    "up_ms": (agent_end[0] - end[0]) / 1e6,
+                    "down_ms": (onset[0] - agent_on[0]) / 1e6,
+                    "stamp_ms": (agent_end[0] - a["end_ns"]) / 1e6,  # tcpdump vs SO_TIMESTAMPNS
+                }
         out.append(rec)
     return out
 
@@ -172,10 +178,10 @@ def stream_stats(packets: Timed) -> dict[str, int]:
     return {"received": len(set(rel)), "expected": max(rel) + 1, "reordered": reordered}
 
 
-def _p95(values: list[float]) -> float:
-    """Nearest-rank 95th percentile."""
+def _pct(values: list[float], q: float) -> float:
+    """Nearest-rank percentile."""
     s = sorted(values)
-    return s[max(0, math.ceil(0.95 * len(s)) - 1)]
+    return s[max(0, math.ceil(q * len(s)) - 1)]
 
 
 def _stats(values: list[float]) -> list[str]:
@@ -183,7 +189,7 @@ def _stats(values: list[float]) -> list[str]:
     if not values:
         return ["-"] * 3
     mags = [abs(v) for v in values]
-    return [f"{sum(values) / len(values):+.2f}", f"{_p95(mags):.2f}", f"{max(mags):.2f}"]
+    return [f"{sum(values) / len(values):+.2f}", f"{_pct(mags, 0.95):.2f}", f"{max(mags):.2f}"]
 
 
 def _table(header: list[str], rows: list[list[str]]) -> str:
@@ -192,12 +198,20 @@ def _table(header: list[str], rows: list[list[str]]) -> str:
 
 
 def summarize(runs: dict[str, Path]) -> str:
-    """Error per method (vs injected delay and vs truth), then what truth - delay is made of."""
-    errors, budget = [], []
+    """Latency per method; with an agent log, error per method and what truth - delay is made of."""
+    latency, errors, budget = [], [], []
     for name, run in runs.items():
         recs = turns(run)
         (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+        for m in METHODS:
+            v = [r[m + "_ms"] for r in recs if r[m + "_ms"] is not None]
+            cells = (
+                [f"{_pct(v, 0.5):.1f}", f"{_pct(v, 0.95):.1f}", f"{max(v):.1f}"] if v else ["-"] * 3
+            )
+            latency.append([name, m, f"{len(v)}/{len(recs)}", *cells])
         ok = [r for r in recs if "truth_ms" in r]
+        if not ok:
+            continue
         for m in METHODS:
             got = [r for r in ok if r[m + "_ms"] is not None]
             vs_delay = _stats([r[m + "_ms"] - r["delay_ms"] for r in got])
@@ -210,20 +224,24 @@ def summarize(runs: dict[str, Path]) -> str:
                 name,
                 *_stats([r["sched_err_ms"] for r in ok]),
                 *_stats([r["up_ms"] + r["down_ms"] for r in ok]),
-                f"{max((abs(r['stamp_ms']) for r in ok), default=0):.3f}",
+                f"{max(abs(r['stamp_ms']) for r in ok):.3f}",
                 f"{up['expected'] - up['received']}/{up['expected']}, {up['reordered']}",
                 f"{down['expected'] - down['received']}/{down['expected']}, {down['reordered']}",
                 str(sum(r["onset_lost"] for r in ok)),
             ]
         )
+    out = "Turn latency, ms\n\n" + _table(["run", "method", "n", "p50", "p95", "max"], latency)
+    if not errors:
+        return out
     stat = ["mean", "p95 abs", "max abs"]
     return (
-        "Error, ms: measured - injected delay | measured - truth\n\n"
-        + _table(["profile", "method", "n", *stat, *stat], errors)
+        out
+        + "\nError, ms: measured - injected delay | measured - truth\n\n"
+        + _table(["run", "method", "n", *stat, *stat], errors)
         + "\nTruth - delay = agent scheduling error + network (up + down), ms\n\n"
         + _table(
             [
-                "profile",
+                "run",
                 *(f"agent {s}" for s in stat),
                 *(f"network {s}" for s in stat),
                 "max pcap vs SO_TIMESTAMPNS",

@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rtpbench import analyze
+from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -26,6 +27,13 @@ def main(argv: list[str] | None = None) -> None:
         if name == "call":
             p.add_argument("uri")
             p.add_argument("--turns", type=int, default=20)
+            p.add_argument("--wav", type=Path, nargs="+", help="utterances, 8 kHz mono 16-bit")
+            p.add_argument(
+                "--lead", type=float, default=LEAD_SECONDS, help="silence before turn 1, s"
+            )
+            p.add_argument(
+                "--gap", type=float, default=GAP_SECONDS, help="silence after each turn, s"
+            )
         p.add_argument("--out", type=Path, required=True)
         p.add_argument("--seed", type=int, default=1)
         p.add_argument("--iface", default="eth0")
@@ -49,8 +57,9 @@ def main(argv: list[str] | None = None) -> None:
 
                 log = serve(args.out / "ready", seed=args.seed)
             else:
-                from rtpbench.caller import call
+                from rtpbench.caller import call, read_wav
 
-                log = call(args.uri, args.turns, args.seed)
+                wavs = [read_wav(w) for w in args.wav] if args.wav else None
+                log = call(args.uri, args.turns, args.seed, wavs, args.lead, args.gap)
         name = "agent.json" if args.cmd == "agent" else "caller.json"
         (args.out / name).write_text(json.dumps(log, indent=1))

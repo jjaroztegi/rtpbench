@@ -1,9 +1,12 @@
-"""Scripted caller: speaks fixed-length synthetic turns over a real SIP call."""
+"""Scripted caller: speaks fixed turns (synthetic or from WAV files) over a real SIP call."""
 
 import random
 import secrets
 import socket
 import time
+import wave
+from array import array
+from pathlib import Path
 from typing import Any
 
 from rtpbench import g711, sip
@@ -15,15 +18,33 @@ UTTERANCE_RANGE = (0.8, 1.6)
 GAP_SECONDS = 2.8  # longest delay (1.3 s) + response (0.8 s) + room for netem
 
 
-def script(turns: int, seed: int) -> tuple[list[int], list[int]]:
-    """PCM for the whole call, and the sample index where each turn's speech ends."""
+def read_wav(path: Path) -> list[int]:
+    with wave.open(str(path)) as w:
+        if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, RATE):
+            raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM")
+        return list(array("h", w.readframes(w.getnframes())))
+
+
+def script(
+    turns: int,
+    seed: int,
+    utterances: list[list[int]] | None = None,
+    lead: float = LEAD_SECONDS,
+    gap: float = GAP_SECONDS,
+) -> tuple[list[int], list[tuple[int, int]]]:
+    """PCM for the whole call, and the [start, end) sample span of each turn's utterance."""
     rng = random.Random(seed)
-    pcm, ends = [0] * round(LEAD_SECONDS * RATE), []
-    for _ in range(turns):
-        pcm += voice(rng.uniform(*UTTERANCE_RANGE), f0=140)
-        ends.append(len(pcm))
-        pcm += [0] * round(GAP_SECONDS * RATE)
-    return pcm, ends
+    pcm, spans = [0] * round(lead * RATE), []
+    for i in range(turns):
+        start = len(pcm)
+        pcm += (
+            utterances[i % len(utterances)]
+            if utterances
+            else voice(rng.uniform(*UTTERANCE_RANGE), f0=140)
+        )
+        spans.append((start, len(pcm)))
+        pcm += [0] * round(gap * RATE)
+    return pcm, spans
 
 
 def parse_uri(uri: str) -> tuple[str, int]:
@@ -32,7 +53,14 @@ def parse_uri(uri: str) -> tuple[str, int]:
     return host, int(port or 5060)
 
 
-def call(uri: str, turns: int = 20, seed: int = 1) -> dict[str, Any]:
+def call(
+    uri: str,
+    turns: int = 20,
+    seed: int = 1,
+    utterances: list[list[int]] | None = None,
+    lead: float = LEAD_SECONDS,
+    gap: float = GAP_SECONDS,
+) -> dict[str, Any]:
     """Place the call; return where each turn's speech ended (packet and sample)."""
     peer = parse_uri(uri)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -47,15 +75,15 @@ def call(uri: str, turns: int = 20, seed: int = 1) -> dict[str, Any]:
     ip, port, pts = sip.parse_sdp(ok.body)
     pt = next(p for p in pts if p in g711.NAMES)
 
-    pcm, ends = script(turns, seed)
+    pcm, spans = script(turns, seed, utterances, lead, gap)
     audio = g711.encode(pt, pcm)
     gate = g711.gate(pt, GATE)
     silence = bytes([g711.SILENCE[pt]]) * FRAME
     frames = [audio[i : i + FRAME].ljust(FRAME, silence[:1]) for i in range(0, len(audio), FRAME)]
     seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
     last = []
-    for end in ends:  # last sample the gate calls active, as the agent will see it
-        m = gate.search(audio[end - RATE : end][::-1])
+    for start, end in spans:  # last sample the gate calls active, as the agent will see it
+        m = gate.search(audio[start:end][::-1])
         assert m is not None
         idx = end - 1 - m.start()
         last.append({"end_seq": (seq0 + idx // FRAME) & 0xFFFF, "end_off": idx % FRAME})
