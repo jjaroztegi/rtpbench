@@ -47,6 +47,15 @@ def test_sdp_round_trip() -> None:
     assert got == sip.Sdp("10.1.2.3", 4000, [0, 8], "sendonly")
 
 
+def test_sdp_skips_a_section_before_the_audio() -> None:
+    body = (
+        b"v=0\r\no=- 1 1 IN IP4 10.1.2.3\r\ns=-\r\nt=0 0\r\n"
+        b"m=video 0 RTP/AVP 96\r\nc=IN IP4 10.9.9.9\r\na=inactive\r\n"
+        b"m=audio 4000 RTP/AVP 8\r\nc=IN IP4 10.1.2.3\r\n"
+    )
+    assert sip.parse_sdp(body) == sip.Sdp("10.1.2.3", 4000, [8], "sendrecv")
+
+
 def test_pcap_reads_nanosecond_ethernet_udp(tmp_path: Path) -> None:
     payload = b"hello"
     udp = struct.pack("!HHHH", 5004, 6000, 8 + len(payload), 0) + payload

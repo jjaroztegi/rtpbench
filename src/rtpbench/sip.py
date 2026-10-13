@@ -166,16 +166,19 @@ ANSWER = {
 
 def parse_sdp(body: bytes) -> Sdp:
     """Connection address, port, payload types and direction of the first audio stream."""
-    out, media = Sdp(), False
+    out, media, other = Sdp(), False, False
     for line in body.decode(errors="replace").splitlines():
-        if line.startswith("c=IN IP4 ") and (media or not out.ip):
-            out.ip = line.split()[2]
-        elif line.startswith("m="):
+        if line.startswith("m="):
             if media:
                 break
             if media := line.startswith("m=audio "):
                 fields = line.split()
                 out.port, out.pts = int(fields[1]), [int(p) for p in fields[3:]]
+            other = not media
+        elif other:  # a section before the audio one (video, say): not ours
+            continue
+        elif line.startswith("c=IN IP4 ") and (media or not out.ip):
+            out.ip = line.split()[2]
         elif line[2:] in DIRECTIONS:  # media level comes later, so it wins
             out.direction = line[2:]
         elif line.lower().startswith("a=rtpmap:") and "telephone-event/8000" in line.lower():
