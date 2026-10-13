@@ -276,11 +276,15 @@ def converse(
     prompts: list[Clip] | None = None,
     lead: float = LEAD_SECONDS,
     codecs: tuple[int, ...] = (g711.PCMU, g711.PCMA),
+    interrupts: list[Clip] | None = None,
 ) -> dict[str, Any]:
     """Barge-in call: `turns` prompts (corpus clips by default), each followed by the planned
-    interjection. Each turn logs the interjection's labelled spans as stream sample indices."""
+    interjection (`interrupts` replace the corpus interruptions). Each turn logs the
+    interjection's labelled spans as stream sample indices."""
     prompts = prompts or speech_utterances(seed)
     pool = interjections(seed)
+    if interrupts:
+        pool["interrupt"] = interrupts
     used = dict.fromkeys(pool, 0)
     labels: dict[str, list[tuple[int, int]]] = {}
 

@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> None:
             p.add_argument("uri")
             p.add_argument("--turns", type=int, default=20)
             p.add_argument("--wav", type=Path, nargs="+", help="utterances, 8 kHz mono 16-bit")
+            p.add_argument("--interrupt", type=Path, nargs="+", help="with --barge-in: WAVs")
             p.add_argument("--codec", choices=CODECS, help="offer only this codec")
             p.add_argument(
                 "--lead", type=float, default=LEAD_SECONDS, help="silence before turn 1, s"
@@ -74,11 +75,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "analyze":
         from rtpbench import bargein, speechcal
 
-        agent = args.runs[0] / "agent.json"
-        caller_turns = json.loads((args.runs[0] / "caller.json").read_text())["turns"]
-        real = agent.exists() and "clip" in json.loads(agent.read_text())["turns"][0]
-        summarize = speechcal.summarize if real else analyze.summarize
-        if caller_turns and "prompt" in caller_turns[0]:
+        first = json.loads((args.runs[0] / "caller.json").read_text())["turns"][:1] or [{}]
+        summarize = speechcal.summarize if "speech" in first[0] else analyze.summarize
+        if "prompt" in first[0]:
             summarize = bargein.summarize
         print(summarize({run.name: run for run in args.runs}))
     else:
@@ -107,7 +106,10 @@ def main(argv: list[str] | None = None) -> None:
                     utterances = speech_utterances(args.seed)
                 codecs = (CODECS[args.codec],) if args.codec else tuple(CODECS.values())
                 if args.barge_in:
-                    log = converse(args.uri, args.turns, args.seed, utterances, args.lead, codecs)
+                    cut_in = [(w.stem, speech.read_wav(w)) for w in args.interrupt or []]
+                    log = converse(
+                        args.uri, args.turns, args.seed, utterances, args.lead, codecs, cut_in
+                    )
                 else:
                     log = call(
                         args.uri, args.turns, args.seed, utterances, args.lead, args.gap, codecs

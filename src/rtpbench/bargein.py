@@ -111,30 +111,48 @@ def turns(run: Path) -> list[dict[str, Any]]:
 
 
 def summarize(runs: dict[str, Path]) -> str:
+    """Measured stop rate and stop time per interjection kind; with a reference agent's log
+    also the error against truth and the stopped-or-not confusion."""
     stat = ["mean", "p5", "p50", "p95", "max abs"]
-    errors, confusion = [], []
+    measured, errors, confusion = [], [], []
+    key = f"wire/{METHOD_DETECTOR}"
     for name, run in runs.items():
         recs = turns(run)
         (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+        for d in detect.DETECTORS:
+            for kind in KINDS:
+                sel = [r for r in recs if r["kind"] == kind]
+                v = [r["measured_ms"][f"wire/{d}"] for r in sel if _stopped(r, f"wire/{d}")]
+                cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
+                measured.append([name, kind, d, str(len(sel)), str(len(v)), *cells])
         truth = [r for r in recs if "truth_ms" in r]
-        for key in recs[0]["measured_ms"] if recs else []:
-            got = [r["measured_ms"][key] - r["truth_ms"] for r in truth if _stopped(r, key)]
+        if not truth:
+            continue
+        for k in recs[0]["measured_ms"]:
+            got = [r["measured_ms"][k] - r["truth_ms"] for r in truth if _stopped(r, k)]
             errors.append(
-                [name, *key.split("/"), f"{len(got)}/{len(truth)}", *speechcal._signed(got)]
+                [name, *k.split("/"), f"{len(got)}/{len(truth)}", *speechcal._signed(got)]
             )
-        key = f"wire/{METHOD_DETECTOR}"
         for kind in KINDS:
             for stopped in (True, False):
                 sel = [r for r in recs if r["kind"] == kind and r.get("stopped") == stopped]
                 said = sum(_stopped(r, key) for r in sel)
                 agent = "stopped" if stopped else "continued"
                 confusion.append([name, kind, agent, str(len(sel)), str(said)])
-    return (
-        "Barge-in stop time: measured - truth, ms (agent stopped, rtpbench agrees)\n\n"
-        + analyze._table(["run", "method", "detector", "n", *stat], errors)
-        + f"\nStopped or not: what the agent did vs what rtpbench measured ({key})\n\n"
-        + analyze._table(["run", "interjection", "agent", "turns", "measured stopped"], confusion)
+    out = "Measured: turns, stopped, stop time p5 / p50 / p95 (ms) of those stopped, wire\n\n"
+    out += analyze._table(
+        ["run", "interjection", "detector", "turns", "stopped", "p5", "p50", "p95"], measured
     )
+    if errors:
+        out += (
+            "\nBarge-in stop time: measured - truth, ms (agent stopped, rtpbench agrees)\n\n"
+            + analyze._table(["run", "method", "detector", "n", *stat], errors)
+            + f"\nStopped or not: what the agent did vs what rtpbench measured ({key})\n\n"
+            + analyze._table(
+                ["run", "interjection", "agent", "turns", "measured stopped"], confusion
+            )
+        )
+    return out
 
 
 def _stopped(rec: dict[str, Any], key: str) -> bool:
