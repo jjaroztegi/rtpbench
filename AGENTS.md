@@ -14,6 +14,9 @@ behaviour from captured packets, with and without network impairment (`tc netem`
 
 Linux only (network namespaces, `tc netem`). On Windows, use WSL2.
 
+Several checkouts may run at once. Give each run its own ports, namespace and container names,
+and output directory.
+
 ```sh
 uv sync
 uv run ruff format && uv run ruff check --fix
