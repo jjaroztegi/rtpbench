@@ -232,7 +232,22 @@ def cases(
                 stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
             stack.down()
     (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+    summary, proven = judge(out, runs)
+    return summary, proven or uri is not None
+
+
+def judge(out: Path, runs: list[tuple[str, str | None, Path]] | None = None) -> tuple[str, bool]:
+    """Verdicts for the runs of a cases directory (by default the ones its results.json
+    lists): summary.md, results.json and report.html. Returns the summary and whether every
+    reference case was proven."""
+    from rtpbench import cases as cs
+    from rtpbench import report
+
+    if runs is None:
+        recs = json.loads((out / "results.json").read_text())
+        runs = [(r["case"], r["behaviour"], out / r["run"]) for r in recs]
     summary, records, proven = cs.summarize(runs)
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
-    return summary, proven or uri is not None
+    (out / "report.html").write_text(report.render(out))
+    return summary, proven

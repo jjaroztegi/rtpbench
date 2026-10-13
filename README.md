@@ -65,6 +65,10 @@ calibrations above. Without a URI, every case runs against the reference agent o
 behaviour that should pass it and once with each behaviour that should fail it, so the case
 itself is proven; the command fails if any verdict is not the expected one. With a URI, the
 cases call your agent from this machine (after `uv sync --extra vad`; capturing needs root).
+The run writes `summary.md`, `results.json` and `report.html`: one table per target and, per
+call, a timeline of the SIP messages, speech and RTP of both sides on one time axis, all from the
+caller's capture. `rtpbench report DIR` judges a run again and rewrites them.
+
 `--lines DIR` gives the caller its own `prompt.wav` (a question) and `transfer.wav` (asking for
 a person) in the agent's language; the corpus is used otherwise.
 

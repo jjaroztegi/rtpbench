@@ -42,6 +42,9 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0")
 
+    p = sub.add_parser("report", help="judge a cases directory again; rewrite its report")
+    p.add_argument("out", type=Path)
+
     p = sub.add_parser("analyze", help="summarise run directories already captured")
     p.add_argument("runs", type=Path, nargs="+")
 
@@ -103,6 +106,11 @@ def main(argv: list[str] | None = None) -> None:
         print(f"results in {out}")
         if not proven:
             raise SystemExit(1)
+    elif args.cmd == "report":
+        from rtpbench.bench import judge
+
+        print(judge(args.out)[0])
+        print(f"report in {args.out / 'report.html'}")
     elif args.cmd == "analyze":
         from rtpbench import bargein, speechcal
 
