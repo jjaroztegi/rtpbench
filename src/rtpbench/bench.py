@@ -108,39 +108,16 @@ def calibrate(out: Path, profiles: list[str], turns: int, seed: int) -> str:
             run = out / name
             run.mkdir(exist_ok=True)
             stack.netem(PROFILES[name], [caller_ip, agent_ip])
-            stack.compose(
-                "exec",
-                "-d",
-                "agent",
-                "python",
-                "-m",
-                "rtpbench",
-                "agent",
-                "--out",
-                f"/out/{name}",
-                "--seed",
-                str(seed),
-            )
+            args = ["--out", f"/out/{name}", "--seed", str(seed)]
+            stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", "agent", *args)
             _wait_for(run / "ready", 30)
             print(f"{name}: calling ({turns} turns)", flush=True)
-            stack.compose(
-                "exec",
-                "-T",
-                "caller",
-                "python",
-                "-m",
-                "rtpbench",
-                "call",
-                f"sip:agent@{agent_ip}",
-                "--out",
-                f"/out/{name}",
-                "--turns",
-                str(turns),
-                "--seed",
-                str(seed),
-            )
+            call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
+            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
             _wait_for(run / "agent.json", 30)
     finally:
+        if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+            stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
     summary = analyze.summarize({name: out / name for name in profiles})
     (out / "summary.md").write_text(summary)
