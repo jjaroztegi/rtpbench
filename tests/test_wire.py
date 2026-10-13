@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from rtpbench import g711, pcap, rtp, sip
+from rtpbench import analyze, g711, pcap, rtp, sip
 
 
 @pytest.mark.parametrize("pt", [g711.PCMU, g711.PCMA])
@@ -83,3 +83,31 @@ def test_pcap_reads_nanosecond_ethernet_udp(tmp_path: Path) -> None:
     assert d == pcap.Datagram(
         1_700_000_000_123_456_789, "10.0.0.1", 5004, "10.0.0.2", 6000, payload
     )
+
+
+def _raw_pcap(path: Path, grams: list[tuple[int, str, int, str, int, bytes]]) -> None:
+    """A nanosecond pcap of raw IPv4/UDP datagrams (link type 101)."""
+    data = struct.pack("<IHHiIII", 0xA1B23C4D, 2, 4, 0, 0, 65535, 101)
+    for t, src, sport, dst, dport, payload in grams:
+        udp = struct.pack("!HHHH", sport, dport, 8 + len(payload), 0) + payload
+        addrs = [bytes(map(int, a.split("."))) for a in (src, dst)]
+        ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, 17, 0, *addrs)
+        data += struct.pack("<IIII", *divmod(t, 1_000_000_000), len(ip + udp), len(ip + udp))
+        data += ip + udp
+    path.write_bytes(data)
+
+
+def test_carrier_transit_pairs_each_packet_in_and_out(tmp_path: Path) -> None:
+    up, down = rtp.pack(0, 1, 160, 7, b"u" * 160), rtp.pack(0, 9, 320, 8, b"d" * 160)
+    _raw_pcap(
+        tmp_path / "carrier.pcap",
+        [
+            (0, "10.0.0.1", 5000, "10.0.0.9", 5060, b"INVITE sip:a@10.0.0.9 SIP/2.0\r\n\r\n"),
+            (1_000_000, "10.0.0.1", 4000, "10.0.0.9", 30000, up),
+            (1_050_000, "10.0.0.9", 30002, "10.0.0.2", 40000, up),
+            (2_000_000, "10.0.0.2", 40000, "10.0.0.9", 30002, down),
+            (2_200_000, "10.0.0.9", 30000, "10.0.0.1", 4000, down),
+            (3_000_000, "10.0.0.1", 4000, "10.0.0.9", 30000, rtp.pack(0, 2, 320, 7, b"x")),
+        ],
+    )
+    assert analyze.transit(tmp_path / "carrier.pcap") == {"up": [0.05], "down": [0.2]}

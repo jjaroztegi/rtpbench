@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--replies", type=Path, help="with --speech: agent replies from these WAVs")
     p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
     p = sub.add_parser("cases", help="conformance cases: reference agent (Docker), or a SIP URI")
     p.add_argument("uri", nargs="?", help="target; without one, prove each case on the reference")
@@ -35,6 +36,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
     p.add_argument("--lines", type=Path, help="with a URI: prompt.wav, transfer.wav to say")
+    p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
     p = sub.add_parser("target", help="cases, turn latency and barge-in against a target (Docker)")
     p.add_argument("name", help="a directory under targets/, e.g. aivc")
@@ -43,6 +45,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--runs", type=int, default=1, help="repeats per profile")
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
     p = sub.add_parser("case", help="run one case's caller side (inside a container)")
     p.add_argument("name")
@@ -100,6 +103,7 @@ def main(argv: list[str] | None = None) -> None:
                 args.speech,
                 args.replies,
                 args.barge_in,
+                args.carrier,
             )
         )
         print(f"results in {out}")
@@ -108,7 +112,7 @@ def main(argv: list[str] | None = None) -> None:
         from rtpbench.bench import cases as run_cases
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        names = args.only.split(",") if args.only else list(cases.CASES)
+        names = args.only.split(",") if args.only else cases.names(args.carrier)
         summary, proven = run_cases(
             out,
             args.uri,
@@ -118,6 +122,7 @@ def main(argv: list[str] | None = None) -> None:
             args.seed,
             args.iface,
             args.lines,
+            args.carrier,
         )
         print(summary)
         print(f"results in {out}")
@@ -128,9 +133,13 @@ def main(argv: list[str] | None = None) -> None:
         from rtpbench.bench import target
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        names = args.only.split(",") if args.only else [*cases.CASES, "latency", "barge-in"]
+        names = (
+            args.only.split(",")
+            if args.only
+            else [*cases.names(args.carrier), "latency", "barge-in"]
+        )
         profiles = args.profiles.split(",")
-        print(target(out, args.name, names, profiles, args.runs, args.seed))
+        print(target(out, args.name, names, profiles, args.runs, args.seed, args.carrier))
         print(f"results in {out}")
     elif args.cmd == "report":
         from rtpbench.bench import judge

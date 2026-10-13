@@ -461,10 +461,14 @@ class Wire:
         return speechcal._truth(st, [(st.index(s0, a), st.index(s0, b)) for a, b in spans])
 
     def truth(self, kind: str) -> tuple[int, int] | None:
-        """Labelled first and last sample of the reference agent's `kind` reply, as captured."""
+        """Labelled first and last sample of the reference agent's `kind` reply, as captured;
+        None unless the stream arrived as the agent sent it (a carrier that rewrote its SSRC
+        may have renumbered it too)."""
         turns = self.agent["turns"] if self.agent else []
         turn = next((u for u in turns if u.get("kind") == kind), None)
         if (st := self.audio) is None or turn is None or self.agent is None:
+            return None
+        if any(p.ssrc != self.agent["ssrc"] for _, p in self.down if p.pt == self.log["pt"]):
             return None
         a0 = self.agent["seq0"]
         return speechcal._truth(st, [(st.index(a0, a), st.index(a0, b)) for a, b in turn["speech"]])
@@ -841,6 +845,9 @@ class Case:
     check: Callable[[Wire], Result]
     good: Behaviour
     bad: dict[str, Behaviour]
+    # "carrier": only through the carrier (it applies what the case tests); "direct": never
+    # through it (it would hide what the case tests); else either way
+    route: str = ""
 
     def behaviours(self) -> dict[str, Behaviour]:
         return {"good": self.good} | self.bad
@@ -898,12 +905,14 @@ CASES = {
         check_codec,
         Behaviour(greet_s=0.5),
         {"pcma-anyway": Behaviour(greet_s=0.5, codec=g711.PCMA)},
+        route="direct",  # rtpengine transcodes a wrong-law answer to the offered law
     ),
     "codec-pcma": Case(
         codec_pcma,
         check_codec,
         Behaviour(greet_s=0.5),
         {"pcmu-anyway": Behaviour(greet_s=0.5, codec=g711.PCMU)},
+        route="direct",
     ),
     "timer": Case(
         timer,
@@ -912,6 +921,12 @@ CASES = {
         {"unsupported": Behaviour(), "no-expiry": Behaviour(timer=True, expire=False)},
     ),
 }
+
+
+def names(carrier: bool) -> list[str]:
+    """The cases to run by default with or without the carrier."""
+    skip = "direct" if carrier else "carrier"
+    return [name for name, case in CASES.items() if case.route != skip]
 
 
 def run(name: str, uri: str, seed: int, lines: Path | None = None) -> dict[str, Any]:

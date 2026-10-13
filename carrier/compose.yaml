@@ -1,0 +1,42 @@
+# A carrier between the router and the agent (the reference agent or a target), merged over
+# ../compose.yaml: OpenSIPS as an SBC (stateful proxy with topology hiding) and rtpengine
+# anchoring the media, as real trunks put in front of a PBX. `carrier` owns the network namespace
+# on agentnet, so caller <-> carrier crosses the netem router and carrier <-> agent does not.
+# rtpbench sets RTPBENCH_CARRIER_NEXT to the agent's host. Paths are relative to the repository
+# root, the first compose file's directory.
+services:
+  carrier:
+    image: ${RTPBENCH_IMAGE:?}
+    cap_add: [NET_ADMIN]
+    init: true
+    depends_on: [router]
+    networks: [agentnet]
+    volumes: ["${RTPBENCH_OUT:?}:/out"]
+    command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec sleep infinity'
+
+  carrier-media:
+    build:
+      dockerfile_inline: |
+        FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5
+        RUN apt-get update \
+            && apt-get install -y --no-install-recommends rtpengine-daemon=12.5.1.31-1 \
+            && rm -rf /var/lib/apt/lists/*
+    image: rtpbench-rtpengine:12.5.1.31
+    network_mode: service:carrier
+    depends_on: [carrier]
+    # userspace forwarding (no kernel module in a container), media on the agentnet address
+    command: >-
+      rtpengine --foreground --log-stderr --table=-1 --interface=eth0
+      --listen-ng=127.0.0.1:2223 --port-min=30000 --port-max=30999
+
+  carrier-sip:
+    image: opensips/opensips:3.6@sha256:81a7fa3c7bdbceaadb7cb869ff7ac3f34efb2d95cd7fecb3b689d7b6b1eb0672
+    network_mode: service:carrier
+    depends_on: [carrier-media]
+    volumes: ["./carrier/opensips.cfg:/etc/opensips/opensips.cfg:ro"]
+    environment:
+      CARRIER_NEXT: ${RTPBENCH_CARRIER_NEXT:?}
+    healthcheck:
+      test: opensips-cli -x mi sr_get_status core | grep -q running
+      interval: 1s
+      retries: 20

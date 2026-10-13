@@ -263,10 +263,33 @@ def _table(header: list[str], rows: list[list[str]]) -> str:
     return "\n".join("| " + " | ".join(cells) + " |" for cells in lines) + "\n"
 
 
+def transit(path: Path) -> dict[str, list[float]]:
+    """RTP through a relay, from a capture of both its legs on one interface: each packet's time
+    from arriving to leaving (ms), for the caller's stream ("up") and the agent's ("down")."""
+    grams = pcap.read(path)
+    caller = next(g.src for g in grams if g.payload.startswith(b"INVITE "))
+    seen: dict[tuple[int, int, int], tuple[int, str]] = {}
+    out: dict[str, list[float]] = {"up": [], "down": []}
+    for g in grams:
+        if 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
+            continue
+        if (key := (p.ssrc, p.seq, p.ts)) in seen:
+            t, src = seen.pop(key)
+            out["up" if src == caller else "down"].append((g.t_ns - t) / 1e6)
+        else:
+            seen[key] = g.t_ns, g.src
+    return out
+
+
 def summarize(runs: dict[str, Path]) -> str:
-    """Latency per method; with an agent log, error per method and what truth - delay is made of."""
-    latency, errors, budget = [], [], []
+    """Latency per method; with an agent log, error per method and what truth - delay is made of;
+    with a carrier capture, the carrier's own transit time."""
+    latency, errors, budget, relay = [], [], [], []
     for name, run in runs.items():
+        if (run / "carrier.pcap").exists():
+            for way, ms in transit(run / "carrier.pcap").items():
+                cells = [f"{_pct(ms, q):.3f}" for q in (0.5, 0.95)] + [f"{max(ms):.3f}"]
+                relay.append([name, way, str(len(ms)), *(cells if ms else ["-"] * 3)])
         recs = turns(run)
         (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
         for m in METHODS:
@@ -297,6 +320,9 @@ def summarize(runs: dict[str, Path]) -> str:
             ]
         )
     out = "Turn latency, ms\n\n" + _table(["run", "method", "n", "p50", "p95", "max"], latency)
+    if relay:
+        out += "\nCarrier transit (in to out on its interface), ms\n\n"
+        out += _table(["run", "stream", "packets", "p50", "p95", "max"], relay)
     if not errors:
         return out
     stat = ["mean", "p95 abs", "max abs"]

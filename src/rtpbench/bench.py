@@ -8,7 +8,8 @@ import secrets
 import shutil
 import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -57,15 +58,20 @@ def _image_tag() -> str:
 
 
 class Stack:
-    """caller | router | agent, plus a target's services when given (paths in its compose file
-    are relative to the repository root)."""
+    """caller | router | agent, plus a target's services when given, and the carrier in front of
+    the host `carrier` names (paths in their compose files are relative to the repository
+    root)."""
 
-    def __init__(self, out: Path, target: str | None = None) -> None:
+    def __init__(self, out: Path, target: str | None = None, carrier: str | None = None) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
         self.files = [ROOT / "compose.yaml"]
         if target:
             self.files.append(ROOT / "targets" / target / "compose.yaml")
+        if carrier:
+            self.files.append(ROOT / "carrier" / "compose.yaml")
+            self.env["RTPBENCH_CARRIER_NEXT"] = carrier
+        self.carrier = carrier is not None
 
     def compose(self, *args: str, check: bool = True) -> str:
         files = [a for f in self.files for a in ("-f", str(f))]
@@ -84,6 +90,34 @@ class Stack:
 
     def down(self) -> None:
         self.compose("down", "-t", "0", "--remove-orphans", check=False)
+
+    def ip(self, service: str) -> str:
+        return self.sh("router", f"getent hosts {service}").split()[0]
+
+    def entry(self, service: str) -> str:
+        """Where the caller sends its calls for `service`: the service, or the carrier."""
+        return self.ip("carrier" if self.carrier else service)
+
+    @contextmanager
+    def tap(self, rel: str) -> Iterator[None]:
+        """With a carrier: capture both of its legs into `rel`/carrier.pcap meanwhile."""
+        if not self.carrier:
+            yield
+            return
+        pcap, err = f"/out/{rel}/carrier.pcap", f"/tmp/tap-{secrets.token_hex(3)}"
+        cmd = "tcpdump -i eth0 -n -U --immediate-mode --time-stamp-precision=nano"
+        pid = self.sh("carrier", f"{cmd} -w {pcap} udp >/dev/null 2>{err} & echo $!")
+        _wait_for(Path(self.env["RTPBENCH_OUT"]) / rel / "carrier.pcap", 10)
+        try:
+            yield
+        finally:
+            time.sleep(0.2)
+            self.sh(
+                "carrier", f"kill -INT {pid}; while kill -0 {pid} 2>/dev/null; do sleep 0.1; done"
+            )
+            stats = self.sh("carrier", f"cat {err}")
+            if "\n0 packets dropped by kernel" not in stats:
+                raise RuntimeError(f"tcpdump dropped packets on the carrier:\n{stats}")
 
     def netem(self, args: str, peers: list[str]) -> None:
         for ip in peers:
@@ -136,10 +170,11 @@ def calibrate(
     real: bool = False,
     replies: Path | None = None,
     barge: bool = False,
+    carrier: bool = False,
 ) -> str:
     """Timing calibration; with `real` the speech-detection one (the agent replies with corpus
-    clips, or the WAVs in `replies`); with `barge` the barge-in one. Each profile runs once
-    per codec."""
+    clips, or the WAVs in `replies`); with `barge` the barge-in one; with `carrier` through the
+    carrier. Each profile runs once per codec."""
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     agent_args, clips = [], None
@@ -160,15 +195,16 @@ def calibrate(
     turns = turns or (60 if barge else 20)
     runs = [(p, c) for p in profiles for c in codecs or [""]]
     names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
-    stack = Stack(out)
+    stack = Stack(out, carrier="agent" if carrier else None)
     try:
         stack.up()
-        caller_ip = stack.sh("caller", "hostname -i").split()[0]
-        agent_ip = stack.sh("agent", "hostname -i").split()[0]
+        caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
         conds = conditions(partial(stack.sh, "router"), seed) | {"turns_per_profile": turns}
         conds |= {"codecs": codecs, "speech": real, "barge": barge}
         if replies:
             conds["replies"] = sorted(clips or {})
+        if carrier:
+            conds["images"] = stack.compose("images")
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
         for profile, codec in runs:
             name = names[profile, codec]
@@ -187,8 +223,9 @@ def calibrate(
                 call += ["--speech", "--gap", f"{gap:.1f}"]
             if barge:
                 call += ["--barge-in"]
-            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
-            _wait_for(run / "agent.json", 30)
+            with stack.tap(name):
+                stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+                _wait_for(run / "agent.json", 30)
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
@@ -211,11 +248,13 @@ def cases(
     seed: int,
     iface: str,
     lines: Path | None = None,
+    carrier: bool = False,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent (each behaviour of each case, in Docker
-    behind the netem router, `runs` times per profile), or against `uri` from here (capturing on
-    `iface`, `runs` times, no netem). Repeat k uses seed + k - 1. Returns the summary and, for
-    the reference agent, whether every case was proven in every repeat."""
+    behind the netem router and, with `carrier`, the carrier, `runs` times per profile), or
+    against `uri` from here (capturing on `iface`, `runs` times, no netem). Repeat k uses seed +
+    k - 1. Returns the summary and, for the reference agent, whether every case was proven in
+    every repeat."""
     from rtpbench import cases as cs
     from rtpbench.capture import capture
 
@@ -237,13 +276,14 @@ def cases(
         if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
             subprocess.run(["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True)
     else:
-        stack = Stack(out)
+        stack = Stack(out, carrier="agent" if carrier else None)
         try:
             stack.up()
-            caller_ip = stack.sh("caller", "hostname -i").split()[0]
-            agent_ip = stack.sh("agent", "hostname -i").split()[0]
+            caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
             conds = conditions(partial(stack.sh, "router"), seed)
             conds |= {"profiles": profiles, "runs": runs}
+            if carrier:
+                conds["images"] = stack.compose("images")
             for profile in profiles:
                 stack.netem(PROFILES[profile], [caller_ip, agent_ip])
                 for k in range(1, runs + 1):
@@ -257,8 +297,11 @@ def cases(
                             _wait_for(out / rel / "ready", 120)
                             print(f"{rel}: calling", flush=True)
                             call = ["case", name, f"sip:agent@{agent_ip}", *args]
-                            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
-                            _wait_for(out / rel / "agent.json", 30)
+                            with stack.tap(rel):
+                                stack.compose(
+                                    "exec", "-T", "caller", "python", "-m", "rtpbench", *call
+                                )
+                                _wait_for(out / rel / "agent.json", 30)
                             done.append(cs.Run(profile, k, name, behaviour, rel))
         finally:
             if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
@@ -270,11 +313,18 @@ def cases(
 
 
 def target(
-    out: Path, name: str, names: list[str], profiles: list[str], runs: int, seed: int
+    out: Path,
+    name: str,
+    names: list[str],
+    profiles: list[str],
+    runs: int,
+    seed: int,
+    carrier: bool = False,
 ) -> str:
     """The cases, a turn-latency call and a barge-in call (those of them in `names`) against
-    the compose target `name`, placed from the caller container through the netem router, `runs`
-    times per profile (repeat k uses seed + k - 1); returns the summary."""
+    the compose target `name`, placed from the caller container through the netem router (and,
+    with `carrier`, the carrier), `runs` times per profile (repeat k uses seed + k - 1); returns
+    the summary."""
     from rtpbench import cases as cs
 
     user, engine_var, engine_default = TARGETS[name]
@@ -288,11 +338,10 @@ def target(
         return inside(*sorted(LINES.glob(pattern)))
 
     done: list[cs.Run] = []
-    stack = Stack(out, name)
+    stack = Stack(out, name, "target" if carrier else None)
     try:
         stack.up()
-        caller_ip = stack.sh("caller", "hostname -i").split()[0]
-        target_ip = stack.sh("router", "getent hosts target").split()[0]
+        caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
         router_ip = stack.sh("target", "getent hosts router").split()[0]
         stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
         url = urlsplit(os.environ.get(engine_var) or engine_default)
@@ -317,7 +366,11 @@ def target(
                     rel = f"{profile}/{k:02d}/{tag}"
                     print(f"{rel}: calling {uri}", flush=True)
                     args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
-                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args)
+                    (out / rel).mkdir(parents=True, exist_ok=True)
+                    with stack.tap(rel):
+                        stack.compose(
+                            "exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args
+                        )
                 done += [
                     cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}")
                     for c in names

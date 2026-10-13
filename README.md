@@ -128,6 +128,25 @@ of each); `report.html` the case timelines; `target.log` the target's own logs.
 | --- | --- |
 | [`aivc`](targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit, OpenSIPS 3.6 (images pinned by digest), openai flavor as upstream's example sets it, plus a transfer target. Needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (e.g. Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`) |
 
+## Carrier
+
+```sh
+uv run rtpbench calibrate --carrier --profiles clean --turns 20
+uv run --extra vad rtpbench cases --carrier
+uv run --extra vad rtpbench target aivc --carrier
+```
+
+`--carrier` puts a carrier between the router and the agent, as a trunk puts an SBC in front
+of a PBX ([`carrier/`](carrier)): OpenSIPS 3.6 as a stateful proxy that hides the topology (the
+agent sees the carrier's Via, Contact and Call-ID) and rtpengine 12.5 anchoring the media of both
+legs, images pinned. The caller's leg crosses the netem router; the carrier-agent leg does not.
+Every call also captures both carrier legs (`carrier.pcap`), and the calibration summary adds the
+carrier's own transit time per packet.
+
+The codec cases run without the carrier only: when the agent answers with a law the caller
+did not offer, rtpengine gives the caller the offered law and transcodes between the two, so
+through it the case would test the carrier, not the agent.
+
 ## Results
 
 First published results, 2026-10-13: the reference agent and
