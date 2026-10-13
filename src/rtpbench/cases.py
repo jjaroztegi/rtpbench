@@ -532,7 +532,13 @@ def check_cancel(w: Wire) -> Result:
     r = Result()
     cancel = w.find(lambda m: m.method == "CANCEL", sent=True)
     if cancel is None:
-        r.checks.append(Check("CANCEL sent while ringing", None, "no provisional response first"))
+        ringing = w.find(lambda m: m.cseq_method == "INVITE" and m.status < 200, sent=False)
+        final = w.find(_final("INVITE"), sent=False)
+        detail = "no provisional response first"
+        if ringing and final:
+            ms = (final[0] - ringing[0]) / 1e6
+            detail = f"final response {ms:.0f} ms after the first provisional, before a CANCEL"
+        r.checks.append(Check("CANCEL sent while ringing", None, detail))
         return r
     t = cancel[0]
     ok = w.find(_final("CANCEL"), sent=False)
@@ -987,7 +993,8 @@ def timings(recs: list[dict[str, Any]]) -> list[tuple[str, str]]:
 
 
 def failures(recs: list[dict[str, Any]]) -> list[str]:
-    """Checks that failed or could not tell: with the detail for one run, else how many runs."""
+    """Checks that failed or could not tell: with the detail for one run, else how many runs
+    and the first one's detail."""
     count: Counter[str] = Counter()
     detail: dict[str, str] = {}
     for r in recs:
@@ -997,7 +1004,9 @@ def failures(recs: list[dict[str, Any]]) -> list[str]:
                 detail.setdefault(c["name"], c["detail"])
     if len(recs) == 1:
         return [f"{c} ({detail[c]})" if detail[c] else c for c in count]
-    return [f"{c} ({k}/{len(recs)})" for c, k in count.items()]
+    return [
+        f"{c} ({k}/{len(recs)}{': ' + detail[c] if detail[c] else ''})" for c, k in count.items()
+    ]
 
 
 def errors(recs: list[dict[str, Any]]) -> list[str]:
