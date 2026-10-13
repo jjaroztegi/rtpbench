@@ -81,11 +81,20 @@ ONSET = {
     )
 }
 STOP = {  # agent stop time on a hard cut, by the gate
-    (profile, g711.PCMA): Bar(lo, 0.0, f"gate stop time, p5..p95, PCMA, {profile} {how}")
-    for profile, lo, how in (
-        ("clean", -71.9, "(calibrate --barge-in)"),
-        ("lte", -72.1, "(calibrate --barge-in --profiles lte)"),
-        ("lte-bad", -118.8, "(calibrate --barge-in --profiles lte-bad)"),
+    (profile, pt): Bar(lo, hi, f"gate stop time, p5..p95, {g711.NAMES[pt]}, {profile} {how}")
+    for profile, pt, lo, hi, how in (
+        ("clean", g711.PCMU, -79.2, 0.0, "(calibrate --barge-in --codecs pcmu)"),
+        ("clean", g711.PCMA, -71.9, 0.0, "(calibrate --barge-in)"),
+        ("lte", g711.PCMU, -71.0, 0.0, "(calibrate --barge-in --codecs pcmu --profiles lte)"),
+        ("lte", g711.PCMA, -72.1, 0.0, "(calibrate --barge-in --profiles lte)"),
+        (
+            "lte-bad",
+            g711.PCMU,
+            -94.2,
+            5.4,
+            "(calibrate --barge-in --codecs pcmu --profiles lte-bad)",
+        ),
+        ("lte-bad", g711.PCMA, -118.8, 0.0, "(calibrate --barge-in --profiles lte-bad)"),
     )
 }
 
