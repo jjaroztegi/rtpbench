@@ -206,6 +206,35 @@ def test_clock_drift_across_a_pause_is_past_jitter(clock: bool, want: float) -> 
     assert abs(drift - want) < 15
 
 
+def test_hold_resume_seq_by_sequence_not_arrival() -> None:
+    """Packets reordered at both edges of the hold: still the next seq, nothing lost."""
+
+    def sip_msg(first: str, branch: str, direction: str = "") -> sip.Message:
+        cseq = "1 INVITE"
+        body = sip.sdp("10.0.0.2", 4000, [0], direction) if direction else b""
+        return sip.Message(first, [("Via", f"SIP/2.0/UDP x;branch={branch}"), ("CSeq", cseq)], body)
+
+    s = 1_000_000_000
+    msgs = [
+        (0, True, sip_msg("INVITE sip:a SIP/2.0", "b0", "sendrecv")),
+        (s, True, sip_msg("INVITE sip:a SIP/2.0", "b1", "sendonly")),
+        (s + 10**7, False, sip_msg("SIP/2.0 200 OK", "b1", "recvonly")),
+        (4 * s, True, sip_msg("INVITE sip:a SIP/2.0", "b2", "sendrecv")),
+        (4 * s + 10**7, False, sip_msg("SIP/2.0 200 OK", "b2", "sendrecv")),
+    ]
+
+    def pkt(seq: int, at: int) -> tuple[int, rtp.Packet]:
+        return at * 20_000_000 + 60_000_000, rtp.Packet(0, seq, at * 160, 7, False, b"")
+
+    held = [pkt(n, n) for n in range(48)] + [pkt(n, n + 160) for n in range(48, 100)]
+    for i in (46, 48):  # 47 arrives before 46, 49 before 48
+        held[i], held[i + 1] = (held[i][0], held[i + 1][1]), (held[i + 1][0], held[i][1])
+    w = Wire({"pt": 0}, None, msgs, [], held)
+    same = next(c for c in cases.check_hold(w).checks if c.name.endswith("same RTP stream"))
+    assert same.ok, same.detail
+    assert "seq 47->48" in same.detail
+
+
 def test_repeats_group_and_flips_are_reported() -> None:
     bar = list(cases.WIRE)
 

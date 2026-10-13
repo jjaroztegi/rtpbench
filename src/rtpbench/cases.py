@@ -615,8 +615,9 @@ def check_hold(w: Wire) -> Result:
         if not after or not before:
             r.checks.append(Check(f"resume from {offer}: agent RTP again", False))
             continue
-        p0, (u1, p1) = before[-1][1], after[0]
-        ms = (u1 - answers[1]) / 1e6
+        # by sequence, not arrival: the edges of the pause may arrive reordered
+        p0, p1 = analyze.by_seq(before)[-1][1], analyze.by_seq(after)[0][1]
+        ms = (after[0][0] - answers[1]) / 1e6
         r.timings.append(Timing(f"resume from {offer}: 2xx to agent RTP", ms, WIRE))
         r.checks.append(
             Check(f"resume from {offer}: agent RTP within {RESUME_MS} ms", ms <= RESUME_MS)
