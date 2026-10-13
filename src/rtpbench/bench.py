@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from rtpbench import analyze, speech, speechcal
+from rtpbench import analyze, bargein, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,9 +105,11 @@ def calibrate(
     codecs: list[str] | None = None,
     real: bool = False,
     replies: Path | None = None,
+    barge: bool = False,
 ) -> str:
-    """Timing calibration, or with `real` the speech-detection one: the agent replies with
-    corpus clips (or the WAVs in `replies`), every profile runs once per codec."""
+    """Timing calibration; with `real` the speech-detection one (the agent replies with corpus
+    clips, or the WAVs in `replies`); with `barge` the barge-in one. Each profile runs once
+    per codec."""
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     agent_args, clips = [], None
@@ -123,7 +125,9 @@ def calibrate(
         turns = turns or len(clips)
         gap = max(map(len, clips.values())) / 8000 + SPEECH_DELAY_RANGE[1] + 1.0
         agent_args += ["--speech"]
-    turns = turns or 20
+    if barge:
+        agent_args = ["--barge-in"]
+    turns = turns or (60 if barge else 20)
     runs = [(p, c) for p in profiles for c in codecs or [""]]
     names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
     stack = Stack(out)
@@ -131,7 +135,7 @@ def calibrate(
         stack.up()
         caller_ip = stack.sh("caller", "hostname -i").split()[0]
         agent_ip = stack.sh("agent", "hostname -i").split()[0]
-        conds = conditions(stack, turns, seed) | {"codecs": codecs, "speech": real}
+        conds = conditions(stack, turns, seed) | {"codecs": codecs, "speech": real, "barge": barge}
         if replies:
             conds["replies"] = sorted(clips or {})
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
@@ -150,6 +154,8 @@ def calibrate(
                 call += ["--codec", codec]
             if real:
                 call += ["--speech", "--gap", f"{gap:.1f}"]
+            if barge:
+                call += ["--barge-in"]
             stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
             _wait_for(run / "agent.json", 30)
     finally:
@@ -157,6 +163,9 @@ def calibrate(
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
     dirs = {names[r]: out / names[r] for r in runs}
-    summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
+    if barge:
+        summary = bargein.summarize(dirs)
+    else:
+        summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
     (out / "summary.md").write_text(summary)
     return summary

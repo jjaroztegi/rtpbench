@@ -4,6 +4,10 @@ The delay runs from the last active sample it received (kernel arrival time plus
 offset in its packet) to the reply's onset (tick time plus offset), so the onset is placed to
 the sample, not to the packet. The synthetic reply's onset is its sample 0; a speech clip's is
 its first labelled speech sample, and whatever precedes it in the clip is sent before it.
+
+With a barge-in plan, caller speech that starts while the agent is replying is an interjection,
+never a turn: the agent stops (hard cut) the planned delay after the interjection's first
+active sample arrived, or carries on, as the plan says.
 """
 
 import random
@@ -14,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from rtpbench import g711, sip, speech
+from rtpbench import bargein, g711, sip, speech
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet, Receiver, Sender
 from rtpbench.voice import GATE, voice
 
@@ -29,12 +33,13 @@ SPEECH_DELAY_RANGE = (1.5, 2.5)
 Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled speech spans
 
 
-def speech_replies(seed: int, directory: Path | None = None) -> list[Reply]:
-    """Every WAV in `directory`, or every short corpus reply (not the barge-in ones), shuffled."""
+def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
+    """Every WAV in `directory`, or the short corpus replies (`long`: barge-in ones), shuffled."""
     if directory:
         clips = [(p.stem, speech.read_wav(p)) for p in sorted(directory.glob("*.wav"))]
     else:
-        clips = [(n, pcm) for n, pcm in speech.clips("tts-", "human-").items() if "-long" not in n]
+        corpus = speech.clips("tts-", "human-").items()
+        clips = [(n, pcm) for n, pcm in corpus if ("-long" in n) == long]
     random.Random(seed).shuffle(clips)
     return [(n, pcm, speech.label(pcm)) for n, pcm in clips]
 
@@ -47,8 +52,10 @@ class Responder:
         delays: list[float],
         replies: list[Reply] | None = None,
         hangover_ns: int = HANGOVER_NS,
+        plan: list[dict[str, Any]] | None = None,
     ) -> None:
         self.pt, self.seq0, self.delays, self.hangover_ns = pt, seq0, delays, hangover_ns
+        self.plan = plan
         self.gate = g711.gate(pt, GATE)
         self.silence = bytes([g711.SILENCE[pt]]) * FRAME
         replies = replies or [("synthetic", voice(RESPONSE_SECONDS, f0=210), [])]
@@ -60,18 +67,28 @@ class Responder:
         self.end_ns, self.end_seq, self.end_off = 0, 0, 0
         self.pending: dict[str, Any] | None = None
         self.pos: int | None = None  # response sample index at the start of the next tick
+        self.current: dict[str, Any] = {}  # the turn being replied to
+        self.interjecting = False  # the caller's current burst started while we replied
+        self.cut_ns: int | None = None
 
     def on_packet(self, arrival: int, pkt: Packet) -> None:
         if pkt.pt != self.pt:
             return
         with self.lock:
             if m := self.gate.search(pkt.payload[::-1]):
+                if not self.speaking and self.plan is not None:
+                    self.interjecting = self.pos is not None
+                    if self.interjecting and "barge" not in self.current:
+                        self._interjection(arrival, pkt)
                 off = len(pkt.payload) - 1 - m.start()
                 if (end := arrival + off * SAMPLE_NS) > self.end_ns:
                     self.end_ns, self.end_seq, self.end_off = end, pkt.seq, off
                 self.speaking = True
             elif self.speaking and arrival - self.end_ns >= self.hangover_ns:
                 self.speaking = False
+                if self.interjecting:
+                    self.interjecting = False
+                    return
                 turn = len(self.turns) + (self.pending is not None)
                 delay_ns = round(self.delays[turn % len(self.delays)] * 1e9)
                 self.pending = {
@@ -82,6 +99,22 @@ class Responder:
                     "end_off": self.end_off,
                     "target_ns": self.end_ns + delay_ns,
                 }
+
+    def _interjection(self, arrival: int, pkt: Packet) -> None:
+        assert self.plan is not None
+        first = self.gate.search(pkt.payload)
+        assert first is not None
+        step = self.plan[self.current["turn"] % len(self.plan)]
+        trigger = arrival + first.start() * SAMPLE_NS
+        delay_ns = round(step["stop_delay_s"] * 1e9)
+        self.current["barge"] = {
+            "trigger_ns": trigger,
+            "trigger_seq": pkt.seq,
+            "trigger_off": first.start(),
+            "stop_delay_ns": delay_ns,
+        }
+        if step["stop"]:
+            self.cut_ns = trigger + delay_ns
 
     def source(self, n: int, tick: int) -> bytes:
         with self.lock:
@@ -106,14 +139,22 @@ class Responder:
                         "speech": [[a + start, b + start] for a, b in spans],
                     }
                 self.turns.append(p)
-                self.pending, self.pos, self.response = None, -off, audio
+                self.pending, self.pos, self.response, self.current = None, -off, audio, p
             if self.pos is None:
                 return self.silence
             pos, self.pos = self.pos, self.pos + FRAME
             if self.pos >= len(self.response):
                 self.pos = None
             head = self.silence[: max(0, -pos)]
-            return (head + self.response[max(0, pos) : pos + FRAME]).ljust(FRAME, self.silence[:1])
+            out = (head + self.response[max(0, pos) : pos + FRAME]).ljust(FRAME, self.silence[:1])
+            if self.cut_ns is not None and (cut := round((self.cut_ns - tick) / SAMPLE_NS)) < FRAME:
+                cut = max(0, cut)
+                self.current["barge"]["cut"] = n * FRAME + cut  # first sample not sent
+                self.pos = None
+                out = out[:cut] + self.silence[cut:]
+            if self.pos is None:
+                self.cut_ns = None
+            return out
 
 
 def _local_ip(peer: tuple[str, int]) -> str:
@@ -129,14 +170,18 @@ def serve(
     seed: int = 1,
     real: bool = False,
     replies: Path | None = None,
+    barge: bool = False,
 ) -> dict[str, Any]:
     """Answer one call; return its per-turn ground truth. Touches `ready` once listening.
 
     `real`: reply with speech (corpus clips, or the WAVs in `replies`), not the synthetic voice.
+    `barge`: reply with the long corpus clips and follow the barge-in plan.
     """
+    real = real or barge
     rng = random.Random(seed)
     delays = [rng.uniform(*(SPEECH_DELAY_RANGE if real else DELAY_RANGE)) for _ in range(1000)]
-    clips = speech_replies(seed, replies) if real else None
+    clips = speech_replies(seed, replies, long=barge) if real else None
+    plan = bargein.plan(seed) if barge else None
     hangover = SPEECH_HANGOVER_NS if real else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", sip_port))
@@ -172,7 +217,7 @@ def serve(
             pt, local = codecs[0], _local_ip(addr)
             call_id = msg.get("call-id")
             seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
-            responder = Responder(pt, seq0, delays, clips, hangover)
+            responder = Responder(pt, seq0, delays, clips, hangover, plan)
             contact = [("Contact", f"<sip:agent@{local}:{sip_port}>")]
             body = sip.sdp(local, rtp_port, [pt])
             ok = sip.response(msg, 200, "OK", to_tag, body, contact).render()

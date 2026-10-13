@@ -41,6 +41,17 @@ each clean clip ([`speech.py`](src/rtpbench/speech.py)); the summary gives, per 
 ([`detect.py`](src/rtpbench/detect.py)), how far detected onsets and offsets are from the labels
 on the caller's capture. `--replies DIR` makes the agent reply with your own WAVs instead.
 
+### Barge-in
+
+```sh
+uv run --extra vad rtpbench calibrate --barge-in   # clean and mobile, PCMA, ~35 minutes
+```
+
+The caller cuts into each long reply with an interruption, a backchannel or a cough; the
+reference agent stops (a hard cut, a known delay after it hears the caller) or carries on, as a
+script both ends share says ([`bargein.py`](src/rtpbench/bargein.py)). The summary gives the
+stop time error per detector and timing method, and whether rtpbench told stops from carry-ons.
+
 ## Development
 
 ```sh

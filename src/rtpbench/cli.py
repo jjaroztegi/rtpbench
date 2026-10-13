@@ -17,11 +17,13 @@ def main(argv: list[str] | None = None) -> None:
 
     p = sub.add_parser("calibrate", help="measure the error against a reference agent (Docker)")
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
-    p.add_argument("--speech", action="store_true", help="speech detection on real speech")
-    p.add_argument("--profiles", help="default: all five; with --speech, clean,mobile")
-    p.add_argument("--codecs", help="pcmu,pcma; default pcmu, with --speech both")
+    kind = p.add_mutually_exclusive_group()
+    kind.add_argument("--speech", action="store_true", help="speech detection on real speech")
+    kind.add_argument("--barge-in", action="store_true", help="barge-in stop time")
+    p.add_argument("--profiles", help="default: all five; --speech, --barge-in: clean,mobile")
+    p.add_argument("--codecs", help="default pcmu; --speech: pcmu,pcma; --barge-in: pcma")
     p.add_argument("--replies", type=Path, help="with --speech: agent replies from these WAVs")
-    p.add_argument("--turns", type=int, help="default 20; with --speech, one per reply")
+    p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
     p.add_argument("--seed", type=int, default=1)
 
     p = sub.add_parser("analyze", help="summarise run directories already captured")
@@ -30,6 +32,7 @@ def main(argv: list[str] | None = None) -> None:
     for name in ("agent", "call"):
         p = sub.add_parser(name, help=f"run the {name} side (inside a container)")
         p.add_argument("--speech", action="store_true", help="speak corpus clips")
+        p.add_argument("--barge-in", action="store_true", help="follow the barge-in script")
         if name == "agent":
             p.add_argument("--replies", type=Path, help="with --speech: reply with these WAVs")
         else:
@@ -52,8 +55,9 @@ def main(argv: list[str] | None = None) -> None:
         from rtpbench.bench import PROFILES, calibrate
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        profiles = args.profiles or ("clean,mobile" if args.speech else ",".join(PROFILES))
-        codecs = args.codecs or ("pcmu,pcma" if args.speech else "")
+        special = args.speech or args.barge_in
+        profiles = args.profiles or ("clean,mobile" if special else ",".join(PROFILES))
+        codecs = args.codecs or ("pcmu,pcma" if args.speech else "pcma" if args.barge_in else "")
         print(
             calibrate(
                 out,
@@ -63,15 +67,19 @@ def main(argv: list[str] | None = None) -> None:
                 codecs.split(",") if codecs else None,
                 args.speech,
                 args.replies,
+                args.barge_in,
             )
         )
         print(f"results in {out}")
     elif args.cmd == "analyze":
-        from rtpbench import speechcal
+        from rtpbench import bargein, speechcal
 
         agent = args.runs[0] / "agent.json"
+        caller_turns = json.loads((args.runs[0] / "caller.json").read_text())["turns"]
         real = agent.exists() and "clip" in json.loads(agent.read_text())["turns"][0]
         summarize = speechcal.summarize if real else analyze.summarize
+        if caller_turns and "prompt" in caller_turns[0]:
+            summarize = bargein.summarize
         print(summarize({run.name: run for run in args.runs}))
     else:
         from rtpbench.capture import capture
@@ -82,11 +90,15 @@ def main(argv: list[str] | None = None) -> None:
                 from rtpbench.agent import serve
 
                 log = serve(
-                    args.out / "ready", seed=args.seed, real=args.speech, replies=args.replies
+                    args.out / "ready",
+                    seed=args.seed,
+                    real=args.speech,
+                    replies=args.replies,
+                    barge=args.barge_in,
                 )
             else:
                 from rtpbench import speech
-                from rtpbench.caller import call, speech_utterances
+                from rtpbench.caller import call, converse, speech_utterances
 
                 utterances: list[tuple[str, list[int]]] | None = None
                 if args.wav:
@@ -94,6 +106,11 @@ def main(argv: list[str] | None = None) -> None:
                 elif args.speech:
                     utterances = speech_utterances(args.seed)
                 codecs = (CODECS[args.codec],) if args.codec else tuple(CODECS.values())
-                log = call(args.uri, args.turns, args.seed, utterances, args.lead, args.gap, codecs)
+                if args.barge_in:
+                    log = converse(args.uri, args.turns, args.seed, utterances, args.lead, codecs)
+                else:
+                    log = call(
+                        args.uri, args.turns, args.seed, utterances, args.lead, args.gap, codecs
+                    )
         name = "agent.json" if args.cmd == "agent" else "caller.json"
         (args.out / name).write_text(json.dumps(log, indent=1))
