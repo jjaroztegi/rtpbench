@@ -10,6 +10,7 @@ events are capture times (`rtpbench calibrate`: wire timing within 0.41 ms on a 
 agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per codec).
 """
 
+import itertools
 import json
 import re
 import struct
@@ -40,6 +41,9 @@ KEY_MS = 100  # how long the caller holds a key
 REFER_WAIT_S = 20.0  # after asking for a person
 BYE_WAIT_S = 10.0  # after the transfer is reported done
 SIPFRAG = "message/sipfrag;version=2.0"
+SESSION_S = 90  # RFC 4028 minimum
+TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
+MEDIA_GAP_MS = 100  # agent RTP silent this long around a refresh: media was disturbed
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
@@ -288,6 +292,26 @@ def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
         s.wait(lambda: s.remote_bye, BYE_WAIT_S)
     s.hangup()
     return s.meta(seed, s.remote_bye) | {"said": m.said}
+
+
+def timer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """Offer session timers (90 s, refresher=uac), refresh once at half time, then stop
+    refreshing and wait for the agent to end the expired session."""
+    s = dial(headers=[*TIMER, ("Min-SE", str(SESSION_S))])
+    ok = s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    expires = ok.get("session-expires")
+    interval = int(expires.split(";")[0]) if expires else 0
+    if interval:
+        s.wait(lambda: s.remote_bye, interval / 2)
+        if not s.remote_bye:
+            s.reinvite(headers=[("Supported", "timer"), ("Session-Expires", expires)])
+        s.wait(lambda: s.remote_bye, interval + 5)
+    else:
+        s.wait(lambda: s.remote_bye, 2.0)
+    s.hangup()
+    return s.meta(seed, s.remote_bye)
 
 
 @dataclass
@@ -596,6 +620,50 @@ def check_refer(w: Wire) -> Result:
     return r
 
 
+def check_timer(w: Wire) -> Result:
+    """RFC 4028: the 2xx takes the timer (Session-Expires, refresher=uac kept, Require: timer);
+    the refresh is answered 2xx with media undisturbed; the agent, not refreshed again, sends
+    BYE after half the interval and before it expires."""
+    r = Result()
+    ok = w.find(_is_2xx_invite, sent=False)
+    expires = ok[1].get("session-expires") if ok else ""
+    r.checks.append(Check("Session-Expires in the 2xx", bool(expires), "timers not supported"))
+    if not ok or not expires:
+        return r
+    interval = int(expires.split(";")[0])
+    kept = sip.param(expires, "refresher") == "uac" and "timer" in ok[1].get("require")
+    r.checks.append(Check("refresher=uac kept, Require: timer", kept, expires))
+    invites: dict[str, tuple[int, sip.Message]] = {}
+    for t, out, m in w.msgs:
+        if out and m.method == "INVITE":
+            invites.setdefault(m.branch, (t, m))
+    refresh = list(invites.values())[1:2]
+    if not refresh:
+        r.checks.append(Check("refresh sent", None, "the call ended first"))
+        return r
+    t, req = refresh[0]
+    resp = w.find(_final_to(req), sent=False)
+    good = resp is not None and resp[1].status < 300
+    r.checks.append(Check("refresh answered 2xx", good, resp[1].first if resp else "no response"))
+    if not resp or not good:
+        return r
+    r.timings.append(Timing("refresh re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+    near = [(u, p) for u, p in w.down if t - 1e9 <= u <= resp[0] + 2e9]
+    gap = max(((b[0] - a[0]) / 1e6 for a, b in itertools.pairwise(near)), default=0.0)
+    same = len({p.ssrc for _, p in near}) == 1
+    detail = f"longest gap {gap:.0f} ms, {len({p.ssrc for _, p in near})} SSRC"
+    r.checks.append(Check("media undisturbed by the refresh", same and gap <= MEDIA_GAP_MS, detail))
+    bye = w.find(lambda m: m.method == "BYE", sent=False)
+    after = None if bye is None else (bye[0] - resp[0]) / 1e9
+    in_window = after is not None and interval / 2 < after <= interval
+    r.checks.append(
+        Check(f"agent ends the session in ({interval / 2:.0f}, {interval}] s", in_window)
+    )
+    if bye:
+        r.timings.append(Timing("refresh 2xx to agent BYE", (bye[0] - resp[0]) / 1e6, WIRE))
+    return r
+
+
 @dataclass(frozen=True)
 class Case:
     """A caller script, its check, and the reference agent behaviours that pass and fail it."""
@@ -646,6 +714,12 @@ CASES = {
             "stays": Behaviour(refer_s=1.5, transfer="stay"),
             "early": Behaviour(refer_s=1.5, transfer="early"),
         },
+    ),
+    "timer": Case(
+        timer,
+        check_timer,
+        Behaviour(timer=True),
+        {"unsupported": Behaviour(), "no-expiry": Behaviour(timer=True, expire=False)},
     ),
 }
 

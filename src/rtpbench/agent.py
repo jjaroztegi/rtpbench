@@ -54,6 +54,8 @@ class Behaviour:
     # then: "complete" answers NOTIFYs and hangs up after the final one; "stay" answers them and
     # stays; "early" hangs up on the 202 and answers NOTIFYs 481
     transfer: str = "complete"
+    timer: bool = False  # take session timers (RFC 4028) with the caller as refresher
+    expire: bool = True  # with timer: BYE when the session expires unrefreshed
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -257,6 +259,7 @@ class Uas:
         self.dialog: sip.Dialog | None = None  # for requests of our own (REFER, BYE)
         self.refer: sip.Message | None = None
         self.bye: sip.Message | None = None
+        self.expire_at: float | None = None  # session timer: BYE then, unless refreshed
         self.sender: Sender | None = None
         self.threads: list[Sender | Receiver] = []
         self.meta: dict[str, Any] = {}
@@ -370,11 +373,18 @@ class Uas:
 
     def _ok(self, req: sip.Message, direction: str) -> sip.Message:
         local = _local_ip(self.addr)
-        contact = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
+        extra = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
         origin = (self.origin[0], self.origin[1])
         body = sip.sdp(local, self.rtp.getsockname()[1], [self.pt], direction, origin, self.dtmf)
         self.origin[1] += 1
-        return sip.response(req, 200, "OK", self.to_tag, body, contact)
+        if self.case.timer and (expires := req.get("session-expires")):
+            # RFC 4028 9: keep the interval and the caller as refresher, so Require: timer
+            interval = int(expires.split(";")[0])
+            extra += [("Require", "timer"), ("Supported", "timer")]
+            extra.append(("Session-Expires", f"{interval};refresher=uac"))
+            if self.case.expire:  # 10: BYE min(32 s, a third) before it would expire
+                self.expire_at = time.monotonic() + interval - min(32, interval / 3)
+        return sip.response(req, 200, "OK", self.to_tag, body, extra)
 
     def _reinvite(self, msg: sip.Message) -> None:
         """Answer the offered direction (or sendrecv, ignoring hold); pause sending while the
@@ -395,6 +405,9 @@ class Uas:
             self.dialog.retransmit()
         if self.refer is None and self._since_turn(self.case.refer_s):
             self._transfer()
+        if self.expire_at is not None and now >= self.expire_at:
+            self.expire_at = None
+            self._hang_up()
         if self.answer_at is not None and now >= self.answer_at:
             self.answer_at = None
             self._answer()

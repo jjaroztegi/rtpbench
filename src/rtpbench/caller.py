@@ -96,6 +96,7 @@ class Session:
         self.rtp.bind(("0.0.0.0", 0))
         self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
         self.origin = (secrets.randbelow(1 << 31), 0)  # SDP session id, version
+        self.held = False
         self.dtmf: int | None = None  # telephone-event payload type, if the answer has it
         port = self.rtp.getsockname()[1]
         offer = sip.sdp(local_ip, port, list(codecs), origin=self.origin, dtmf=dtmf)
@@ -143,8 +144,10 @@ class Session:
         self.requests.append(req)
         if req.method == "ACK":
             return
-        if req.method == "INVITE":
-            self.dialog.reply(req, 488, "Not Acceptable Here")
+        if req.method == "INVITE":  # a refresh, or a change we take as it comes
+            port = self.rtp.getsockname()[1]
+            sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], origin=self.origin)
+            self.dialog.reply(req, 200, "OK", sdp)
             return
         self.dialog.reply(req, *((202, "Accepted") if req.method == "REFER" else ()))
         self.remote_bye |= req.method == "BYE"
@@ -196,13 +199,17 @@ class Session:
         self.wait(lambda: final() is not None, 64 * sip.T1)
         return final()
 
-    def reinvite(self, direction: str) -> sip.Message | None:
-        """Offer the call's codec again, `direction` (sendonly, inactive: hold); the response."""
-        self.origin = (self.origin[0], self.origin[1] + 1)
+    def reinvite(
+        self, direction: str = "sendrecv", headers: list[tuple[str, str]] | None = None
+    ) -> sip.Message | None:
+        """Offer the call's codec again, `direction` (sendonly, inactive: hold; sendrecv
+        unchanged: a refresh, same SDP version); the response."""
+        if direction != "sendrecv" or self.held:
+            self.origin = (self.origin[0], self.origin[1] + 1)
+        self.held = direction != "sendrecv"
         port = self.rtp.getsockname()[1]
-        return self.request(
-            "INVITE", sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
-        )
+        sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
+        return self.request("INVITE", sdp, headers)
 
     def start(self, source: Source, sink: Callable[[int, Packet], None]) -> None:
         start = time.time_ns() + PTIME_NS
