@@ -32,6 +32,9 @@ BYE_AFTER_NS = 1_000_000_000  # into the agent's speech
 CANCEL_AFTER_S = 0.2  # after the first provisional response
 MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be on its way
 WATCH_S = 2.0  # listen after the call ends for media that should have stopped
+HOLD_S = 3.0
+RESUME_MS = 1000
+CLOCK_MS = 40  # RTP timestamp gap vs arrival gap across a pause (two packets of jitter)
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
@@ -96,6 +99,10 @@ class Script(Media):
         self.queue: list[tuple[str, bytes, list[tuple[int, int]]]] = []
         self.said: list[dict[str, Any]] = []
         self.bursts: list[list[int]] = []
+        self.muted = False  # send nothing (call inactive)
+
+    def idle(self) -> bytes | None:
+        return None if self.muted else self.silence
 
     def heard(self, onset: int, end: int) -> None:
         if self.bursts and onset - self.bursts[-1][1] <= analyze.AGENT_GAP_NS:
@@ -175,6 +182,24 @@ def cancel(dial: Dial, seed: int) -> dict[str, Any]:
         s.hangup()
     s.wait(lambda: False, WATCH_S)
     return s.meta(seed, s.remote_bye)
+
+
+def hold(dial: Dial, seed: int) -> dict[str, Any]:
+    """Once the agent is quiet: hold (sendonly), resume, hold (inactive), resume; 3 s each."""
+    s = dial()
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    s.wait(lambda: s.remote_bye, 1.0)
+    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    for offer in ("sendonly", "sendrecv", "inactive", "sendrecv"):
+        if s.remote_bye:
+            break
+        m.muted = offer == "inactive"
+        s.reinvite(offer)
+        s.wait(lambda: s.remote_bye, HOLD_S)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
 @dataclass
@@ -323,6 +348,65 @@ def check_cancel(w: Wire) -> Result:
     return r
 
 
+def _final_to(req: sip.Message) -> Callable[[sip.Message], bool]:
+    return lambda m: m.branch == req.branch and m.cseq_method == req.method and m.status >= 200
+
+
+# answers to a hold offer that honour it (RFC 3264 6.1: inactive is fine for sendonly)
+HOLD_ANSWERS = {"sendonly": ("recvonly", "inactive"), "inactive": ("inactive",)}
+
+
+def check_hold(w: Wire) -> Result:
+    """Per hold and resume: 2xx with an answer that honours the offer, no agent RTP while held,
+    RTP back within 1 s of the resume, and the same RTP stream: SSRC, next seq, timestamps that
+    kept time (RFC 3550 5.1)."""
+    r = Result()
+    sent: dict[str, tuple[int, sip.Message]] = {}
+    for t, out, m in w.msgs:
+        if out and m.method == "INVITE":
+            sent.setdefault(m.branch, (t, m))
+    reinvites = list(sent.values())[1:]
+    if len(reinvites) < 2:
+        r.checks.append(Check("hold and resume sent", None, "the call ended first"))
+        return r
+    for (t_hold, held), (t_back, back) in zip(reinvites[::2], reinvites[1::2], strict=False):
+        offer = sip.parse_sdp(held.body).direction
+        answers = []
+        for t, req, want in ((t_hold, held, HOLD_ANSWERS[offer]), (t_back, back, ("sendrecv",))):
+            what = f"{offer} hold" if req is held else f"resume from {offer}"
+            resp = w.find(_final_to(req), sent=False)
+            ok = resp is not None and resp[1].status < 300
+            r.checks.append(Check(f"{what}: 2xx", ok, resp[1].first if resp else "no response"))
+            if resp is None or not ok:
+                return r
+            r.timings.append(Timing(f"{what}: re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+            got = sip.parse_sdp(resp[1].body).direction
+            r.checks.append(Check(f"{what}: answer {' or '.join(want)}", got in want, got))
+            answers.append(resp[0])
+        grace = MEDIA_GRACE_MS * 1_000_000
+        during = [u for u, _ in w.down if answers[0] + grace < u < t_back]
+        r.checks.append(Check(f"{offer} hold: no agent RTP", not during, f"{len(during)} packets"))
+        if during:
+            continue  # it never paused, so there is no resume to time
+        before = [(u, p) for u, p in w.down if u < t_back]
+        after = [(u, p) for u, p in w.down if u > t_back]
+        if not after or not before:
+            r.checks.append(Check(f"resume from {offer}: agent RTP again", False))
+            continue
+        (u0, p0), (u1, p1) = before[-1], after[0]
+        ms = (u1 - answers[1]) / 1e6
+        r.timings.append(Timing(f"resume from {offer}: 2xx to agent RTP", ms, WIRE))
+        r.checks.append(
+            Check(f"resume from {offer}: agent RTP within {RESUME_MS} ms", ms <= RESUME_MS)
+        )
+        drift = ((p1.ts - p0.ts) & 0xFFFFFFFF) / 8 - (u1 - u0) / 1e6
+        r.timings.append(Timing(f"resume from {offer}: RTP clock drift", drift, WIRE))
+        same = p1.ssrc == p0.ssrc and p1.seq == (p0.seq + 1) & 0xFFFF and abs(drift) <= CLOCK_MS
+        detail = f"ssrc {p0.ssrc:#x}->{p1.ssrc:#x}, seq {p0.seq}->{p1.seq}, clock {drift:+.0f} ms"
+        r.checks.append(Check(f"resume from {offer}: same RTP stream", same, detail))
+    return r
+
+
 @dataclass(frozen=True)
 class Case:
     """A caller script, its check, and the reference agent behaviours that pass and fail it."""
@@ -354,6 +438,12 @@ CASES = {
         check_cancel,
         Behaviour(ring_s=3.0),
         {"answers": Behaviour(ring_s=3.0, cancel=False)},
+    ),
+    "hold": Case(
+        hold,
+        check_hold,
+        Behaviour(),
+        {"ignore": Behaviour(hold=False), "clock": Behaviour(clock=False)},
     ),
 }
 

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from rtpbench import bargein, g711, sip, speech
-from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet, Receiver, Sender
+from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, RATE, voice
 
 LEAD_SECONDS = 1.0
@@ -21,6 +21,7 @@ REPLY_TIMEOUT_NS = 15_000_000_000
 TURN_TIMEOUT_NS = 60_000_000_000
 
 Clip = tuple[str, list[int]]
+Source = Callable[[int, int], bytes | Frame | None]
 Labelled = tuple[str, list[int], list[tuple[int, int]]]
 
 
@@ -93,8 +94,10 @@ class Session:
         self.rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.rtp.bind(("0.0.0.0", 0))
         self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
-        offer = sip.sdp(local_ip, self.rtp.getsockname()[1], list(codecs))
+        self.origin = (secrets.randbelow(1 << 31), 0)  # SDP session id, version
+        offer = sip.sdp(local_ip, self.rtp.getsockname()[1], list(codecs), origin=self.origin)
         self.invite = self.dialog.request("INVITE", offer, headers)
+        self.invites = {self.invite.branch: self.invite}
         self.final: sip.Message | None = None  # final response to the INVITE
         self.responses: list[sip.Message] = []
         self.requests: list[sip.Message] = []  # from the far end
@@ -115,16 +118,22 @@ class Session:
         self.responses.append(msg)
         if msg.cseq_method != "INVITE" or msg.status < 200:
             return
+        initial = msg.branch == self.invite.branch
         if msg.status >= 300:
-            if msg.branch == self.invite.branch:
+            if initial:
                 self.final = msg
-                self.dialog.ack_failure(self.invite, msg)
+            if req := self.invites.get(msg.branch):
+                self.dialog.ack_failure(req, msg)
+            return
+        if not initial:
+            self.dialog.ack(msg)
             return
         self.dialog.confirm(msg)  # every 2xx, retransmissions included
-        if self.final is None and msg.branch == self.invite.branch:
+        if self.final is None:
             self.final = msg
-            ip, port, pts = sip.parse_sdp(msg.body)
-            self.addr, self.pt = (ip, port), next(p for p in pts if p in g711.NAMES)
+            answer = sip.parse_sdp(msg.body)
+            self.addr = (answer.ip, answer.port)
+            self.pt = next(p for p in answer.pts if p in g711.NAMES)
 
     def _incoming(self, req: sip.Message) -> None:
         self.requests.append(req)
@@ -167,6 +176,8 @@ class Session:
     ) -> sip.Message | None:
         """Send an in-dialog request; its final response, or None after timer F (32 s)."""
         req = self.dialog.request(method, body, headers)
+        if method == "INVITE":
+            self.invites[req.branch] = req
         self.dialog.send(req)
 
         def final() -> sip.Message | None:
@@ -177,9 +188,15 @@ class Session:
         self.wait(lambda: final() is not None, 64 * sip.T1)
         return final()
 
-    def start(
-        self, source: Callable[[int, int], bytes], sink: Callable[[int, Packet], None]
-    ) -> None:
+    def reinvite(self, direction: str) -> sip.Message | None:
+        """Offer the call's codec again, `direction` (sendonly, inactive: hold); the response."""
+        self.origin = (self.origin[0], self.origin[1] + 1)
+        port = self.rtp.getsockname()[1]
+        return self.request(
+            "INVITE", sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
+        )
+
+    def start(self, source: Source, sink: Callable[[int, Packet], None]) -> None:
         start = time.time_ns() + PTIME_NS
         self.media = (
             Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc),
@@ -201,7 +218,7 @@ class Session:
 
     def run(
         self,
-        source: Callable[[int, int], bytes],
+        source: Source,
         sink: Callable[[int, Packet], None],
         until: Callable[[int], bool],
     ) -> bool:
@@ -291,6 +308,10 @@ class Media:
     def finished(self, tick: int) -> None:
         """The clip just ended (under the lock)."""
 
+    def idle(self) -> bytes | None:
+        """Payload when no clip plays: silence, or None to send nothing (under the lock)."""
+        return self.silence
+
     def play(self, n: int, clip: tuple[str, bytes, list[tuple[int, int]]]) -> dict[str, Any]:
         """Start `clip` (name, encoded audio, labelled spans) at tick n; its spans in the stream."""
         name, audio, spans = clip
@@ -298,12 +319,12 @@ class Media:
         start = n * FRAME
         return {"clip": name, "speech": [[a + start, b + start] for a, b in spans]}
 
-    def source(self, n: int, tick: int) -> bytes:
+    def source(self, n: int, tick: int) -> bytes | None:
         with self.lock:
             if not self.audio:
                 self.step(n, tick)
             if not self.audio:
-                return self.silence
+                return self.idle()
             out = self.audio[self.apos : self.apos + FRAME].ljust(FRAME, self.silence[:1])
             self.apos += FRAME
             if self.apos >= len(self.audio):

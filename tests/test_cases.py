@@ -1,9 +1,11 @@
 import socket
+import time
 from collections.abc import Iterator
 
 import pytest
 
-from rtpbench import sip
+from rtpbench import rtp, sip
+from rtpbench.agent import Responder
 from rtpbench.cases import Check, Result, Wire, check_cancel
 
 
@@ -95,3 +97,39 @@ def test_cancel_race_is_not_a_failure(answered_at: int | None, verdict: str) -> 
     ]
     w = Wire({}, None, sorted(msgs, key=lambda m: m[0]), [], [])
     assert check_cancel(w).verdict == verdict
+
+
+def test_sender_pause_keeps_seq_and_clock(pair: tuple[socket.socket, socket.socket]) -> None:
+    a, b = pair
+    paused = range(3, 7)
+    send = rtp.Sender(
+        a, b.getsockname(), 8, lambda n, _t: None if n in paused else bytes(160), 0, 65534, 9
+    )
+    send.start_ns = time.time_ns()
+    send.start()
+    got = [rtp.parse(b.recvfrom(2048)[0]) for _ in range(6)]
+    send.stop.set()
+    send.join()
+    assert [(p.seq, p.ts, p.marker) for p in got if p] == [
+        (65534, 0, True),
+        (65535, 160, False),
+        (0, 320, False),
+        (1, 7 * 160, True),  # next seq, timestamp kept time, marker after the pause
+        (2, 8 * 160, False),
+        (3, 9 * 160, False),
+    ]
+
+
+@pytest.mark.parametrize("clock", [True, False])
+def test_agent_on_hold_sends_nothing(clock: bool) -> None:
+    r = Responder(8, seq0=0, delays=[])
+    r.clock = clock
+    out = []
+    for n in range(10):
+        r.sending = not 3 <= n < 7
+        out.append(r.source(n, n * rtp.PTIME_NS))
+    assert [o is None for o in out] == [False] * 3 + [True] * 4 + [False] * 3
+    if clock:  # the sender stamps it n * 160
+        assert isinstance(out[7], bytes)
+    else:  # timestamps resume where they stopped
+        assert out[7] == rtp.Frame(8, r.silence, 3 * rtp.FRAME, True)

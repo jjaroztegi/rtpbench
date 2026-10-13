@@ -10,6 +10,12 @@ PT = g711.PCMU
 SIL = bytes([g711.SILENCE[PT]]) * FRAME
 
 
+def pay(out: object) -> bytes:
+    """A source's payload (these sources never pause or set their own header fields)."""
+    assert isinstance(out, bytes)
+    return out
+
+
 def stream(pcm: list[int], t0: int, ptime: int = PTIME_NS) -> Timed:
     audio = g711.encode(PT, pcm)
     frames = [audio[i : i + FRAME].ljust(FRAME, SIL[:1]) for i in range(0, len(audio), FRAME)]
@@ -84,7 +90,7 @@ def test_agent_places_onset_at_the_injected_delay(delay: float) -> None:
     assert r.pending["target_ns"] - end == round(delay * 1e9) > HANGOVER_NS
 
     tick0 = arrival + 3_123_456  # sender clock unrelated to arrivals
-    sent = b"".join(r.source(n, tick0 + n * PTIME_NS) for n in range(100))
+    sent = b"".join(pay(r.source(n, tick0 + n * PTIME_NS)) for n in range(100))
     gate = g711.gate(PT, GATE)
     m = gate.search(sent)
     assert m is not None
@@ -107,7 +113,7 @@ def test_reordered_onset_counts_from_the_onset_packet() -> None:
 def test_onset_in_the_last_half_sample_goes_to_the_next_packet() -> None:
     r = Responder(PT, seq0=10, delays=[0.5])
     r.pending = {"turn": 0, "target_ns": 5 * PTIME_NS + FRAME * SAMPLE_NS - 30_000}
-    sent = b"".join(r.source(n, n * PTIME_NS) for n in range(8))
+    sent = b"".join(pay(r.source(n, n * PTIME_NS)) for n in range(8))
     m = g711.gate(PT, GATE).search(sent)
     assert m is not None
     assert m.start() == 6 * FRAME

@@ -9,6 +9,12 @@ from rtpbench.speechcal import _truth
 PT = g711.PCMA
 
 
+def pay(out: object) -> bytes:
+    """A source's payload (these sources never pause or set their own header fields)."""
+    assert isinstance(out, bytes)
+    return out
+
+
 def tone(n: int, amp: float = 8000) -> list[int]:
     return [round(amp * math.cos(2 * math.pi * i / 8)) for i in range(n)]
 
@@ -42,7 +48,7 @@ def test_agent_places_a_clips_labelled_onset_at_the_delay() -> None:
     clip = [0] * 777 + tone(2000) + [0] * 2000
     r = Responder(PT, seq0=100, delays=[1.0], replies=[("c", clip, [(777, 2777)])])
     r.pending = {"turn": 0, "target_ns": 1_000_000_000 + 1_234_567}
-    sent = b"".join(r.source(n, n * PTIME_NS) for n in range(80))
+    sent = b"".join(pay(r.source(n, n * PTIME_NS)) for n in range(80))
     onset = g711.gate(PT, 1000).search(sent)
     assert onset is not None
     assert abs(onset.start() * SAMPLE_NS - 1_001_234_567) <= SAMPLE_NS // 2

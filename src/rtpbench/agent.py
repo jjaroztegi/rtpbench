@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from rtpbench import bargein, g711, sip, speech
-from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet, Receiver, Sender
+from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, voice
 
 HANGOVER_NS = 200_000_000  # silence that ends a caller turn
@@ -46,6 +46,8 @@ class Behaviour:
     greet_s: float | None = None  # greet this long after sending the 200 OK
     greeting: str = "short"  # a short corpus clip, or a long one (9-15 s)
     linger_s: float = 0.0  # keep sending RTP this long after answering BYE
+    hold: bool = True  # answer a re-INVITE's direction as offered; else sendrecv, never pause
+    clock: bool = True  # RTP timestamps keep time while paused; else resume where they stopped
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -85,6 +87,8 @@ class Responder:
         self.current: dict[str, Any] = {}  # the turn being replied to
         self.interjecting = False  # the caller's current burst started while we replied
         self.cut_ns: int | None = None
+        self.sending, self.clock = True, True  # not sending: on hold
+        self.skipped, self.paused = 0, True  # ticks not sent; marker on the next packet
 
     def speak(self, target_ns: int, reply: int, kind: str) -> None:
         """Say `self.replies[reply]`, its labelled onset at `target_ns`."""
@@ -137,46 +141,58 @@ class Responder:
         if step["stop"]:
             self.cut_ns = trigger + delay_ns
 
-    def source(self, n: int, tick: int) -> bytes:
+    def source(self, n: int, tick: int) -> bytes | Frame | None:
         with self.lock:
-            p = self.pending
-            pick = p.get("reply", p["turn"]) if p else 0
-            name, audio, spans = self.replies[pick % len(self.replies)] if p else ("", b"", [])
-            lead = spans[0][0] if spans else 0
-            # a start in the last half sample rounds to the next tick's sample 0, not to 160
-            off = round((p["target_ns"] - tick) / SAMPLE_NS) - lead if p else FRAME
-            if self.pos is None and p is not None and off < FRAME:
-                off = max(0, off)
-                start = n * FRAME + off  # stream sample index (from seq0) of the clip's sample 0
-                onset = start + lead
+            out = self._audio(n - self.skipped, tick)
+            if not self.sending:
+                self.skipped += 1
+                self.paused = True
+                return None
+            marker, self.paused = self.paused, False
+            if self.clock:
+                return out  # timestamp n * 160: the clock ran on while paused
+            return Frame(self.pt, out, (n - self.skipped) * FRAME, marker)
+
+    def _audio(self, n: int, tick: int) -> bytes:
+        """Tick n's payload (under the lock); n counts packets sent, as seq does."""
+        p = self.pending
+        pick = p.get("reply", p["turn"]) if p else 0
+        name, audio, spans = self.replies[pick % len(self.replies)] if p else ("", b"", [])
+        lead = spans[0][0] if spans else 0
+        # a start in the last half sample rounds to the next tick's sample 0, not to 160
+        off = round((p["target_ns"] - tick) / SAMPLE_NS) - lead if p else FRAME
+        if self.pos is None and p is not None and off < FRAME:
+            off = max(0, off)
+            start = n * FRAME + off  # stream sample index (from seq0) of the clip's sample 0
+            onset = start + lead
+            p |= {
+                "onset_seq": (self.seq0 + onset // FRAME) & 0xFFFF,
+                "onset_off": onset % FRAME,
+                "tick_ns": tick,
+            }
+            if spans:
                 p |= {
-                    "onset_seq": (self.seq0 + onset // FRAME) & 0xFFFF,
-                    "onset_off": onset % FRAME,
-                    "tick_ns": tick,
+                    "clip": name,
+                    "start": start,
+                    "speech": [[a + start, b + start] for a, b in spans],
                 }
-                if spans:
-                    p |= {
-                        "clip": name,
-                        "start": start,
-                        "speech": [[a + start, b + start] for a, b in spans],
-                    }
-                self.turns.append(p)
-                self.pending, self.pos, self.response, self.current = None, -off, audio, p
-            if self.pos is None:
-                return self.silence
-            pos, self.pos = self.pos, self.pos + FRAME
-            if self.pos >= len(self.response):
-                self.pos = None
-            head = self.silence[: max(0, -pos)]
-            out = (head + self.response[max(0, pos) : pos + FRAME]).ljust(FRAME, self.silence[:1])
-            if self.cut_ns is not None and (cut := round((self.cut_ns - tick) / SAMPLE_NS)) < FRAME:
-                cut = max(0, cut)
-                self.current["barge"]["cut"] = n * FRAME + cut  # first sample not sent
-                self.pos = None
-                out = out[:cut] + self.silence[cut:]
-            if self.pos is None:
-                self.cut_ns = None
-            return out
+            self.turns.append(p)
+            self.pending, self.pos, self.response, self.current = None, -off, audio, p
+        if self.pos is None:
+            return self.silence
+        pos, self.pos = self.pos, self.pos + FRAME
+        if self.pos >= len(self.response):
+            self.pos = None
+        head = self.silence[: max(0, -pos)]
+        out = (head + self.response[max(0, pos) : pos + FRAME]).ljust(FRAME, self.silence[:1])
+        if self.cut_ns is not None and (cut := round((self.cut_ns - tick) / SAMPLE_NS)) < FRAME:
+            cut = max(0, cut)
+            self.current["barge"]["cut"] = n * FRAME + cut  # first sample not sent
+            self.pos = None
+            out = out[:cut] + self.silence[cut:]
+        if self.pos is None:
+            self.cut_ns = None
+        return out
 
 
 def _local_ip(peer: tuple[str, int]) -> str:
@@ -207,9 +223,13 @@ class Uas:
         self.unacked = b""  # final response to the INVITE, resent until ACKed
         self.resend_at, self.interval = 0.0, sip.T1
         self.answer_at: float | None = None
+        self.reinvite = ""  # branch of the latest re-INVITE
+        self.origin = [secrets.randbelow(1 << 31), 0]  # SDP session id, version
         self.end_at: float | None = None
         self.done = False
         self.responder: Responder | None = None
+        self.pt = 0
+        self.sender: Sender | None = None
         self.threads: list[Sender | Receiver] = []
         self.meta: dict[str, Any] = {}
 
@@ -235,8 +255,10 @@ class Uas:
         elif inv is None or msg.get("call-id") != inv.get("call-id"):
             if msg.method not in ("ACK", "INVITE"):
                 self.sock.sendto(sip.response(msg, 481, "Call Does Not Exist").render(), addr)
-        elif msg.method == "INVITE" and msg.branch == inv.branch:
+        elif msg.method == "INVITE" and msg.branch in (inv.branch, self.reinvite):
             self.sock.sendto(self.last, addr)  # retransmission
+        elif msg.method == "INVITE":
+            self._reinvite(msg)
         elif msg.method == "ACK":
             self.unacked = b""
             self.done |= self.responder is None  # ACK for a 487: the call never was
@@ -255,7 +277,7 @@ class Uas:
     def _invite(self, msg: sip.Message) -> None:
         self.invite = msg
         self._send(sip.response(msg, 100, "Trying"))
-        if not [pt for pt in sip.parse_sdp(msg.body)[2] if pt in g711.NAMES]:
+        if not [pt for pt in sip.parse_sdp(msg.body).pts if pt in g711.NAMES]:
             self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
             self.end_at = time.monotonic() + 64 * sip.T1
         elif self.case.ring_s:
@@ -266,23 +288,41 @@ class Uas:
 
     def _answer(self) -> None:
         assert self.invite is not None
-        ip, port, pts = sip.parse_sdp(self.invite.body)
-        pt, local = next(pt for pt in pts if pt in g711.NAMES), _local_ip(self.addr)
+        offer = sip.parse_sdp(self.invite.body)
+        self.pt = pt = next(pt for pt in offer.pts if pt in g711.NAMES)
         seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
         self.responder = r = self.make(pt, seq0)
-        contact = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
-        body = sip.sdp(local, self.rtp.getsockname()[1], [pt])
-        self._send(sip.response(self.invite, 200, "OK", self.to_tag, body, contact), final=True)
+        r.clock = self.case.clock
+        self._send(self._ok(self.invite, "sendrecv"), final=True)
         start = time.time_ns() + PTIME_NS
-        self.threads = [
-            Sender(self.rtp, (ip, port), pt, r.source, start, seq0, ssrc),
-            Receiver(self.rtp, r.on_packet),
-        ]
+        self.sender = Sender(self.rtp, (offer.ip, offer.port), pt, r.source, start, seq0, ssrc)
+        self.threads = [self.sender, Receiver(self.rtp, r.on_packet)]
         for t in self.threads:
             t.start()
         if self.case.greet_s is not None:
             r.speak(time.time_ns() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
         self.meta = {"pt": pt, "ssrc": ssrc, "seq0": seq0}
+
+    def _ok(self, req: sip.Message, direction: str) -> sip.Message:
+        local = _local_ip(self.addr)
+        contact = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
+        origin = (self.origin[0], self.origin[1])
+        body = sip.sdp(local, self.rtp.getsockname()[1], [self.pt], direction, origin)
+        self.origin[1] += 1
+        return sip.response(req, 200, "OK", self.to_tag, body, contact)
+
+    def _reinvite(self, msg: sip.Message) -> None:
+        """Answer the offered direction (or sendrecv, ignoring hold); pause sending while the
+        answer says the agent does not send."""
+        offer = sip.parse_sdp(msg.body)
+        direction = sip.ANSWER[offer.direction] if self.case.hold else "sendrecv"
+        self.reinvite = msg.branch
+        if self.responder:
+            with self.responder.lock:
+                self.responder.sending = direction in ("sendrecv", "sendonly")
+            if offer.port and self.sender:
+                self.sender.addr = (offer.ip, offer.port)
+        self._send(self._ok(msg, direction), final=True)
 
     def tick(self) -> None:
         now = time.monotonic()

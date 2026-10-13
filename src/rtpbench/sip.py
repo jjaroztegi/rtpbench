@@ -116,32 +116,62 @@ def response(
     return Message(f"SIP/2.0 {status} {reason}", headers, body)
 
 
-def sdp(ip: str, port: int, pts: list[int]) -> bytes:
-    sid = secrets.randbelow(1 << 31)
+def sdp(
+    ip: str,
+    port: int,
+    pts: list[int],
+    direction: str = "sendrecv",
+    origin: tuple[int, int] | None = None,
+) -> bytes:
+    """An audio offer or answer; `origin` (session id, version) for a later one."""
+    sid, version = origin or (secrets.randbelow(1 << 31),) * 2
     lines = [
         "v=0",
-        f"o=rtpbench {sid} {sid} IN IP4 {ip}",
+        f"o=rtpbench {sid} {version} IN IP4 {ip}",
         "s=rtpbench",
         f"c=IN IP4 {ip}",
         "t=0 0",
         f"m=audio {port} RTP/AVP {' '.join(map(str, pts))}",
         *(f"a=rtpmap:{pt} {NAMES[pt]}/8000" for pt in pts),
         "a=ptime:20",
-        "a=sendrecv",
+        f"a={direction}",
     ]
     return ("\r\n".join(lines) + "\r\n").encode()
 
 
-def parse_sdp(body: bytes) -> tuple[str, int, list[int]]:
-    """Connection address, audio port and offered payload types."""
-    ip, port, pts = "", 0, []
+@dataclass
+class Sdp:
+    ip: str = ""
+    port: int = 0
+    pts: list[int] = field(default_factory=list)
+    direction: str = "sendrecv"
+
+
+DIRECTIONS = ("sendrecv", "sendonly", "recvonly", "inactive")
+# what an answerer that honours the offer replies with (RFC 3264 6.1)
+ANSWER = {
+    "sendrecv": "sendrecv",
+    "sendonly": "recvonly",
+    "recvonly": "sendonly",
+    "inactive": "inactive",
+}
+
+
+def parse_sdp(body: bytes) -> Sdp:
+    """Connection address, port, payload types and direction of the first audio stream."""
+    out, media = Sdp(), False
     for line in body.decode(errors="replace").splitlines():
-        if line.startswith("c=IN IP4 "):
-            ip = line.split()[2]
-        elif line.startswith("m=audio "):
-            fields = line.split()
-            port, pts = int(fields[1]), [int(p) for p in fields[3:]]
-    return ip, port, pts
+        if line.startswith("c=IN IP4 ") and (media or not out.ip):
+            out.ip = line.split()[2]
+        elif line.startswith("m="):
+            if media:
+                break
+            if media := line.startswith("m=audio "):
+                fields = line.split()
+                out.port, out.pts = int(fields[1]), [int(p) for p in fields[3:]]
+        elif line[2:] in DIRECTIONS:  # media level comes later, so it wins
+            out.direction = line[2:]
+    return out
 
 
 class SipError(Exception):
@@ -282,6 +312,10 @@ class Dialog:
         self.remote = ok.get("to")
         self.target = uri_of(ok.get("contact")) or self.target
         self.routes = list(reversed(ok.all("record-route")))
+        self.ack(ok)
+
+    def ack(self, ok: Message) -> None:
+        """ACK a 2xx to an INVITE."""
         ack = self.request("ACK")
         cseq = ok.get("cseq").split()[0] + " ACK"
         ack.headers = [(k, cseq if k == "CSeq" else v) for k, v in ack.headers]

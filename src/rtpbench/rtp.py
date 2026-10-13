@@ -49,10 +49,22 @@ def sleep_until(t_ns: int) -> None:
         pass
 
 
+@dataclass(frozen=True, slots=True)
+class Frame:
+    """A packet whose payload type, timestamp or marker the source sets itself."""
+
+    pt: int
+    payload: bytes
+    ts: int
+    marker: bool = False
+
+
 class Sender(threading.Thread):
     """Sends one packet per 20 ms tick on an absolute schedule from `start_ns`.
 
-    `source(n, tick_ns)` returns the payload for tick n; tick n carries RTP seq `seq0 + n`.
+    `source(n, tick_ns)` returns tick n's payload (timestamp n * 160, marker on the first packet
+    after a pause), a full `Frame`, or None to send nothing. Seq counts packets sent (RFC 3550),
+    so with no pauses tick n carries seq `seq0 + n`.
     """
 
     def __init__(
@@ -60,7 +72,7 @@ class Sender(threading.Thread):
         sock: socket.socket,
         addr: tuple[str, int],
         pt: int,
-        source: Callable[[int, int], bytes],
+        source: Callable[[int, int], bytes | Frame | None],
         start_ns: int,
         seq0: int,
         ssrc: int,
@@ -71,14 +83,19 @@ class Sender(threading.Thread):
         self.stop = threading.Event()
 
     def run(self) -> None:
-        n = 0
+        n, sent, paused = 0, 0, True
         while not self.stop.is_set():
             tick = self.start_ns + n * PTIME_NS
-            payload = self.source(n, tick)
+            out = self.source(n, tick)
             sleep_until(tick)
-            seq = (self.seq0 + n) & 0xFFFF
-            ts = (n * FRAME) & 0xFFFFFFFF
-            self.sock.sendto(pack(self.pt, seq, ts, self.ssrc, payload, n == 0), self.addr)
+            if out is not None:
+                if not isinstance(out, Frame):
+                    out = Frame(self.pt, out, n * FRAME, paused)
+                seq = (self.seq0 + sent) & 0xFFFF
+                data = pack(out.pt, seq, out.ts & 0xFFFFFFFF, self.ssrc, out.payload, out.marker)
+                self.sock.sendto(data, self.addr)
+                sent += 1
+            paused = out is None
             n += 1
 
 

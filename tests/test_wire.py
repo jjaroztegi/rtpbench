@@ -43,7 +43,8 @@ def test_sip_parse_render_and_response() -> None:
 
 
 def test_sdp_round_trip() -> None:
-    assert sip.parse_sdp(sip.sdp("10.1.2.3", 4000, [0, 8])) == ("10.1.2.3", 4000, [0, 8])
+    got = sip.parse_sdp(sip.sdp("10.1.2.3", 4000, [0, 8], "sendonly", (7, 3)))
+    assert got == sip.Sdp("10.1.2.3", 4000, [0, 8], "sendonly")
 
 
 def test_pcap_reads_nanosecond_ethernet_udp(tmp_path: Path) -> None:
