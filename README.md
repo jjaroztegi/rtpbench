@@ -148,6 +148,11 @@ its own process, six at once. AI Voice Connector CE at 09e14d0 with OpenSIPS 3.6
 as in upstream's example, engine Azure OpenAI `gpt-realtime-2.1` (2026-07-07)
 through `OPENAI_URL`; the agent's latency includes the engine's.
 
+Re-running these commands today does not give byte-identical captures: since #27 the refer cases
+end with a final NOTIFY whose `Subscription-State` is `terminated;reason=noresource` (plain
+`terminated` before). The published runs judged again at 4cd2060 give the same verdicts and
+timings.
+
 ### Cases
 
 A cell is the verdict over 10 repeats and, for the agent, the case's main timing as median
