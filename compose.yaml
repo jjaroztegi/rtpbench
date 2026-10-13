@@ -1,0 +1,33 @@
+# caller | router | agent. netem runs only on the router, so both captures sit at true endpoints.
+# Driven by `rtpbench calibrate`, which sets RTPBENCH_IMAGE, RTPBENCH_OUT and a unique project name.
+x-node: &node
+  image: ${RTPBENCH_IMAGE:?}
+  cap_add: [NET_ADMIN]
+  init: true
+
+services:
+  router:
+    <<: *node
+    build: .
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks: [callnet, agentnet]
+    command: sleep infinity
+
+  agent:
+    <<: *node
+    depends_on: [router]
+    networks: [agentnet]
+    volumes: ["${RTPBENCH_OUT:?}:/out"]
+    command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec sleep infinity'
+
+  caller:
+    <<: *node
+    depends_on: [router]
+    networks: [callnet]
+    volumes: ["${RTPBENCH_OUT:?}:/out"]
+    command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec sleep infinity'
+
+networks:
+  callnet:
+  agentnet:
