@@ -3,6 +3,7 @@ name = "rtpbench"
 version = "0.0.0"
 description = "Wire-level latency and conformance tests for voice agents over SIP/RTP"
 readme = "README.md"
+license = "Apache-2.0"
 authors = [{ name = "Juanjo Aroztegi", email = "juanjo@aroztegi.com" }]
 requires-python = ">=3.14"
 dependencies = []
