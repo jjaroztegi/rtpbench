@@ -344,7 +344,8 @@ def _refer(dial: Dial, seed: int, lines: Lines, outcome: str) -> dict[str, Any]:
     m.say(*_line(lines, "transfer", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):
-        for frag, state in (("100 Trying", "active;expires=60"), (outcome, "terminated")):
+        final = "terminated;reason=noresource"  # as RFC 5589's flows
+        for frag, state in (("100 Trying", "active;expires=60"), (outcome, final)):
             event = [("Event", "refer"), ("Subscription-State", state)]
             s.request("NOTIFY", f"SIP/2.0 {frag}\r\n".encode(), event, SIPFRAG)
             s.wait(lambda: False, 1.0)
