@@ -13,11 +13,18 @@ from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from rtpbench import analyze, bargein, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
+LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real agent
+# compose targets, targets/<name>/compose.yaml: the SIP user to dial, the variable naming the AI
+# engine's endpoint (only its domain and query go into the conditions), and its default
+TARGETS = {
+    "aivc": ("openai", "OPENAI_URL", "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1"),
+}
 # netem arguments per direction, applied to both router egress interfaces; SIP is exempt
 PROFILES = {
     "clean": "",
@@ -30,18 +37,25 @@ PROFILES = {
 
 def _image_tag() -> str:
     h = hashlib.sha256((ROOT / "Dockerfile").read_bytes())
-    for f in sorted([*(ROOT / "src").rglob("*.py"), *(ROOT / "corpus").glob("*.wav")]):
+    for f in sorted([*(ROOT / "src").rglob("*.py"), *(ROOT / "corpus").rglob("*.wav")]):
         h.update(f.relative_to(ROOT).as_posix().encode() + f.read_bytes())
     return "rtpbench:" + h.hexdigest()[:12]
 
 
 class Stack:
-    def __init__(self, out: Path) -> None:
+    """caller | router | agent, plus a target's services when given (paths in its compose file
+    are relative to the repository root)."""
+
+    def __init__(self, out: Path, target: str | None = None) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
+        self.files = [ROOT / "compose.yaml"]
+        if target:
+            self.files.append(ROOT / "targets" / target / "compose.yaml")
 
     def compose(self, *args: str, check: bool = True) -> str:
-        cmd = ["docker", "compose", "-p", self.project, "-f", str(ROOT / "compose.yaml"), *args]
+        files = [a for f in self.files for a in ("-f", str(f))]
+        cmd = ["docker", "compose", "-p", self.project, *files, *args]
         res = subprocess.run(cmd, env=self.env, capture_output=True, text=True)
         if check and res.returncode:
             raise RuntimeError(f"{' '.join(args)} failed:\n{res.stderr}")
@@ -51,7 +65,7 @@ class Stack:
         return self.compose("exec", "-T", service, "sh", "-c", cmd, check=check)
 
     def up(self) -> None:
-        self.compose("build", "-q", "router")
+        self.compose("build", "-q")
         self.compose("up", "-d", "--wait")
 
     def down(self) -> None:
@@ -236,10 +250,59 @@ def cases(
     return summary, proven or uri is not None
 
 
+def target(out: Path, name: str, names: list[str], profile: str, seed: int) -> str:
+    """The cases, a turn-latency call and a barge-in call against the compose target `name`,
+    placed from the caller container through the netem router; returns the summary."""
+    user, engine_var, engine_default = TARGETS[name]
+    out.mkdir(parents=True, exist_ok=True)
+    out = out.resolve()
+
+    def inside(*paths: Path) -> list[str]:  # as the caller container sees them
+        return [f"/app/{p.relative_to(ROOT).as_posix()}" for p in paths]
+
+    def lines(pattern: str) -> list[str]:
+        return inside(*sorted(LINES.glob(pattern)))
+
+    runs: list[tuple[str, str | None, Path]] = []
+    stack = Stack(out, name)
+    try:
+        stack.up()
+        caller_ip = stack.sh("caller", "hostname -i").split()[0]
+        target_ip = stack.sh("router", "getent hosts target").split()[0]
+        router_ip = stack.sh("target", "getent hosts router").split()[0]
+        stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
+        stack.netem(PROFILES[profile], [caller_ip, target_ip])
+        url = urlsplit(os.environ.get(engine_var) or engine_default)
+        engine = {"domain": ".".join((url.hostname or "").split(".")[-3:]), "query": url.query}
+        conds = conditions(partial(stack.sh, "router"), seed) | {"profile": profile}
+        conds |= {"target": name, "engine": engine, "images": stack.compose("images")}
+        uri = f"sip:{user}@{target_ip}"
+        turns = lines("turn-*.wav")
+        latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
+        barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
+        calls = {
+            **{c: ["case", c, uri, "--lines", *inside(LINES)] for c in names},
+            "latency": ["call", uri, *latency],
+            "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
+        }
+        for tag, call in calls.items():
+            print(f"{tag}: calling {uri}", flush=True)
+            call += ["--out", f"/out/{tag}", "--seed", str(seed)]
+            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+        runs = [(case, None, out / case) for case in names]
+        (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
+    finally:
+        if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+            stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
+        stack.down()
+    (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+    return judge(out, runs)[0]
+
+
 def judge(out: Path, runs: list[tuple[str, str | None, Path]] | None = None) -> tuple[str, bool]:
     """Verdicts for the runs of a cases directory (by default the ones its results.json
-    lists): summary.md, results.json and report.html. Returns the summary and whether every
-    reference case was proven."""
+    lists), plus turn latency and barge-in if it has those calls: summary.md, results.json and
+    report.html. Returns the summary and whether every reference case was proven."""
     from rtpbench import cases as cs
     from rtpbench import report
 
@@ -247,6 +310,12 @@ def judge(out: Path, runs: list[tuple[str, str | None, Path]] | None = None) -> 
         recs = json.loads((out / "results.json").read_text())
         runs = [(r["case"], r["behaviour"], out / r["run"]) for r in recs]
     summary, records, proven = cs.summarize(runs)
+    for sub, title, summarize in (
+        ("latency", "Turn latency", speechcal.summarize),
+        ("barge-in", "Barge-in", bargein.summarize),
+    ):
+        if (out / sub / "caller.json").exists():
+            summary += f"\n## {title}\n\n" + summarize({sub: out / sub})
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
     (out / "report.html").write_text(report.render(out))

@@ -35,12 +35,20 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
     p.add_argument("--lines", type=Path, help="with a URI: prompt.wav, transfer.wav to say")
 
+    p = sub.add_parser("target", help="cases, turn latency and barge-in against a target (Docker)")
+    p.add_argument("name", help="a directory under targets/, e.g. aivc")
+    p.add_argument("--only", help="comma-separated cases (default: all)")
+    p.add_argument("--profile", default="clean", help="netem profile")
+    p.add_argument("--out", type=Path, help="default: results/<timestamp>")
+    p.add_argument("--seed", type=int, default=1)
+
     p = sub.add_parser("case", help="run one case's caller side (inside a container)")
     p.add_argument("name")
     p.add_argument("uri")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0")
+    p.add_argument("--lines", type=Path, help="prompt.wav, transfer.wav to say")
 
     p = sub.add_parser("report", help="judge a cases directory again; rewrite its report")
     p.add_argument("out", type=Path)
@@ -106,6 +114,14 @@ def main(argv: list[str] | None = None) -> None:
         print(f"results in {out}")
         if not proven:
             raise SystemExit(1)
+    elif args.cmd == "target":
+        from rtpbench import cases
+        from rtpbench.bench import target
+
+        out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+        names = args.only.split(",") if args.only else list(cases.CASES)
+        print(target(out, args.name, names, args.profile, args.seed))
+        print(f"results in {out}")
     elif args.cmd == "report":
         from rtpbench.bench import judge
 
@@ -145,7 +161,7 @@ def main(argv: list[str] | None = None) -> None:
             elif args.cmd == "case":
                 from rtpbench.cases import run
 
-                log = run(args.name, args.uri, args.seed)
+                log = run(args.name, args.uri, args.seed, args.lines)
             else:
                 from rtpbench import speech
                 from rtpbench.caller import call, converse, speech_utterances

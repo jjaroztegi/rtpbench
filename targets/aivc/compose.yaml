@@ -1,0 +1,67 @@
+# OpenSIPS AI Voice Connector CE (openai flavor) as a target, merged over ../../compose.yaml.
+# `target` owns the network namespace (agentnet, plus egress to the AI engine); OpenSIPS and the
+# connector share it, as upstream's example shares the host's. rtpbench routes the caller via
+# the router, so SIP and RTP cross netem. Needs OPENAI_API_KEY (and OPENAI_URL for a gateway).
+# Paths are relative to the repository root, the first compose file's directory.
+services:
+  target:
+    image: ${RTPBENCH_IMAGE:?}
+    cap_add: [NET_ADMIN]
+    init: true
+    depends_on: [router]
+    networks: [agentnet, egress]
+    command: sleep infinity
+
+  opensips:
+    image: opensips/opensips:3.6@sha256:81a7fa3c7bdbceaadb7cb869ff7ac3f34efb2d95cd7fecb3b689d7b6b1eb0672
+    network_mode: service:target
+    depends_on: [target]
+    volumes: ["./targets/aivc/opensips.cfg:/etc/opensips/opensips.cfg:ro"]
+    healthcheck:
+      test: opensips-cli -x mi sr_get_status core | grep -q running
+      interval: 1s
+      retries: 20
+
+  engine:
+    build:
+      context: https://github.com/OpenSIPS/opensips-ai-voice-connector-ce.git#09e14d00863c7a76fa5778e32209c9bdf49bdaee
+      # upstream's docker/Dockerfile, with the base image pinned
+      dockerfile_inline: |
+        FROM python:3.14-trixie@sha256:446efb4225200a0a196707aa7953898b37962fd3b8859a636035de3af657081e
+        WORKDIR /app
+        COPY . /app/
+        RUN pip install --no-cache-dir -r requirements.txt
+        CMD ["python3", "-u", "src/main.py"]
+    image: rtpbench-aivc:09e14d0
+    network_mode: service:target
+    depends_on:
+      opensips: { condition: service_healthy }
+    volumes: ["./targets/aivc/aivc.ini:/app/cfg/aivc.ini:ro"]
+    environment:
+      CONFIG_FILE: /app/cfg/aivc.ini
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY}
+      OPENAI_URL: ${OPENAI_URL:-wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1}
+    # ready once OpenSIPS lists it as the subscriber for call events
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - >-
+          import json, socket; s = socket.socket(2, 2); s.settimeout(1);
+          s.sendto(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "subscribers_list",
+          "params": ["E_UA_SESSION"]}).encode(), ("127.0.0.1", 8080));
+          assert json.loads(s.recv(65535))["result"]["Event"]["Subscribers"]
+      interval: 1s
+      retries: 30
+    # SDP carries the address facing the caller (the router's side), not the egress one
+    command:
+      - sh
+      - -c
+      - >-
+        RTP_IP=$$(python3 -c 'import socket as s; u = s.socket(2, 2);
+        u.connect((s.gethostbyname("router"), 9)); print(u.getsockname()[0])')
+        exec python3 -u src/main.py
+
+networks:
+  egress:

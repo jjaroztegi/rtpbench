@@ -83,6 +83,24 @@ a person) in the agent's language; the corpus is used otherwise.
 | `refer` | the caller asks for a person; rtpbench plays the transferee (202, NOTIFY sipfrag 100 then 200, without calling the target): REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
 | `timer` | session timers offered (90 s, caller refreshes) and refreshed once at half time, then not again: the 2xx takes them (Session-Expires, `refresher=uac`, Require: timer), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE between 45 and 90 s after the refresh (RFC 4028) |
 
+## Targets
+
+```sh
+export OPENAI_API_KEY=...                 # see targets/aivc/compose.yaml
+uv run --extra vad rtpbench target aivc   # about 12 minutes
+```
+
+A target is a voice agent that runs in Docker next to the reference stack, so the caller reaches
+it through the same netem router (`--profile`). `rtpbench target NAME` brings it up and, from
+the caller container, runs every case, a turn-latency call (12 turns) and a barge-in call
+(10 turns) against it, with the English caller lines in [`corpus/lines/en`](corpus/README.md).
+`summary.md` holds the case verdicts, turn latency and barge-in stop times per detector;
+`report.html` the case timelines; `target.log` the target's own logs.
+
+| target | what |
+| --- | --- |
+| [`aivc`](targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit, OpenSIPS 3.6 (images pinned by digest), openai flavor as upstream's example sets it, plus a transfer target. Needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (e.g. Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`) |
+
 ## Development
 
 ```sh
@@ -94,4 +112,5 @@ uv run pytest
 
 ## Licence
 
-Apache-2.0
+Apache-2.0, except `targets/aivc/opensips.cfg`, derived from AI Voice Connector CE's example and
+under its GPL-3.0-or-later.

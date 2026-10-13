@@ -1,4 +1,4 @@
 *
 !src/
-!corpus/*.wav
+!corpus/**/*.wav
 **/__pycache__

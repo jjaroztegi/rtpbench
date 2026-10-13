@@ -61,6 +61,9 @@ def test_window_detectors_ignore_silence(name: str) -> None:
 def test_every_corpus_clip_labels_with_silence_around_it() -> None:
     clips = speech.clips("tts-", "human-", "cough-")
     assert len(clips) == 60
+    lines = sorted((speech.CORPUS / "lines" / "en").glob("*.wav"))
+    assert len(lines) == 28
+    clips |= {p.stem: speech.read_wav(p) for p in lines}
     for name, pcm in clips.items():
         spans = speech.label(pcm)
         assert spans[0][0] >= 400, name  # at least 50 ms of non-speech before
