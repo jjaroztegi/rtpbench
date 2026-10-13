@@ -13,7 +13,7 @@ turn latency is from a delay injected by a reference agent.
 Needs Linux (or WSL2), Docker with Compose, and [uv](https://docs.astral.sh/uv/).
 
 ```sh
-uv run rtpbench calibrate            # 5 network profiles x 20 turns, about 7 minutes
+uv run rtpbench calibrate            # 7 network profiles x 20 turns, about 10 minutes
 uv run rtpbench calibrate --profiles clean --turns 5
 ```
 
@@ -51,6 +51,21 @@ The caller cuts into each long reply with an interruption, a backchannel or a co
 reference agent stops (a hard cut, a known delay after it hears the caller) or carries on, as a
 script both ends share says ([`bargein.py`](src/rtpbench/bargein.py)). The summary gives the
 stop time error per detector and timing method, and whether rtpbench told stops from carry-ons.
+
+## Network profiles
+
+netem settings per direction, on the router, RTP only (SIP is never impaired). `delay`, `jitter`,
+`loss` and `mobile` are synthetic stimuli for the calibrations. `lte` and `lte-bad` stand for a
+mobile caller's path, and every number in them has a source:
+
+| profile | netem | source |
+| --- | --- | --- |
+| `lte` | `delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit` | 1% loss, the VoLTE (QCI 1) target per radio link ([3GPP TR 26.989](https://www.3gpp.org/ftp/Specs/archive/26_series/26.989/) 5.1.1.6.1), in bursts of 2 packets (3GPP VoLTE delay/error profiles 7-10, [EVS-7c S4-141392](https://www.3gpp.org/ftp/tsg_sa/WG4_CODEC/EVS_Permanent_Documents/) Annex D); jitter sd 3 ms (commercial LTE in mobility, [Elnashar et al.](https://arxiv.org/abs/1810.02968), fig. 6); 40 ms one way (LTE uplink p99, [Nielsen et al.](https://arxiv.org/abs/1909.03875), fig. 4) |
+| `lte-bad` | `delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit` | 3GPP delay/error profile 8, VoLTE logs in challenging radio conditions (EVS-7c Annex D): 6.2% loss in runs of 2.1 packets; delay above the floor mean 45 ms, sd 26, p95 90. netem delivers mean 48, sd 23, p95 88 (5000 packets) |
+
+`rate` keeps packets in order, as a radio bearer delivers them: independent netem jitter of sd
+26 ms reorders 30% of packets, the profile 8 trace 3%. netem cannot give the trace's
+packet-to-packet correlation (0.95; 0.43 here).
 
 ## Conformance cases
 

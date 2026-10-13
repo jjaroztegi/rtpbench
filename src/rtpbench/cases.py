@@ -37,14 +37,17 @@ MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be
 WATCH_S = 2.0  # listen after the call ends for media that should have stopped
 HOLD_S = 3.0
 RESUME_MS = 1000
-CLOCK_MS = 40  # RTP timestamp gap vs arrival gap across a pause (two packets of jitter)
+CLOCK_MS = 40  # RTP clock vs arrival time, before vs after a pause (two packets)
+FLOOR_PACKETS = 25  # either side of a pause: the least transit time over 0.5 s, past jitter
+SEQ_LOST_MAX = 10  # packets lost in a row where a stream resumes, and it is still the next seq
 KEY_MS = 100  # how long the caller holds a key
 REFER_WAIT_S = 20.0  # after asking for a person
 BYE_WAIT_S = 10.0  # after the transfer is reported done
 SIPFRAG = "message/sipfrag;version=2.0"
 SESSION_S = 90  # RFC 4028 minimum
 TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
-MEDIA_GAP_MS = 100  # agent RTP silent this long around a refresh: media was disturbed
+MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was disturbed
+PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
@@ -494,6 +497,20 @@ def _final_to(req: sip.Message) -> Callable[[sip.Message], bool]:
     return lambda m: m.branch == req.branch and m.cseq_method == req.method and m.status >= 200
 
 
+def _signed(diff: int, bits: int) -> int:
+    """A difference of wrapping counters (RTP seq, timestamp) as a signed number."""
+    half = 1 << (bits - 1)
+    return ((diff + half) & ((1 << bits) - 1)) - half
+
+
+def _floor(pkts: analyze.Timed, ts0: int) -> float:
+    """Least arrival time minus RTP time (ms, timestamps relative to `ts0`) over `pkts`: the
+    sender's clock against the capture's, with the path's base delay and without its jitter.
+    Comparing it across a pause shows whether the RTP clock kept time; one packet each side
+    would carry two packets' jitter."""
+    return min(u / 1e6 - _signed(p.ts - ts0, 32) / 8 for u, p in pkts)
+
+
 # answers to a hold offer that honour it (RFC 3264 6.1: inactive is fine for sendonly)
 HOLD_ANSWERS = {"sendonly": ("recvonly", "inactive"), "inactive": ("inactive",)}
 
@@ -535,15 +552,16 @@ def check_hold(w: Wire) -> Result:
         if not after or not before:
             r.checks.append(Check(f"resume from {offer}: agent RTP again", False))
             continue
-        (u0, p0), (u1, p1) = before[-1], after[0]
+        p0, (u1, p1) = before[-1][1], after[0]
         ms = (u1 - answers[1]) / 1e6
         r.timings.append(Timing(f"resume from {offer}: 2xx to agent RTP", ms, WIRE))
         r.checks.append(
             Check(f"resume from {offer}: agent RTP within {RESUME_MS} ms", ms <= RESUME_MS)
         )
-        drift = ((p1.ts - p0.ts) & 0xFFFFFFFF) / 8 - (u1 - u0) / 1e6
+        drift = _floor(before[-FLOOR_PACKETS:], p0.ts) - _floor(after[:FLOOR_PACKETS], p0.ts)
         r.timings.append(Timing(f"resume from {offer}: RTP clock drift", drift, WIRE))
-        same = p1.ssrc == p0.ssrc and p1.seq == (p0.seq + 1) & 0xFFFF and abs(drift) <= CLOCK_MS
+        lost = (p1.seq - p0.seq - 1) & 0xFFFF  # packets missing at the resume
+        same = p1.ssrc == p0.ssrc and lost <= SEQ_LOST_MAX and abs(drift) <= CLOCK_MS
         detail = f"ssrc {p0.ssrc:#x}->{p1.ssrc:#x}, seq {p0.seq}->{p1.seq}, clock {drift:+.0f} ms"
         r.checks.append(Check(f"resume from {offer}: same RTP stream", same, detail))
     return r
@@ -669,11 +687,22 @@ def check_timer(w: Wire) -> Result:
     if not resp or not good:
         return r
     r.timings.append(Timing("refresh re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+    # on the sender's clock, so that network jitter and loss do not read as a disturbance: time
+    # its RTP clock skipped between packets, and how far its clock moved against arrival times
     near = [(u, p) for u, p in w.down if t - 1e9 <= u <= resp[0] + 2e9]
-    gap = max(((b[0] - a[0]) / 1e6 for a, b in itertools.pairwise(near)), default=0.0)
-    same = len({p.ssrc for _, p in near}) == 1
-    detail = f"longest gap {gap:.0f} ms, {len({p.ssrc for _, p in near})} SSRC"
-    r.checks.append(Check("media undisturbed by the refresh", same and gap <= MEDIA_GAP_MS, detail))
+    ssrcs = len({p.ssrc for _, p in near})
+    skipped = max(
+        (
+            _signed(b.ts - a.ts, 32) / 8 - _signed(b.seq - a.seq, 16) * PTIME_MS
+            for a, b in itertools.pairwise(p for _, p in near)
+        ),
+        default=0.0,
+    )
+    pre, post = [x for x in near if x[0] < t], [x for x in near if x[0] > resp[0]]
+    shift = _floor(post, near[0][1].ts) - _floor(pre, near[0][1].ts) if pre and post else 0
+    detail = f"clock skipped {skipped:.0f} ms, moved {shift:+.0f} ms, {ssrcs} SSRC"
+    calm = ssrcs == 1 and skipped <= MEDIA_GAP_MS and abs(shift) <= MEDIA_GAP_MS
+    r.checks.append(Check("media undisturbed by the refresh", calm, detail))
     bye = w.find(lambda m: m.method == "BYE", sent=False)
     after = None if bye is None else (bye[0] - resp[0]) / 1e9
     in_window = after is not None and interval / 2 < after <= interval

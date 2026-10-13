@@ -1,3 +1,4 @@
+import random
 import socket
 import struct
 import time
@@ -7,7 +8,7 @@ import pytest
 
 from rtpbench import rtp, sip
 from rtpbench.agent import Responder
-from rtpbench.cases import Check, Result, Script, Wire, check_cancel
+from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
 
 
 @pytest.fixture
@@ -147,3 +148,30 @@ def test_rfc4733_digit_frames() -> None:
     assert fields == [(11, 10, d) for d in (160, 320, 480, 640)] + [(11, 0x8A, 800)] * 3
     assert out[7:] == [m.silence] * 2
     assert not m.busy()
+
+
+@pytest.mark.parametrize(("clock", "want"), [(True, 0.0), (False, -3000.0)])
+def test_clock_drift_across_a_pause_is_past_jitter(clock: bool, want: float) -> None:
+    """3 s pause, 20 ms jitter (sd) on every packet: one packet each side is often 40 ms off,
+    the transit floor over 25 packets is not."""
+    rng = random.Random(1)
+
+    def stream(n0: int, ts0: int) -> list[tuple[int, rtp.Packet]]:
+        out = []
+        for i in range(FLOOR_PACKETS):
+            sent = (n0 + i) * 20_000_000
+            ts = (ts0 + i * 160) & 0xFFFFFFFF
+            out.append(
+                (
+                    sent + round(max(0.0, rng.gauss(60, 20)) * 1e6),
+                    rtp.Packet(0, i, ts, 1, False, b""),
+                )
+            )
+        return out
+
+    ts0 = 0xFFFFFF00  # wraps across the pause
+    before = stream(0, ts0)
+    resumed = FLOOR_PACKETS + 150  # 3 s later
+    after = stream(resumed, ts0 + (resumed if clock else FLOOR_PACKETS) * 160)
+    drift = _floor(before, ts0) - _floor(after, ts0)
+    assert abs(drift - want) < 15

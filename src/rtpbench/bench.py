@@ -25,13 +25,27 @@ LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real ag
 TARGETS = {
     "aivc": ("openai", "OPENAI_URL", "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1"),
 }
-# netem arguments per direction, applied to both router egress interfaces; SIP is exempt
+# netem arguments per direction, applied to both router egress interfaces; SIP is exempt.
+# delay, jitter, loss, mobile: synthetic stimuli for the calibrations (each impairment alone,
+# then together). lte, lte-bad: what a mobile caller's path does, from sources:
+# - lte: 1% loss, the VoLTE (QCI 1) packet loss target per radio link (3GPP TR 26.989 5.1.1.6.1),
+#   in bursts of 2 (mean run in 3GPP's VoLTE delay/error profiles 7-10, EVS-7c S4-141392
+#   Annex D); jitter sd 3 ms (commercial LTE in mobility, Elnashar et al., arXiv 1810.02968,
+#   fig. 6); 40 ms one way (LTE uplink p99, Nielsen et al., arXiv 1909.03875, fig. 4).
+# - lte-bad: 3GPP delay/error profile 8 (VoLTE logs in challenging radio conditions, EVS-7c
+#   Annex D): 6.2% loss, mean run 2.1 (Gilbert p 3.2%, r 48%); delay above the floor mean 45 ms,
+#   sd 26, p95 90. Delays chosen so that what netem delivers matches (measured over 5000
+#   packets: mean 48, sd 23, p95 88).
+# `rate` keeps packets in order, as a radio bearer delivers them (independent netem jitter of
+# sd 26 ms reorders 30% of packets; the profile 8 trace 3%).
 PROFILES = {
     "clean": "",
     "delay": "delay 40ms",
     "jitter": "delay 40ms 10ms distribution normal",
     "loss": "loss 3%",
     "mobile": "delay 60ms 20ms distribution normal loss 3%",
+    "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+    "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit",
 }
 
 
