@@ -117,7 +117,8 @@ uv run --extra vad rtpbench target aivc   # about 12 minutes
 A target is a voice agent that runs in Docker next to the reference stack, so the caller reaches
 it through the same netem router (`--profiles`, `--runs` as for the cases). `rtpbench target NAME` brings it up and, from
 the caller container, runs every case, a turn-latency call (12 turns) and a barge-in call
-(10 turns) against it, with the English caller lines in [`corpus/lines/en`](corpus/README.md).
+(10 turns) against it (`--only` picks among them: case names, `latency`, `barge-in`), with the
+English caller lines in [`corpus/lines/en`](corpus/README.md).
 `summary.md` holds the case verdicts, then turn latency and barge-in over every turn of every
 repeat per profile (with the spread of the per-run medians and stop rates, and the error bar
 of each); `report.html` the case timelines; `target.log` the target's own logs.

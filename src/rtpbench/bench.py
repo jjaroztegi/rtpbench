@@ -272,9 +272,9 @@ def cases(
 def target(
     out: Path, name: str, names: list[str], profiles: list[str], runs: int, seed: int
 ) -> str:
-    """The cases, a turn-latency call and a barge-in call against the compose target `name`,
-    placed from the caller container through the netem router, `runs` times per profile
-    (repeat k uses seed + k - 1); returns the summary."""
+    """The cases, a turn-latency call and a barge-in call (those of them in `names`) against
+    the compose target `name`, placed from the caller container through the netem router, `runs`
+    times per profile (repeat k uses seed + k - 1); returns the summary."""
     from rtpbench import cases as cs
 
     user, engine_var, engine_default = TARGETS[name]
@@ -305,10 +305,11 @@ def target(
         latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
         barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
         calls = {
-            **{c: ["case", c, uri, "--lines", *inside(LINES)] for c in names},
+            **{c: ["case", c, uri, "--lines", *inside(LINES)] for c in cs.CASES},
             "latency": ["call", uri, *latency],
             "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
         }
+        calls = {tag: call for tag, call in calls.items() if tag in names}
         for profile in profiles:
             stack.netem(PROFILES[profile], [caller_ip, target_ip])
             for k in range(1, runs + 1):
@@ -317,7 +318,11 @@ def target(
                     print(f"{rel}: calling {uri}", flush=True)
                     args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
                     stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args)
-                done += [cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}") for c in names]
+                done += [
+                    cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}")
+                    for c in names
+                    if c in cs.CASES
+                ]
         (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back

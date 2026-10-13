@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> None:
 
     p = sub.add_parser("target", help="cases, turn latency and barge-in against a target (Docker)")
     p.add_argument("name", help="a directory under targets/, e.g. aivc")
-    p.add_argument("--only", help="comma-separated cases (default: all)")
+    p.add_argument("--only", help="comma-separated cases, latency, barge-in (default: all)")
     p.add_argument("--profiles", default="clean", help="comma-separated netem profiles")
     p.add_argument("--runs", type=int, default=1, help="repeats per profile")
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> None:
         from rtpbench.bench import target
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        names = args.only.split(",") if args.only else list(cases.CASES)
+        names = args.only.split(",") if args.only else [*cases.CASES, "latency", "barge-in"]
         profiles = args.profiles.split(",")
         print(target(out, args.name, names, profiles, args.runs, args.seed))
         print(f"results in {out}")
