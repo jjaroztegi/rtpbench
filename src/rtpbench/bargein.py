@@ -87,9 +87,11 @@ def turns(run: Path) -> list[dict[str, Any]]:
         if not c.get("speech"):
             continue  # the agent never replied, so there was nothing to cut into
         rec: dict[str, Any] = {"turn": i, "kind": c["kind"], "clip": c["clip"], "measured_ms": {}}
-        for key, (st, s) in segs.items():
-            t = st.time(st.index(seq0, c["speech"][0][0]), True)
-            gap = None if t is None else stop(s, t)
+        for key, (st, s) in segs.items():  # from the first labelled sample that arrived
+            said = speechcal._truth(
+                st, [(st.index(seq0, a), st.index(seq0, b)) for a, b in c["speech"]]
+            )
+            gap = None if said is None else stop(s, said[0])
             rec["measured_ms"][key] = None if gap is None else gap / 1e6
         if agent_log:
             reply = agent_log["turns"][i]
