@@ -19,6 +19,7 @@ def test_rtp_round_trip_skips_csrc_and_extension() -> None:
     assert rtp.parse(raw) == rtp.Packet(8, 65535, 2**32 - 1, 7, True, b"abc")
     ext = bytes([0x91]) + raw[1:12] + b"CSRC" + b"\xbe\xde\x00\x01" + b"XXXX" + b"abc"
     assert rtp.parse(ext) == rtp.Packet(8, 65535, 2**32 - 1, 7, True, b"abc")
+    assert rtp.parse(bytes([0x90]) + raw[1:12] + b"\xbe\xde") is None  # extension cut short
 
 
 def test_sip_parse_render_and_response() -> None:
@@ -75,6 +76,8 @@ def test_pcap_reads_nanosecond_ethernet_udp(tmp_path: Path) -> None:
     frame = b"\x00" * 12 + b"\x08\x00" + ip + udp
     data = struct.pack("<IHHiIII", 0xA1B23C4D, 2, 4, 0, 0, 65535, 1)
     data += struct.pack("<IIII", 1_700_000_000, 123_456_789, len(frame), len(frame)) + frame
+    cut = frame[:-2]  # snaplen: the datagram is not all there
+    data += struct.pack("<IIII", 1_700_000_001, 0, len(cut), len(frame)) + cut
     (tmp_path / "x.pcap").write_bytes(data)
     (d,) = pcap.read(tmp_path / "x.pcap")
     assert d == pcap.Datagram(

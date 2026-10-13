@@ -56,7 +56,11 @@ def read(path: Path) -> list[Datagram]:
         if struct.unpack_from("!H", frame, ip + 6)[0] & 0x3FFF:  # fragment
             continue
         udp = ip + 4 * (frame[ip] & 0x0F)
+        if len(frame) < udp + 8:
+            continue
         sport, dport, length = struct.unpack_from("!HHH", frame, udp)
+        if length < 8 or len(frame) < udp + length:  # cut short by the snaplen
+            continue
         out.append(
             Datagram(
                 sec * 1_000_000_000 + frac * scale,

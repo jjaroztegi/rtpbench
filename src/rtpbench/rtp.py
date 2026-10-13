@@ -33,7 +33,9 @@ def parse(data: bytes) -> Packet | None:
         return None
     b0, b1, seq, ts, ssrc = _HEADER.unpack_from(data)
     start = 12 + 4 * (b0 & 0x0F)
-    if b0 & 0x10 and len(data) >= start + 4:
+    if b0 & 0x10:
+        if len(data) < start + 4:
+            return None
         start += 4 + 4 * struct.unpack_from("!H", data, start + 2)[0]
     end = len(data) - (data[-1] if b0 & 0x20 else 0)
     if start > end:
