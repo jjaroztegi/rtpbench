@@ -56,6 +56,7 @@ class Behaviour:
     # hangs up on the 202 and answers NOTIFYs 481
     transfer: str = "complete"
     retake_s: float | None = None  # a transfer failed (final NOTIFY not 2xx): speak this long after
+    codec: int | None = None  # answer with this payload type whatever the offer
     timer: bool = False  # take session timers (RFC 4028) with the caller as refresher
     expire: bool = True  # with timer: BYE when the session expires unrefreshed
 
@@ -360,7 +361,8 @@ class Uas:
     def _answer(self) -> None:
         assert self.invite is not None
         offer = sip.parse_sdp(self.invite.body)
-        self.pt = pt = next(pt for pt in offer.pts if pt in g711.NAMES)
+        pt = next(pt for pt in offer.pts if pt in g711.NAMES)
+        self.pt = pt = pt if self.case.codec is None else self.case.codec
         seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
         self.responder = r = self.make(pt, seq0)
         r.clock, r.events = self.case.clock, offer.dtmf

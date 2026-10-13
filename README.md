@@ -103,6 +103,8 @@ a person) in the agent's language; the corpus is used otherwise.
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
 | `refer` | the caller asks for a person; rtpbench plays the transferee (202, NOTIFY sipfrag 100 then 200, without calling the target): REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
 | `refer-fail` | as `refer`, but the final NOTIFY reports `486 Busy Here`: the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
+| `codec-pcmu` | the caller offers PCMU alone: answered 2xx with PCMU alone (RFC 3264 6.1: the answer's formats come from the offer) and the agent's RTP is PCMU |
+| `codec-pcma` | the same with PCMA |
 | `timer` | session timers offered (90 s, caller refreshes) and refreshed once at half time, then not again: the 2xx takes them (Session-Expires, `refresher=uac`, Require: timer), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE between 45 and 90 s after the refresh (RFC 4028) |
 
 ## Targets

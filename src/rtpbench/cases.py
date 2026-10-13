@@ -347,6 +347,27 @@ def _refer(dial: Dial, seed: int, lines: Lines, outcome: str) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
+def _codec(dial: Dial, seed: int, lines: Lines, pt: int) -> dict[str, Any]:
+    """Offer one G.711 law only; listen to the agent's greeting (or its reply to a question)."""
+    s = dial(codecs=(pt,))
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    if _greeting(s, m) is None:
+        _reply(s, m, seed, lines)
+    s.wait(lambda: s.remote_bye, 1.0)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"offered": [pt], "said": m.said}
+
+
+def codec_pcmu(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _codec(dial, seed, lines, g711.PCMU)
+
+
+def codec_pcma(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _codec(dial, seed, lines, g711.PCMA)
+
+
 def timer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """Offer session timers (90 s, refresher=uac), refresh once at half time, then stop
     refreshing and wait for the agent to end the expired session."""
@@ -722,6 +743,24 @@ def _transfer(w: Wire, r: Result) -> int | None:
     return notifies[-1][0] if notifies else ref[0]
 
 
+def check_codec(w: Wire) -> Result:
+    """The offer had one G.711 law: answered 2xx with that format alone (RFC 3264 6.1: the
+    answer's formats MUST come from the offer), and the agent's RTP carries it."""
+    r = Result()
+    pt = w.log["offered"][0]
+    name = g711.NAMES[pt]
+    ok = w.find(_is_2xx_invite, sent=False)
+    r.checks.append(Check(f"{name}-only offer answered 2xx", ok is not None))
+    if ok is None:
+        return r
+    answer = sip.parse_sdp(ok[1].body).pts
+    r.checks.append(Check(f"answer has {name} alone", answer == [pt], " ".join(map(str, answer))))
+    got = sorted({p.pt for _, p in w.down})
+    detail = " ".join(map(str, got)) or "no agent RTP"
+    r.checks.append(Check(f"agent RTP is {name}", got == [pt], f"payload types {detail}"))
+    return r
+
+
 def check_timer(w: Wire) -> Result:
     """RFC 4028: the 2xx takes the timer (Session-Expires, refresher=uac kept, Require: timer);
     the refresh is answered 2xx with media undisturbed; the agent, not refreshed again, sends
@@ -837,6 +876,18 @@ CASES = {
             "silent": Behaviour(refer_s=1.5),
         },
     ),
+    "codec-pcmu": Case(
+        codec_pcmu,
+        check_codec,
+        Behaviour(greet_s=0.5),
+        {"pcma-anyway": Behaviour(greet_s=0.5, codec=g711.PCMA)},
+    ),
+    "codec-pcma": Case(
+        codec_pcma,
+        check_codec,
+        Behaviour(greet_s=0.5),
+        {"pcmu-anyway": Behaviour(greet_s=0.5, codec=g711.PCMU)},
+    ),
     "timer": Case(
         timer,
         check_timer,
@@ -853,7 +904,7 @@ def run(name: str, uri: str, seed: int, lines: Path | None = None) -> dict[str, 
     calls: list[Session] = []
 
     def dial(**options: Any) -> Session:
-        calls.append(Session(uri, CODECS, **options))
+        calls.append(Session(uri, options.pop("codecs", CODECS), **options))
         return calls[-1]
 
     try:
