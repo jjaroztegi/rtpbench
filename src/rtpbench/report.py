@@ -53,43 +53,42 @@ def _verdict(v: str) -> str:
     return f'<span class="v {v}"><span class="icon" aria-hidden="true">{ICON[v]}</span> {v}</span>'
 
 
-def _timings(rec: dict[str, Any]) -> str:
-    lines = []
-    for t in rec["timings"]:
-        value = cases.Timing(t["name"], t["ms"], cases.Bar(*t["bar"]))
-        lines.append(f'{escape(t["name"])}: <span class="n">{escape(str(value))}</span>')
-    return "<br>".join(lines) or "-"
+def _id(run: str) -> str:
+    return run.replace("/", "-")
 
 
-def _failed(rec: dict[str, Any]) -> str:
-    bad = [c for c in rec["checks"] if not c["ok"]]
-    return (
-        "<br>".join(escape(c["name"] + (f" ({c['detail']})" if c["detail"] else "")) for c in bad)
-        or "-"
+def _group_verdict(recs: list[dict[str, Any]]) -> str:
+    """The verdict, with how many repeats gave it, or the mix when it flips."""
+    text = cases.verdicts(recs)
+    if text.startswith("flips"):
+        icon = '<span class="icon" aria-hidden="true">↯</span>'
+        return f'<span class="v inconclusive">{icon} {escape(text)}</span>'
+    count = text.removeprefix(recs[0]["verdict"])
+    return _verdict(recs[0]["verdict"]) + (
+        f'<span class="n">{escape(count)}</span>' if count else ""
     )
 
 
-def _table(records: list[dict[str, Any]]) -> str:
-    reference = records[0]["behaviour"] is not None
+def _table(groups: list[list[dict[str, Any]]]) -> str:
+    """One profile's cases, repeats grouped."""
+    reference = groups[0][0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]
     head += ["result", "timings, ms (true value within the error bar)", "failed checks"]
     head += ["measured &minus; truth, ms"] if reference else []
     rows = []
-    for rec in records:
-        name = f'<a href="#{rec["run"]}">{escape(rec["case"])}</a>'
-        cells = [name]
+    for recs in groups:
+        rec = recs[0]
+        cells = [f'<a href="#{_id(rec["run"])}">{escape(rec["case"])}</a>']
         if reference:
-            want = "pass" if rec["behaviour"] == "good" else "fail"
-            cells += [escape(rec["behaviour"]), want]
-        cells += [_verdict(rec["verdict"]), _timings(rec), _failed(rec)]
+            cells += [escape(rec["behaviour"]), cases.expected(rec["behaviour"]) or ""]
+        timings = "<br>".join(
+            f'{escape(n)}: <span class="n">{escape(v)}</span>' for n, v in cases.timings(recs)
+        )
+        failed = "<br>".join(escape(f) for f in cases.failures(recs))
+        cells += [_group_verdict(recs), timings or "-", failed or "-"]
         if reference:
-            errs = [
-                cases.Timing(t["name"], t["ms"], cases.Bar(*t["bar"]), t["truth_ms"]).error()
-                for t in rec["timings"]
-                if t["truth_ms"] is not None
-            ]
-            cells.append(escape(", ".join(errs)) or "-")
-        timing = len(cells) - (3 if reference else 2)
+            cells.append(escape(", ".join(cases.errors(recs))) or "-")
+        timing = 4 if reference else 2
         rows.append(
             "<tr>"
             + "".join(
@@ -230,21 +229,35 @@ def _messages(w: cases.Wire) -> str:
 
 
 def render(out: Path) -> str:
-    """The report for a results directory written by `rtpbench cases`."""
+    """The report for a results directory written by `rtpbench cases` or `rtpbench target`:
+    per profile, the cases with their repeats grouped; then a timeline for the first repeat of
+    each, and for every repeat whose verdict differs from it."""
+    from rtpbench.bench import PROFILES
+
     records = json.loads((out / "results.json").read_text())
     conds = json.loads((out / "conditions.json").read_text())
     target = conds.get("target", "reference agent")
     bars = {cases.Bar(*t["bar"]) for r in records for t in r["timings"]}
     meta = ", ".join(
         f"{k} {str(conds[k]).removeprefix('Python ')}"
-        for k in ("date", "commit", "profile", "kernel", "python")
+        for k in ("date", "commit", "runs", "kernel", "python")
         if k in conds
     )
+    by_profile: dict[str, list[list[dict[str, Any]]]] = {}
+    for (profile, _, _), recs in cases.groups(records).items():
+        by_profile.setdefault(profile, []).append(recs)
     parts = [
         f"<h1>rtpbench conformance cases: {escape(target)}</h1>",
         f'<p class="meta">{escape(meta)}</p>',
-        f"<h2>{escape(target)}</h2>",
-        _table(records),
+    ]
+    for profile, groups in by_profile.items():
+        netem = PROFILES.get(profile, "")
+        parts += [
+            f"<h2>{escape(target)}, {escape(profile)}</h2>",
+            f'<p class="note">netem per direction: <code>{escape(netem or "none")}</code></p>',
+            _table(groups),
+        ]
+    parts += [
         '<p class="note">True value = measured &minus; error; the error lies within:</p><ul>',
         *(f"<li>[{b.lo:+.1f}, {b.hi:+.1f}] ms: {escape(b.source)}</li>" for b in sorted(bars)),
         "</ul><h2>Calls</h2>",
@@ -252,14 +265,20 @@ def render(out: Path) -> str:
         '<span><i style="background:var(--agent)"></i>agent</span>'
         "<span>tall bars: speech · thin: RTP flowing · ticks: SIP (hover for detail)</span></div>",
     ]
-    for rec in records:
-        w = cases.load(out / rec["run"])
-        title = rec["case"] + (f" · {rec['behaviour']}" if rec["behaviour"] else "")
-        parts += [
-            f'<h3 id="{rec["run"]}">{escape(title)} {_verdict(rec["verdict"])}</h3>',
-            f'<div class="scroll">{timeline(w)}</div>',
-            _messages(w),
-        ]
+    for groups in by_profile.values():
+        for recs in groups:
+            for rec in [recs[0], *(r for r in recs[1:] if r["verdict"] != recs[0]["verdict"])]:
+                w = cases.load(out / rec["run"], rec["profile"])
+                title = " · ".join(
+                    x
+                    for x in (rec["case"], rec["behaviour"], rec["profile"], f"run {rec['repeat']}")
+                    if x
+                )
+                parts += [
+                    f'<h3 id="{_id(rec["run"])}">{escape(title)} {_verdict(rec["verdict"])}</h3>',
+                    f'<div class="scroll">{timeline(w)}</div>',
+                    _messages(w),
+                ]
     body = "\n".join(parts)
     return (
         '<!doctype html><html lang="en"><meta charset="utf-8">'

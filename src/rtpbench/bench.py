@@ -206,31 +206,34 @@ def cases(
     out: Path,
     uri: str | None,
     names: list[str],
-    profile: str,
+    profiles: list[str],
+    runs: int,
     seed: int,
     iface: str,
     lines: Path | None = None,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent (each behaviour of each case, in Docker
-    behind the netem router), or against `uri` from here (capturing on `iface`). Returns the
-    summary and, for the reference agent, whether every case was proven."""
+    behind the netem router, `runs` times per profile), or against `uri` from here (capturing on
+    `iface`, `runs` times, no netem). Repeat k uses seed + k - 1. Returns the summary and, for
+    the reference agent, whether every case was proven in every repeat."""
     from rtpbench import cases as cs
     from rtpbench.capture import capture
 
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
-    runs: list[tuple[str, str | None, Path]] = []
+    done: list[cs.Run] = []
     if uri:
-        conds = conditions(_host, seed) | {"target": uri, "iface": iface}
+        conds = conditions(_host, seed) | {"target": uri, "iface": iface, "runs": runs}
         conds["python"] = platform.python_version()
-        for name in names:
-            run = out / name
-            run.mkdir(exist_ok=True)
-            print(f"{name}: calling {uri}", flush=True)
-            with capture(run / "caller.pcap", iface):
-                log = cs.run(name, uri, seed, lines)
-            (run / "caller.json").write_text(json.dumps(log, indent=1))
-            runs.append((name, None, run))
+        for k in range(1, runs + 1):
+            for name in names:
+                rel = f"host/{k:02d}/{name}"
+                (out / rel).mkdir(parents=True, exist_ok=True)
+                print(f"{rel}: calling {uri}", flush=True)
+                with capture(out / rel / "caller.pcap", iface):
+                    log = cs.run(name, uri, seed + k - 1, lines)
+                (out / rel / "caller.json").write_text(json.dumps(log, indent=1))
+                done.append(cs.Run("host", k, name, None, rel))
         if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
             subprocess.run(["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True)
     else:
@@ -239,34 +242,41 @@ def cases(
             stack.up()
             caller_ip = stack.sh("caller", "hostname -i").split()[0]
             agent_ip = stack.sh("agent", "hostname -i").split()[0]
-            stack.netem(PROFILES[profile], [caller_ip, agent_ip])
-            conds = conditions(partial(stack.sh, "router"), seed) | {"profile": profile}
-            for name in names:
-                for behaviour in cs.CASES[name].behaviours():
-                    tag = f"{name}-{behaviour}"
-                    run = out / tag
-                    run.mkdir(exist_ok=True)
-                    args = ["--out", f"/out/{tag}", "--seed", str(seed)]
-                    agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
-                    stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
-                    _wait_for(run / "ready", 120)
-                    print(f"{tag}: calling", flush=True)
-                    call = ["case", name, f"sip:agent@{agent_ip}", *args]
-                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
-                    _wait_for(run / "agent.json", 30)
-                    runs.append((name, behaviour, run))
+            conds = conditions(partial(stack.sh, "router"), seed)
+            conds |= {"profiles": profiles, "runs": runs}
+            for profile in profiles:
+                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                for k in range(1, runs + 1):
+                    for name in names:
+                        for behaviour in cs.CASES[name].behaviours():
+                            rel = f"{profile}/{k:02d}/{name}-{behaviour}"
+                            (out / rel).mkdir(parents=True, exist_ok=True)
+                            args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
+                            agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
+                            stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
+                            _wait_for(out / rel / "ready", 120)
+                            print(f"{rel}: calling", flush=True)
+                            call = ["case", name, f"sip:agent@{agent_ip}", *args]
+                            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+                            _wait_for(out / rel / "agent.json", 30)
+                            done.append(cs.Run(profile, k, name, behaviour, rel))
         finally:
             if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
                 stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
             stack.down()
     (out / "conditions.json").write_text(json.dumps(conds, indent=1))
-    summary, proven = judge(out, runs)
-    return summary, proven or uri is not None
+    summary, ok = judge(out, done)
+    return summary, ok or uri is not None
 
 
-def target(out: Path, name: str, names: list[str], profile: str, seed: int) -> str:
+def target(
+    out: Path, name: str, names: list[str], profiles: list[str], runs: int, seed: int
+) -> str:
     """The cases, a turn-latency call and a barge-in call against the compose target `name`,
-    placed from the caller container through the netem router; returns the summary."""
+    placed from the caller container through the netem router, `runs` times per profile
+    (repeat k uses seed + k - 1); returns the summary."""
+    from rtpbench import cases as cs
+
     user, engine_var, engine_default = TARGETS[name]
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
@@ -277,7 +287,7 @@ def target(out: Path, name: str, names: list[str], profile: str, seed: int) -> s
     def lines(pattern: str) -> list[str]:
         return inside(*sorted(LINES.glob(pattern)))
 
-    runs: list[tuple[str, str | None, Path]] = []
+    done: list[cs.Run] = []
     stack = Stack(out, name)
     try:
         stack.up()
@@ -285,11 +295,11 @@ def target(out: Path, name: str, names: list[str], profile: str, seed: int) -> s
         target_ip = stack.sh("router", "getent hosts target").split()[0]
         router_ip = stack.sh("target", "getent hosts router").split()[0]
         stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
-        stack.netem(PROFILES[profile], [caller_ip, target_ip])
         url = urlsplit(os.environ.get(engine_var) or engine_default)
         engine = {"domain": ".".join((url.hostname or "").split(".")[-3:]), "query": url.query}
-        conds = conditions(partial(stack.sh, "router"), seed) | {"profile": profile}
-        conds |= {"target": name, "engine": engine, "images": stack.compose("images")}
+        conds = conditions(partial(stack.sh, "router"), seed)
+        conds |= {"profiles": profiles, "runs": runs, "target": name, "engine": engine}
+        conds["images"] = stack.compose("images")
         uri = f"sip:{user}@{target_ip}"
         turns = lines("turn-*.wav")
         latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
@@ -299,38 +309,46 @@ def target(out: Path, name: str, names: list[str], profile: str, seed: int) -> s
             "latency": ["call", uri, *latency],
             "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
         }
-        for tag, call in calls.items():
-            print(f"{tag}: calling {uri}", flush=True)
-            call += ["--out", f"/out/{tag}", "--seed", str(seed)]
-            stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
-        runs = [(case, None, out / case) for case in names]
+        for profile in profiles:
+            stack.netem(PROFILES[profile], [caller_ip, target_ip])
+            for k in range(1, runs + 1):
+                for tag, call in calls.items():
+                    rel = f"{profile}/{k:02d}/{tag}"
+                    print(f"{rel}: calling {uri}", flush=True)
+                    args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
+                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args)
+                done += [cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}") for c in names]
         (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
     (out / "conditions.json").write_text(json.dumps(conds, indent=1))
-    return judge(out, runs)[0]
+    return judge(out, done)[0]
 
 
-def judge(out: Path, runs: list[tuple[str, str | None, Path]] | None = None) -> tuple[str, bool]:
-    """Verdicts for the runs of a cases directory (by default the ones its results.json
-    lists), plus turn latency and barge-in if it has those calls: summary.md, results.json and
-    report.html. Returns the summary and whether every reference case was proven."""
+def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
+    """Verdicts for the case runs of a results directory (by default the ones its results.json
+    lists), plus turn latency and barge-in pooled per profile if it has those calls:
+    summary.md, results.json and report.html. Returns the summary and whether every reference
+    case was proven in every repeat."""
     from rtpbench import cases as cs
     from rtpbench import report
 
     if runs is None:
         recs = json.loads((out / "results.json").read_text())
-        runs = [(r["case"], r["behaviour"], out / r["run"]) for r in recs]
-    summary, records, proven = cs.summarize(runs)
-    for sub, title, summarize in (
-        ("latency", "Turn latency", speechcal.summarize),
-        ("barge-in", "Barge-in", bargein.summarize),
+        runs = [cs.Run(*(r[f] for f in cs.Run._fields)) for r in recs]
+    summary, records, ok = cs.summarize(out, runs)
+    for sub, title, pooled in (
+        ("latency", "Turn latency", speechcal.pooled),
+        ("barge-in", "Barge-in", bargein.pooled),
     ):
-        if (out / sub / "caller.json").exists():
-            summary += f"\n## {title}\n\n" + summarize({sub: out / sub})
+        calls: dict[str, list[Path]] = {}
+        for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
+            calls.setdefault(path.parts[-4], []).append(path.parent)
+        if calls:
+            summary += f"\n## {title}\n\n" + pooled(calls)
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
     (out / "report.html").write_text(report.render(out))
-    return summary, proven
+    return summary, ok

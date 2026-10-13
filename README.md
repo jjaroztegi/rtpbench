@@ -80,9 +80,15 @@ calibrations above. Without a URI, every case runs against the reference agent o
 behaviour that should pass it and once with each behaviour that should fail it, so the case
 itself is proven; the command fails if any verdict is not the expected one. With a URI, the
 cases call your agent from this machine (after `uv sync --extra vad`; capturing needs root).
-The run writes `summary.md`, `results.json` and `report.html`: one table per target and, per
+The run writes `summary.md`, `results.json` and `report.html`: one table per profile and, per
 call, a timeline of the SIP messages, speech and RTP of both sides on one time axis, all from the
 caller's capture. `rtpbench report DIR` judges a run again and rewrites them.
+
+`--profiles clean,lte,lte-bad --runs 10` repeats every call ten times under each profile (repeat
+k uses seed + k - 1). Verdicts are then counted ("pass 10/10"); a case whose verdict changes
+between repeats reads "flips: pass 7, fail 3" and the reference command fails. Timings read
+median [min, max] over the repeats. The report draws the first repeat of each call and every
+repeat whose verdict differs from it.
 
 `--lines DIR` gives the caller its own `prompt.wav` (a question) and `transfer.wav` (asking for
 a person) in the agent's language; the corpus is used otherwise.
@@ -106,11 +112,12 @@ uv run --extra vad rtpbench target aivc   # about 12 minutes
 ```
 
 A target is a voice agent that runs in Docker next to the reference stack, so the caller reaches
-it through the same netem router (`--profile`). `rtpbench target NAME` brings it up and, from
+it through the same netem router (`--profiles`, `--runs` as for the cases). `rtpbench target NAME` brings it up and, from
 the caller container, runs every case, a turn-latency call (12 turns) and a barge-in call
 (10 turns) against it, with the English caller lines in [`corpus/lines/en`](corpus/README.md).
-`summary.md` holds the case verdicts, turn latency and barge-in stop times per detector;
-`report.html` the case timelines; `target.log` the target's own logs.
+`summary.md` holds the case verdicts, then turn latency and barge-in over every turn of every
+repeat per profile (with the spread of the per-run medians and stop rates, and the error bar
+of each); `report.html` the case timelines; `target.log` the target's own logs.
 
 | target | what |
 | --- | --- |

@@ -13,6 +13,7 @@ A detected span belongs to a clip if it overlaps the clip's labelled speech wide
 """
 
 import json
+import statistics
 from pathlib import Path
 from typing import Any
 
@@ -176,3 +177,34 @@ def summarize(runs: dict[str, Path], clips: dict[str, list[int]] | None = None) 
             clips
         )
     return out
+
+
+def pooled(runs: dict[str, list[Path]], detector: str = "webrtcvad") -> str:
+    """Turn latency per profile against a real agent, over every turn of every run: the
+    caller's labelled end to the agent's first onset by `detector`, the spread of the per-run
+    medians, and the detector's error bar for the profile and codec."""
+    from rtpbench import cases
+
+    rows = []
+    for profile, dirs in runs.items():
+        per_run, said, bars = [], 0, set()
+        for run in dirs:
+            recs = turns(run, (detector,))
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+            said += len(recs)
+            per_run.append([r[f"{detector}_ms"] for r in recs if r[f"{detector}_ms"] is not None])
+            pt = json.loads((run / "caller.json").read_text())["pt"]
+            bars.add(cases.bar(cases.ONSET, profile, pt))
+        v = [x for xs in per_run for x in xs]
+        meds = [statistics.median(xs) for xs in per_run if xs]
+        cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
+        spread = f"{min(meds):.0f} .. {max(meds):.0f}" if meds else "-"
+        error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b)
+        rows.append([profile, str(len(dirs)), f"{len(v)}/{said}", *cells, spread, error])
+    head = ["profile", "runs", "answered", "p5", "p50", "p95", "run medians", "onset error bar"]
+    return (
+        f"Turn latency, ms: caller's labelled end to the agent's first speech ({detector}), every "
+        "turn of every run. True value = measured - error, error within the onset bar; where the "
+        "caller's speech ends is defined to ±17 ms (label threshold ±5 dB).\n\n"
+        + analyze._table(head, rows)
+    )

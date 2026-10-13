@@ -3,10 +3,11 @@ import socket
 import struct
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 
-from rtpbench import rtp, sip
+from rtpbench import cases, rtp, sip
 from rtpbench.agent import Responder
 from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
 
@@ -175,3 +176,33 @@ def test_clock_drift_across_a_pause_is_past_jitter(clock: bool, want: float) -> 
     after = stream(resumed, ts0 + (resumed if clock else FLOOR_PACKETS) * 160)
     drift = _floor(before, ts0) - _floor(after, ts0)
     assert abs(drift - want) < 15
+
+
+def test_repeats_group_and_flips_are_reported() -> None:
+    bar = list(cases.WIRE)
+
+    def rec(repeat: int, verdict: str, ms: float, behaviour: str | None = "good") -> dict[str, Any]:
+        ok = verdict == "pass"
+        return {
+            "profile": "lte",
+            "repeat": repeat,
+            "case": "greeting",
+            "behaviour": behaviour,
+            "run": f"lte/{repeat:02d}/greeting-good",
+            "verdict": verdict,
+            "checks": [{"name": "agent speaks within 2000 ms", "ok": ok, "detail": ""}],
+            "timings": [{"name": "200 OK to agent speech", "ms": ms, "bar": bar, "truth_ms": None}],
+        }
+
+    steady = [rec(k, "pass", 1000.0 + k) for k in (1, 2, 3)]
+    assert cases.verdicts(steady) == "pass 3/3"
+    assert cases.timings(steady) == [
+        ("200 OK to agent speech", "1002.0 [1001.0, 1003.0] ms (-0.4/+0.4) n=3")
+    ]
+    assert cases.proven(steady)
+    flips = [*steady, rec(4, "fail", 2500.0)]
+    assert cases.verdicts(flips) == "flips: pass 3, fail 1"
+    assert cases.failures(flips) == ["agent speaks within 2000 ms (1/4)"]
+    assert not cases.proven(flips)
+    assert list(cases.groups(flips)) == [("lte", "greeting", "good")]
+    assert cases.proven([rec(1, "fail", 2500.0, None)])  # a real target proves nothing

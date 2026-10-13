@@ -13,8 +13,10 @@ agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per 
 import itertools
 import json
 import re
+import statistics
 import struct
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
@@ -64,10 +66,26 @@ LABEL_END = Bar(
     -17.0, 17.0, "caller's labelled end; ±5 dB of label threshold, median (calibrate --speech)"
 )
 WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibrate)")
+# speech detection error per netem profile and codec, from the calibrations under that profile;
+# a profile without its own calibration (or a target outside the router) takes the clean bar
 ONSET = {
-    g711.PCMU: Bar(-3.8, 32.9, "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"),
-    g711.PCMA: Bar(-88.1, 24.3, "webrtcvad onset, p5..p95, PCMA, clean (calibrate --speech)"),
+    ("clean", g711.PCMU): Bar(
+        -3.8, 32.9, "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ),
+    ("clean", g711.PCMA): Bar(
+        -88.1, 24.3, "webrtcvad onset, p5..p95, PCMA, clean (calibrate --speech)"
+    ),
 }
+STOP = {  # agent stop time on a hard cut, by the gate
+    ("clean", g711.PCMA): Bar(
+        -71.9, 0.0, "gate stop time, p5..p95, PCMA, clean (calibrate --barge-in)"
+    ),
+}
+
+
+def bar(bars: dict[tuple[str, int], Bar], profile: str, pt: int) -> Bar | None:
+    """The error bar for this profile and codec, or the clean one."""
+    return bars.get((profile, pt)) or bars.get(("clean", pt))
 
 
 @dataclass
@@ -347,6 +365,13 @@ class Wire:
     msgs: list[tuple[int, bool, sip.Message]]  # capture time, sent by the caller, message
     up: analyze.Timed  # RTP the caller sent
     down: analyze.Timed  # RTP the caller received
+    profile: str = "clean"  # netem profile, for the error bars
+
+    def onset(self) -> Bar:
+        """Error bar of the agent's speech onsets."""
+        b = bar(ONSET, self.profile, self.log["pt"])
+        assert b is not None  # every codec has a clean bar
+        return b
 
     def find(
         self, pred: Callable[[sip.Message], bool], sent: bool, after: int | None = None
@@ -397,7 +422,7 @@ class Wire:
         return speechcal._truth(st, [(st.index(a0, a), st.index(a0, b)) for a, b in turn["speech"]])
 
 
-def load(run: Path) -> Wire:
+def load(run: Path, profile: str = "clean") -> Wire:
     log = json.loads((run / "caller.json").read_text())
     agent_path = run / "agent.json"
     agent = json.loads(agent_path.read_text()) if agent_path.exists() else None
@@ -414,7 +439,7 @@ def load(run: Path) -> Wire:
             msgs.append((g.t_ns, g.src == me, msg))
         elif port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
             (up if g.sport == port else down).append((g.t_ns, p))
-    return Wire(log, agent, msgs, up, down)
+    return Wire(log, agent, msgs, up, down, profile)
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:
@@ -434,7 +459,7 @@ def check_greeting(w: Wire) -> Result:
     ms = (onset - ok[0]) / 1e6
     truth = w.truth("greeting")
     truth_ms = None if truth is None else (truth[0] - ok[0]) / 1e6
-    r.timings.append(Timing("200 OK to agent speech", ms, ONSET[w.log["pt"]], truth_ms))
+    r.timings.append(Timing("200 OK to agent speech", ms, w.onset(), truth_ms))
     r.checks.append(Check(f"agent speaks within {GREETING_MAX_MS} ms", ms <= GREETING_MAX_MS))
     return r
 
@@ -579,9 +604,7 @@ def _reaction(w: Wire, r: Result, t: int) -> Result:
     if onset is not None:
         truth = w.truth("dtmf")
         truth_ms = None if truth is None else (truth[0] - t) / 1e6
-        r.timings.append(
-            Timing("digit to agent speech", (onset - t) / 1e6, ONSET[w.log["pt"]], truth_ms)
-        )
+        r.timings.append(Timing("digit to agent speech", (onset - t) / 1e6, w.onset(), truth_ms))
     return r
 
 
@@ -791,45 +814,133 @@ def run(name: str, uri: str, seed: int, lines: Path | None = None) -> dict[str, 
         return {"case": name, "error": str(e)} | log
 
 
-def judge(run: Path) -> Result:
+def judge(run: Path, profile: str = "clean") -> Result:
     """The case's verdict from a run directory."""
-    w = load(run)
+    w = load(run, profile)
     if "error" in w.log:
         return Result([Check("call completed", False, w.log["error"])])
     return CASES[w.log["case"]].check(w)
 
 
-def _row(r: Result) -> list[str]:
-    failed = "; ".join(
-        f"{c.name}{f' ({c.detail})' if c.detail else ''}" for c in r.checks if not c.ok
-    )
-    timings = "<br>".join(f"{t.name}: {t}" for t in r.timings) or "-"
-    return [r.verdict, timings, failed or "-"]
+class Run(NamedTuple):
+    """One case call of a results directory."""
+
+    profile: str  # netem profile
+    repeat: int
+    case: str
+    behaviour: str | None  # the reference agent's; None for a real target
+    run: str  # its directory, relative to the results directory
 
 
-def summarize(runs: list[tuple[str, str | None, Path]]) -> tuple[str, list[dict[str, Any]], bool]:
-    """Markdown summary, per-run records, and whether every reference behaviour got the verdict
-    it should (good: pass, bad: fail)."""
-    records, rows, proven = [], [], True
-    for name, behaviour, path in runs:
-        r = judge(path)
-        rec: dict[str, Any] = {"case": name, "behaviour": behaviour, "run": path.name}
-        rec |= {"verdict": r.verdict} | asdict(r)
-        records.append(rec)
-        if behaviour is None:
-            rows.append([name, *_row(r)])
-            continue
-        want = "pass" if behaviour == "good" else "fail"
-        proven &= r.verdict == want
-        errors = [t.error() for t in r.timings if t.truth_ms is not None]
-        rows.append([name, behaviour, want, *_row(r), ", ".join(errors) or "-"])
-    if runs and runs[0][1] is not None:
-        head = ["case", "agent", "expected", "result", "timings, ms (error bar)", "failed checks"]
-        out = analyze._table([*head, "measured - truth, ms"], rows)
-        out += f"\nEvery case {'proven' if proven else 'NOT proven'}: good passes, bad fails.\n"
-    else:
-        out = analyze._table(["case", "result", "timings, ms (error bar)", "failed checks"], rows)
+Group = tuple[str, str, str | None]  # profile, case, behaviour
+
+
+def groups(records: list[dict[str, Any]]) -> dict[Group, list[dict[str, Any]]]:
+    """Records by profile, case and behaviour, repeats in order."""
+    out: dict[Group, list[dict[str, Any]]] = {}
+    for rec in records:
+        out.setdefault((rec["profile"], rec["case"], rec["behaviour"]), []).append(rec)
+    return out
+
+
+def expected(behaviour: str | None) -> str | None:
+    return None if behaviour is None else "pass" if behaviour == "good" else "fail"
+
+
+def verdicts(recs: list[dict[str, Any]]) -> str:
+    """The verdict (with how many repeats gave it), or the mix when it flips between repeats."""
+    count = Counter(r["verdict"] for r in recs)
+    if len(count) > 1:
+        return "flips: " + ", ".join(f"{v} {n}" for v, n in count.most_common())
+    v = recs[0]["verdict"]
+    return v if len(recs) == 1 else f"{v} {len(recs)}/{len(recs)}"
+
+
+def _spread(v: list[float], fmt: str) -> str:
+    """One value, or the median [min, max] over repeats."""
+    if len(v) == 1:
+        return format(v[0], fmt)
+    return f"{format(statistics.median(v), fmt)} [{format(min(v), fmt)}, {format(max(v), fmt)}]"
+
+
+def timings(recs: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Each timing's name and value over the repeats, with its error bar: true value within
+    value - hi .. value - lo."""
+    by: dict[str, tuple[list[float], Bar]] = {}
+    for r in recs:
+        for t in r["timings"]:
+            by.setdefault(t["name"], ([], Bar(*t["bar"])))[0].append(t["ms"])
+    n = len(recs) > 1
+    return [
+        (
+            name,
+            f"{_spread(v, '.1f')} ms ({-b.hi:+.1f}/{-b.lo:+.1f})" + (f" n={len(v)}" if n else ""),
+        )
+        for name, (v, b) in by.items()
+    ]
+
+
+def failures(recs: list[dict[str, Any]]) -> list[str]:
+    """Checks that failed or could not tell: with the detail for one run, else how many runs."""
+    count: Counter[str] = Counter()
+    detail: dict[str, str] = {}
+    for r in recs:
+        for c in r["checks"]:
+            if not c["ok"]:
+                count[c["name"]] += 1
+                detail.setdefault(c["name"], c["detail"])
+    if len(recs) == 1:
+        return [f"{c} ({detail[c]})" if detail[c] else c for c in count]
+    return [f"{c} ({k}/{len(recs)})" for c, k in count.items()]
+
+
+def errors(recs: list[dict[str, Any]]) -> list[str]:
+    """measured - truth of each timing whose truth the reference agent knows, over the repeats,
+    and how many fell outside the error bar."""
+    by: dict[str, list[tuple[float, bool]]] = {}
+    for r in recs:
+        for t in r["timings"]:
+            if t["truth_ms"] is not None:
+                e, b = t["ms"] - t["truth_ms"], Bar(*t["bar"])
+                by.setdefault(t["name"], []).append((e, b.lo <= e <= b.hi))
+    out = []
+    for es in by.values():
+        outside = sum(not ok for _, ok in es)
+        note = f" ({outside}/{len(es)} outside the bar)" if outside else ""
+        out.append(_spread([e for e, _ in es], "+.1f") + note)
+    return out
+
+
+def proven(records: list[dict[str, Any]]) -> bool:
+    """Every reference behaviour got the verdict it should in every repeat."""
+    return all(r["verdict"] == expected(r["behaviour"]) for r in records if r["behaviour"])
+
+
+def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bool]:
+    """Markdown summary per profile (repeats grouped), per-run records, and whether every
+    reference behaviour got the verdict it should (good: pass, bad: fail) in every repeat."""
+    records = []
+    for run in runs:
+        r = judge(out / run.run, run.profile)
+        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r))
+    reference = bool(records) and records[0]["behaviour"] is not None
+    head = ["case", "agent", "expected"] if reference else ["case"]
+    head += ["result", "timings, ms (error bar)", "failed checks"]
+    head += ["measured - truth, ms"] if reference else []
+    rows: dict[str, list[list[str]]] = {}
+    for (profile, case, behaviour), recs in groups(records).items():
+        row = [case, behaviour or "", expected(behaviour) or ""] if reference else [case]
+        row += [verdicts(recs), "<br>".join(f"{n}: {v}" for n, v in timings(recs)) or "-"]
+        row += ["; ".join(failures(recs)) or "-"]
+        row += [", ".join(errors(recs)) or "-"] if reference else []
+        rows.setdefault(profile, []).append(row)
+    text = "".join(f"### {p}\n\n{analyze._table(head, r)}\n" for p, r in rows.items())
+    if reference:
+        repeats = max(r["repeat"] for r in records)
+        ok = proven(records)
+        text += f"Every case {'proven' if ok else 'NOT proven'} over {repeats} repeat(s): "
+        text += "good passes, bad fails.\n"
     bars = {b for r in records for t in r["timings"] for b in [Bar(*t["bar"])]}
-    out += "\nError bars: true value = measured - error, error within\n\n"
-    out += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))
-    return out, records, proven
+    text += "\nError bars: true value = measured - error, error within\n\n"
+    text += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))
+    return text, records, proven(records)

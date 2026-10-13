@@ -158,3 +158,38 @@ def summarize(runs: dict[str, Path]) -> str:
 def _stopped(rec: dict[str, Any], key: str) -> bool:
     v = rec["measured_ms"][key]
     return v is not None and v < STOP_WINDOW_NS / 1e6
+
+
+def pooled(runs: dict[str, list[Path]]) -> str:
+    """Barge-in per profile and interjection against a real agent, over every turn of every
+    run: how often the agent stopped (and the range of that rate over runs), and its stop time
+    by the gate on the wire, with the gate's error bar for the profile and codec."""
+    from rtpbench import cases
+
+    key = "wire/gate"
+    rows = []
+    for profile, dirs in runs.items():
+        per_run, bars = [], set()
+        for run in dirs:
+            recs = turns(run)
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+            per_run.append(recs)
+            pt = json.loads((run / "caller.json").read_text())["pt"]
+            bars.add(cases.bar(cases.STOP, profile, pt))
+        error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b) or "-"
+        for kind in KINDS:
+            sel = [[r for r in recs if r["kind"] == kind] for recs in per_run]
+            stopped = [[r for r in s if _stopped(r, key)] for s in sel]
+            n, k = sum(map(len, sel)), sum(map(len, stopped))
+            rates = [len(t) / len(s) for s, t in zip(sel, stopped, strict=True) if s]
+            spread = f"{min(rates):.0%} .. {max(rates):.0%}" if rates else "-"
+            v = [r["measured_ms"][key] for t in stopped for r in t]
+            cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
+            rows.append([profile, kind, str(len(dirs)), f"{k}/{n}", spread, *cells, error])
+    head = ["profile", "interjection", "runs", "stopped", "run rates", "p5", "p50", "p95"]
+    return (
+        "Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop "
+        "time (ms, gate, wire) when it did, every turn of every run. True value = measured - "
+        "error, error within the bar (calibrated on hard cuts).\n\n"
+        + analyze._table([*head, "stop error bar"], rows)
+    )

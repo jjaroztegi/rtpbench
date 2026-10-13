@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
     kind = p.add_mutually_exclusive_group()
     kind.add_argument("--speech", action="store_true", help="speech detection on real speech")
     kind.add_argument("--barge-in", action="store_true", help="barge-in stop time")
-    p.add_argument("--profiles", help="default: all five; --speech, --barge-in: clean,mobile")
+    p.add_argument("--profiles", help="default: all; --speech, --barge-in: clean,mobile")
     p.add_argument("--codecs", help="default pcmu; --speech: pcmu,pcma; --barge-in: pcma")
     p.add_argument("--replies", type=Path, help="with --speech: agent replies from these WAVs")
     p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
@@ -29,7 +29,8 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("cases", help="conformance cases: reference agent (Docker), or a SIP URI")
     p.add_argument("uri", nargs="?", help="target; without one, prove each case on the reference")
     p.add_argument("--only", help="comma-separated cases (default: all)")
-    p.add_argument("--profile", default="clean", help="netem profile (reference agent only)")
+    p.add_argument("--profiles", default="clean", help="netem profiles (reference agent only)")
+    p.add_argument("--runs", type=int, default=1, help="repeats per profile")
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
@@ -38,7 +39,8 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("target", help="cases, turn latency and barge-in against a target (Docker)")
     p.add_argument("name", help="a directory under targets/, e.g. aivc")
     p.add_argument("--only", help="comma-separated cases (default: all)")
-    p.add_argument("--profile", default="clean", help="netem profile")
+    p.add_argument("--profiles", default="clean", help="comma-separated netem profiles")
+    p.add_argument("--runs", type=int, default=1, help="repeats per profile")
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1)
 
@@ -108,7 +110,14 @@ def main(argv: list[str] | None = None) -> None:
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else list(cases.CASES)
         summary, proven = run_cases(
-            out, args.uri, names, args.profile, args.seed, args.iface, args.lines
+            out,
+            args.uri,
+            names,
+            args.profiles.split(","),
+            args.runs,
+            args.seed,
+            args.iface,
+            args.lines,
         )
         print(summary)
         print(f"results in {out}")
@@ -120,7 +129,8 @@ def main(argv: list[str] | None = None) -> None:
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else list(cases.CASES)
-        print(target(out, args.name, names, args.profile, args.seed))
+        profiles = args.profiles.split(",")
+        print(target(out, args.name, names, profiles, args.runs, args.seed))
         print(f"results in {out}")
     elif args.cmd == "report":
         from rtpbench.bench import judge
