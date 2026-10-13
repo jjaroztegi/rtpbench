@@ -83,6 +83,14 @@ class Sender(threading.Thread):
         self.sock, self.addr, self.pt, self.source = sock, addr, pt, source
         self.start_ns, self.seq0, self.ssrc = start_ns, seq0, ssrc
         self.stop = threading.Event()
+        self.ts0 = 0  # added to every timestamp
+        self.new: tuple[int, int, int] | None = None  # switch to (ssrc, seq, ts) at the next tick
+        self.switched: int | None = None  # the tick it did
+
+    def switch(self, ssrc: int, seq: int, ts: int) -> None:
+        """From the next packet on, be a new source (RFC 3550: new SSRC, its own random seq and
+        timestamp origin): the next packet has `seq`, timestamp `ts` and the marker."""
+        self.new = ssrc, seq, ts
 
     def run(self) -> None:
         n, sent, paused = 0, 0, True
@@ -90,12 +98,17 @@ class Sender(threading.Thread):
             tick = self.start_ns + n * PTIME_NS
             out = self.source(n, tick)
             sleep_until(tick)
+            if self.new is not None:
+                (self.ssrc, self.seq0, ts), self.new = self.new, None
+                self.ts0, sent, paused, self.switched = ts - n * FRAME, 0, True, n
             if out is not None:
                 if not isinstance(out, Frame):
                     out = Frame(self.pt, out, n * FRAME, paused)
                 seq = (self.seq0 + sent) & 0xFFFF
-                data = pack(out.pt, seq, out.ts & 0xFFFFFFFF, self.ssrc, out.payload, out.marker)
-                self.sock.sendto(data, self.addr)
+                ts = (out.ts + self.ts0) & 0xFFFFFFFF
+                self.sock.sendto(
+                    pack(out.pt, seq, ts, self.ssrc, out.payload, out.marker), self.addr
+                )
                 sent += 1
             paused = out is None
             n += 1

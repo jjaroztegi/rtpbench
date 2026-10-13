@@ -13,6 +13,7 @@ In a conformance case the agent answers no turns; it does what the case's `Behav
 """
 
 import random
+import re
 import secrets
 import socket
 import threading
@@ -59,6 +60,14 @@ class Behaviour:
     codec: int | None = None  # answer with this payload type whatever the offer
     timer: bool = False  # take session timers (RFC 4028) with the caller as refresher
     expire: bool = True  # with timer: BYE when the session expires unrefreshed
+    reply_s: float | None = None  # answer the caller's first turn with speech this long after
+    # what a carrier may send (see `cases`); each False is a way real agents fail it
+    compact: bool = True  # compact header names (RFC 3261 7.3.3); else 500 to an INVITE with them
+    lenient_sdp: bool = True  # ignore `a=ssrc:<id>` without an attribute; else 488
+    late_offer: bool = True  # offer in the 2xx to an INVITE without SDP; else 488
+    any_ptime: bool = True  # hear audio packets of any length; else 20 ms ones only
+    any_ssrc: bool = True  # hear the caller from any SSRC; else from the first one only
+    refresh: bool = True  # keep sending after a re-INVITE; else stop (one-way audio)
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -259,6 +268,10 @@ class Uas:
         self.done = False
         self.responder: Responder | None = None
         self.pt, self.dtmf = 0, False
+        self.late = False  # the INVITE had no offer: ours goes in the 2xx, theirs in the ACK
+        self.seq0 = 0
+        self.heard_ssrc: int | None = None
+        self.replied = False
         self.dialog: sip.Dialog | None = None  # for requests of our own (REFER, BYE)
         self.refer: sip.Message | None = None
         self.bye: sip.Message | None = None
@@ -296,6 +309,12 @@ class Uas:
             self._reinvite(msg)
         elif msg.method == "ACK":
             self.unacked = b""
+            if self.late and self.sender is None and self.dialog and msg.body:
+                answer = sip.parse_sdp(msg.body)
+                if (pt := next((p for p in answer.pts if p in g711.NAMES), self.pt)) != self.pt:
+                    self.pt = pt
+                    self._prepare(answer)
+                self._media(answer)
             self.done |= self.responder is None  # ACK for a 487: the call never was
         elif msg.method == "CANCEL":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
@@ -349,7 +368,16 @@ class Uas:
     def _invite(self, msg: sip.Message) -> None:
         self.invite = msg
         self._send(sip.response(msg, 100, "Trying"))
-        if not [pt for pt in sip.parse_sdp(msg.body).pts if pt in g711.NAMES]:
+        self.late = not msg.body and self.case.late_offer
+        compact = any(k.lower() in sip._COMPACT for k, _ in msg.headers)
+        malformed = re.search(rb"^a=ssrc:\d+\r?$", msg.body, re.MULTILINE)
+        if compact and not self.case.compact:  # a parser that knows the long names only
+            self._send(sip.response(msg, 500, "Server Internal Error", self.to_tag), final=True)
+            self.end_at = time.monotonic() + 64 * sip.T1
+        elif not self.late and (
+            (malformed and not self.case.lenient_sdp)
+            or not [pt for pt in sip.parse_sdp(msg.body).pts if pt in g711.NAMES]
+        ):
             self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
             self.end_at = time.monotonic() + 64 * sip.T1
         elif self.case.ring_s:
@@ -359,33 +387,58 @@ class Uas:
             self._answer()
 
     def _answer(self) -> None:
+        """Answer with the session (or, to an INVITE without one, an offer of both laws, the
+        media starting on the ACK's answer)."""
         assert self.invite is not None
         offer = sip.parse_sdp(self.invite.body)
-        pt = next(pt for pt in offer.pts if pt in g711.NAMES)
-        self.pt = pt = pt if self.case.codec is None else self.case.codec
-        seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
-        self.responder = r = self.make(pt, seq0)
-        r.clock, r.events = self.case.clock, offer.dtmf
-        r.dtmf_ns = None if self.case.dtmf_s is None else round(self.case.dtmf_s * 1e9)
+        pt = next((pt for pt in offer.pts if pt in g711.NAMES), g711.PCMU)
+        self.pt = pt if self.case.codec is None else self.case.codec
         self.dtmf = offer.dtmf is not None
+        self._prepare(offer)  # before the 2xx: it takes a while (encodes every clip)
         self._send(self._ok(self.invite, "sendrecv"), final=True)
         self.dialog = sip.Dialog.uas(
             self.sock, self.addr, self.invite, _local_ip(self.addr), self.to_tag
         )
+        if not self.late:
+            self._media(offer)
+
+    def _prepare(self, remote: sip.Sdp) -> None:
+        self.seq0 = secrets.randbelow(1 << 16)
+        self.responder = r = self.make(self.pt, self.seq0)
+        r.clock, r.events = self.case.clock, remote.dtmf
+        r.dtmf_ns = None if self.case.dtmf_s is None else round(self.case.dtmf_s * 1e9)
+
+    def _media(self, remote: sip.Sdp) -> None:
+        """Start sending to and hearing the far end of the negotiated session."""
+        r = self.responder
+        assert r is not None
+        ssrc = secrets.randbelow(1 << 32)
         start = time.time_ns() + PTIME_NS
-        self.sender = Sender(self.rtp, (offer.ip, offer.port), pt, r.source, start, seq0, ssrc)
-        self.threads = [self.sender, Receiver(self.rtp, r.on_packet)]
+        addr = (remote.ip, remote.port)
+        self.sender = Sender(self.rtp, addr, self.pt, r.source, start, self.seq0, ssrc)
+        self.threads = [self.sender, Receiver(self.rtp, self._hear)]
         for t in self.threads:
             t.start()
         if self.case.greet_s is not None:
             r.speak(time.time_ns() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
-        self.meta = {"pt": pt, "ssrc": ssrc, "seq0": seq0}
+        self.meta = {"pt": self.pt, "ssrc": ssrc, "seq0": self.seq0}
+
+    def _hear(self, arrival: int, pkt: Packet) -> None:
+        """The caller's RTP, as far as this agent's receiver takes it."""
+        if pkt.pt == self.pt and len(pkt.payload) != FRAME and not self.case.any_ptime:
+            return
+        self.heard_ssrc = pkt.ssrc if self.heard_ssrc is None else self.heard_ssrc
+        if pkt.ssrc != self.heard_ssrc and not self.case.any_ssrc:
+            return
+        assert self.responder is not None
+        self.responder.on_packet(arrival, pkt)
 
     def _ok(self, req: sip.Message, direction: str) -> sip.Message:
         local = _local_ip(self.addr)
         extra = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
         origin = (self.origin[0], self.origin[1])
-        body = sip.sdp(local, self.rtp.getsockname()[1], [self.pt], direction, origin, self.dtmf)
+        pts = list(g711.NAMES) if self.late and self.sender is None else [self.pt]
+        body = sip.sdp(local, self.rtp.getsockname()[1], pts, direction, origin, self.dtmf)
         self.origin[1] += 1
         if self.case.timer and (expires := req.get("session-expires")):
             # RFC 4028 9: keep the interval and the caller as refresher, so Require: timer
@@ -404,7 +457,8 @@ class Uas:
         self.reinvite = msg.branch
         if self.responder:
             with self.responder.lock:
-                self.responder.sending = direction in ("sendrecv", "sendonly")
+                sending = direction in ("sendrecv", "sendonly") and self.case.refresh
+                self.responder.sending = sending
             if offer.port and self.sender:
                 self.sender.addr = (offer.ip, offer.port)
         self._send(self._ok(msg, direction), final=True)
@@ -415,6 +469,9 @@ class Uas:
             self.dialog.retransmit()
         if self.refer is None and self._since_turn(self.case.refer_s):
             self._transfer()
+        if self.case.reply_s is not None and not self.replied and (r := self.responder) and r.ends:
+            self.replied = True
+            r.speak(r.ends[0] + round(self.case.reply_s * 1e9), self.greeting + 1, "reply")
         if self.expire_at is not None and now >= self.expire_at:
             self.expire_at = None
             self._hang_up()

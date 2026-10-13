@@ -52,6 +52,7 @@ MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was dis
 PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 RETAKE_MAX_MS = 5000  # likewise an agent taking the call back after a failed transfer
+REPLY_MAX_MS = 10000  # an agent that heard the question replies by then (AIVC CE's longest: 8.2 s)
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
@@ -404,6 +405,57 @@ def timer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye)
 
 
+def _carried(
+    dial: Dial,
+    seed: int,
+    lines: Lines,
+    mutation: str | None = None,
+    midway: Callable[[Session], Any] | None = None,
+) -> dict[str, Any]:
+    """Through what a carrier sends: after the greeting (and `midway`, if given) ask a question
+    and listen for the reply. `mutation` asks the carrier for one, in an X-Mutation header it
+    removes."""
+    s = dial(headers=[("X-Mutation", mutation)] if mutation else None)
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    _settle(s, m)
+    if midway and not s.remote_bye:
+        midway(s)
+    _reply(s, m, seed, lines)
+    s.wait(lambda: s.remote_bye, 1.0)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"said": m.said}
+
+
+def compact_headers(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _carried(dial, seed, lines, "compact-headers")
+
+
+def sdp_ssrc(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _carried(dial, seed, lines, "sdp-ssrc")
+
+
+def late_offer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _carried(dial, seed, lines, "late-offer")
+
+
+def ptime_30(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _carried(dial, seed, lines, "ptime-30")
+
+
+def ssrc_change(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """The caller's stream becomes a new RTP source before the question (the carrier relays
+    it as it comes)."""
+    return _carried(dial, seed, lines, midway=Session.switch)
+
+
+def reinvite(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """A session refresh before the question: re-INVITE with the same SDP (RFC 4028 sends one
+    every half interval; carriers typically every 15 min)."""
+    return _carried(dial, seed, lines, midway=Session.reinvite)
+
+
 @dataclass
 class Wire:
     """One case call as the caller's capture saw it, plus the logs."""
@@ -452,8 +504,9 @@ class Wire:
         return next((a for a, _ in self.speech if a > t), None)
 
     def said(self) -> tuple[int, int] | None:
-        """First and last labelled sample of the caller's last line, as captured."""
-        pkts = [(t, p) for t, p in self.up if p.pt == self.log.get("pt")]
+        """First and last labelled sample of the caller's last line, as captured (from the
+        stream it was said on)."""
+        pkts = [(t, p) for t, p in self.up if (p.pt, p.ssrc) == (self.log["pt"], self.log["ssrc"])]
         if not pkts or not self.log.get("said"):
             return None
         st, s0 = analyze.stream(pkts, self.log["pt"]), self.log["seq0"]
@@ -803,16 +856,36 @@ def check_timer(w: Wire) -> Result:
     if not refresh:
         r.checks.append(Check("refresh sent", None, "the call ended first"))
         return r
-    t, req = refresh[0]
+    if (resp_t := _refreshed(w, r, refresh[0])) is None:
+        return r
+    bye = w.find(lambda m: m.method == "BYE", sent=False)
+    after = None if bye is None else (bye[0] - resp_t) / 1e9
+    in_window = after is not None and interval / 2 < after <= interval
+    r.checks.append(
+        Check(f"agent ends the session in ({interval / 2:.0f}, {interval}] s", in_window)
+    )
+    if bye:
+        r.timings.append(Timing("refresh 2xx to agent BYE", (bye[0] - resp_t) / 1e6, WIRE))
+    return r
+
+
+def _refreshed(w: Wire, r: Result, sent: tuple[int, sip.Message]) -> int | None:
+    """A refresh re-INVITE: answered 2xx (sendrecv) with the agent's media undisturbed; when
+    the 2xx came, or None if it did not."""
+    t, req = sent
     resp = w.find(_final_to(req), sent=False)
     good = resp is not None and resp[1].status < 300
     r.checks.append(Check("refresh answered 2xx", good, resp[1].first if resp else "no response"))
     if not resp or not good:
-        return r
+        return None
     r.timings.append(Timing("refresh re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+    got = sip.parse_sdp(resp[1].body).direction
+    r.checks.append(Check("refresh answer sendrecv", got == "sendrecv", got))
     # on the sender's clock, so that network jitter and loss do not read as a disturbance: time
     # its RTP clock skipped between packets, and how far its clock moved against arrival times
-    near = [(u, p) for u, p in w.down if t - 1e9 <= u <= resp[0] + 2e9]
+    byes = [u for u, _, m in w.msgs if m.method == "BYE" and u > resp[0]]
+    end = min([resp[0] + 2_000_000_000, *byes])
+    near = [(u, p) for u, p in w.down if t - 1e9 <= u <= end]
     ssrcs = len({p.ssrc for _, p in near})
     skipped = max(
         (
@@ -824,16 +897,63 @@ def check_timer(w: Wire) -> Result:
     pre, post = [x for x in near if x[0] < t], [x for x in near if x[0] > resp[0]]
     shift = _floor(post, near[0][1].ts) - _floor(pre, near[0][1].ts) if pre and post else 0
     detail = f"clock skipped {skipped:.0f} ms, moved {shift:+.0f} ms, {ssrcs} SSRC"
-    calm = ssrcs == 1 and skipped <= MEDIA_GAP_MS and abs(shift) <= MEDIA_GAP_MS
+    # and it goes on: a stream that stops leaves no gap between the packets it did send
+    goes_on = bool(post) and end - post[-1][0] <= MEDIA_GRACE_MS * 1e6
+    if not goes_on:
+        stop = (post[-1][0] if post else resp[0]) - resp[0]
+        detail = f"agent RTP stops {stop / 1e6:.0f} ms after the 2xx"
+    calm = ssrcs == 1 and goes_on and skipped <= MEDIA_GAP_MS and abs(shift) <= MEDIA_GAP_MS
     r.checks.append(Check("media undisturbed by the refresh", calm, detail))
-    bye = w.find(lambda m: m.method == "BYE", sent=False)
-    after = None if bye is None else (bye[0] - resp[0]) / 1e9
-    in_window = after is not None and interval / 2 < after <= interval
-    r.checks.append(
-        Check(f"agent ends the session in ({interval / 2:.0f}, {interval}] s", in_window)
-    )
-    if bye:
-        r.timings.append(Timing("refresh 2xx to agent BYE", (bye[0] - resp[0]) / 1e6, WIRE))
+    return resp[0]
+
+
+def check_carried(w: Wire) -> Result:
+    """Whatever the carrier did, the call works: answered 2xx, and the agent replies to a
+    question asked after it within 10 s (so each side hears the other)."""
+    r = Result()
+    r.checks.append(Check("call answered 2xx", w.find(_is_2xx_invite, sent=False) is not None))
+    return _replies(w, r)
+
+
+def check_ssrc_change(w: Wire) -> Result:
+    """As `check_carried`, the caller's audio having switched to a new RTP source first."""
+    r = Result()
+    ssrcs = {p.ssrc for _, p in w.up if p.pt == w.log["pt"]}
+    r.checks.append(Check("caller's RTP switched source", len(ssrcs) == 2 or None, f"{len(ssrcs)}"))
+    return _replies(w, r)
+
+
+def check_reinvite(w: Wire) -> Result:
+    """A refresh re-INVITE with unchanged SDP: 2xx sendrecv, agent media undisturbed (as for
+    `timer`); then the agent still replies to a question within 10 s."""
+    r = Result()
+    invites: dict[str, tuple[int, sip.Message]] = {}
+    for t, out, m in w.msgs:
+        if out and m.method == "INVITE":
+            invites.setdefault(m.branch, (t, m))
+    refresh = list(invites.values())[1:2]
+    if not refresh:
+        r.checks.append(Check("refresh sent", None, "the call ended first"))
+        return r
+    if _refreshed(w, r, refresh[0]) is None:
+        return r
+    return _replies(w, r)
+
+
+def _replies(w: Wire, r: Result) -> Result:
+    """The agent's reply to the caller's question: speech within REPLY_MAX_MS of its end."""
+    said = w.said()
+    if said is None:
+        r.checks.append(Check("question asked", None, "the call ended first"))
+        return r
+    onset = w.speech_after(said[1])
+    in_time = onset is not None and onset - said[1] <= REPLY_MAX_MS * 1e6
+    r.checks.append(Check(f"agent replies within {REPLY_MAX_MS} ms", in_time))
+    if onset is not None:
+        truth = w.truth("reply")
+        truth_ms = None if truth is None else (truth[0] - said[1]) / 1e6
+        ms = (onset - said[1]) / 1e6
+        r.timings.append(Timing("end of the question to agent speech", ms, w.onset(), truth_ms))
     return r
 
 
@@ -919,6 +1039,47 @@ CASES = {
         check_timer,
         Behaviour(timer=True),
         {"unsupported": Behaviour(), "no-expiry": Behaviour(timer=True, expire=False)},
+    ),
+    # what a carrier sends; the agent greets and answers the caller's question
+    "compact-headers": Case(
+        compact_headers,
+        check_carried,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"long-names": Behaviour(greet_s=0.5, reply_s=1.0, compact=False)},
+        route="carrier",
+    ),
+    "sdp-ssrc": Case(
+        sdp_ssrc,
+        check_carried,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"strict": Behaviour(greet_s=0.5, reply_s=1.0, lenient_sdp=False)},
+        route="carrier",
+    ),
+    "late-offer": Case(
+        late_offer,
+        check_carried,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"rejects": Behaviour(greet_s=0.5, reply_s=1.0, late_offer=False)},
+        route="carrier",
+    ),
+    "ptime-30": Case(
+        ptime_30,
+        check_carried,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"20ms-only": Behaviour(greet_s=0.5, reply_s=1.0, any_ptime=False)},
+        route="carrier",
+    ),
+    "ssrc-change": Case(
+        ssrc_change,
+        check_ssrc_change,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"first-ssrc": Behaviour(greet_s=0.5, reply_s=1.0, any_ssrc=False)},
+    ),
+    "reinvite": Case(
+        reinvite,
+        check_reinvite,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"one-way": Behaviour(greet_s=0.5, reply_s=1.0, refresh=False)},
     ),
 }
 

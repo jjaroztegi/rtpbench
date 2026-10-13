@@ -107,6 +107,18 @@ a person) in the agent's language; the corpus is used otherwise.
 | `codec-pcmu` | the caller offers PCMU alone: answered 2xx with PCMU alone (RFC 3264 6.1: the answer's formats come from the offer) and the agent's RTP is PCMU |
 | `codec-pcma` | the same with PCMA |
 | `timer` | session timers offered (90 s, caller refreshes) and refreshed once at half time, then not again: the 2xx takes them (Session-Expires, `refresher=uac`, Require: timer), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE between 45 and 90 s after the refresh (RFC 4028) |
+| `ssrc-change` | after the greeting the caller's audio becomes a new RTP source (new SSRC, seq and timestamps, as when media is switched upstream; RFC 3550 8): the agent replies to a question asked after it within 10 s |
+| `reinvite` | after the greeting, a session refresh: re-INVITE with the same SDP (RFC 4028): 2xx `sendrecv`, the agent's media goes on undisturbed, and it replies to a question within 10 s |
+
+What a carrier sends (with `--carrier` only; the carrier applies it, the call is otherwise the
+same): the call is answered and the agent replies to a question within 10 s.
+
+| case | what reaches the agent |
+| --- | --- |
+| `compact-headers` | `f:`, `t:`, `i:`, `c:` for From, To, Call-ID, Content-Type (RFC 3261 7.3.3: MUST accept both forms) |
+| `sdp-ssrc` | an offer with `a=ssrc:<id>` and no attribute (invalid per RFC 5576 10; seen from real trunks and softphones) |
+| `late-offer` | an INVITE without SDP: the agent offers in its 2xx and the ACK answers (RFC 3261 13.2.1; the default of Cisco CUCM trunks) |
+| `ptime-30` | the caller's audio in 30 ms packets, offered `a=ptime:30` (RFC 3551 4.2: receivers SHOULD accept 0-200 ms) |
 
 ## Targets
 

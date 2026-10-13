@@ -1,4 +1,6 @@
+import socket
 import struct
+import time
 from pathlib import Path
 
 import pytest
@@ -111,3 +113,27 @@ def test_carrier_transit_pairs_each_packet_in_and_out(tmp_path: Path) -> None:
         ],
     )
     assert analyze.transit(tmp_path / "carrier.pcap") == {"up": [0.05], "down": [0.2]}
+
+
+def test_sender_switch_starts_a_new_source() -> None:
+    rx, tx = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in range(2))
+    rx.bind(("127.0.0.1", 0))
+    rx.settimeout(1)
+    sender = rtp.Sender(tx, rx.getsockname(), 0, lambda n, t: b"\xff" * 160, time.time_ns(), 10, 7)
+    sender.start()
+    got = [rtp.parse(rx.recv(2048)) for _ in range(3)]
+    sender.switch(99, 500, 123456)
+    got += [rtp.parse(rx.recv(2048)) for _ in range(4)]
+    sender.stop.set()
+    sender.join()
+    tx.close()
+    rx.close()
+    pkts = [p for p in got if p is not None]
+    k = next(i for i, p in enumerate(pkts) if p.ssrc == 99)
+    old, new = pkts[k - 1], pkts[k]
+    assert (old.ssrc, new.seq, new.ts, new.marker) == (7, 500, 123456, True)
+    assert [(p.seq, p.ts, p.marker) for p in pkts[k + 1 : k + 3]] == [
+        (501, 123616, False),
+        (502, 123776, False),
+    ]
+    assert sender.switched == k

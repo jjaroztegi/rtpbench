@@ -263,3 +263,22 @@ def test_repeats_group_and_flips_are_reported() -> None:
     assert not cases.proven(flips)
     assert list(cases.groups(flips)) == [("lte", "greeting", "good")]
     assert cases.proven([rec(1, "fail", 2500.0, None)])  # a real target proves nothing
+
+
+@pytest.mark.parametrize(("stops_at", "calm"), [(None, True), (1.02, False)])
+def test_refresh_media_must_go_on(stops_at: float | None, calm: bool) -> None:
+    """A stream that stops at the refresh leaves no gap between the packets it did send."""
+    via = [("Via", "SIP/2.0/UDP x;branch=b1"), ("CSeq", "2 INVITE")]
+    refresh = sip.Message("INVITE sip:a SIP/2.0", via, sip.sdp("10.0.0.1", 4000, [0]))
+    ok = sip.Message("SIP/2.0 200 OK", via, sip.sdp("10.0.0.2", 5000, [0]))
+    s = 1_000_000_000
+    down = [
+        (n * 20_000_000, rtp.Packet(0, n, n * 160, 7, False, b""))
+        for n in range(250)
+        if stops_at is None or n * 0.02 <= stops_at
+    ]
+    w = Wire({"pt": 0}, None, [(s, True, refresh), (s + 10**6, False, ok)], [], down)
+    r = Result()
+    assert cases._refreshed(w, r, (s, refresh)) == s + 10**6
+    media = next(c for c in r.checks if c.name == "media undisturbed by the refresh")
+    assert media.ok is calm, media.detail

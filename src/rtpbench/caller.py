@@ -225,6 +225,18 @@ class Session:
         for t in self.media:
             t.start()
 
+    def switch(self) -> None:
+        """The caller's audio becomes a new RTP source mid-call, as when a gateway upstream swaps
+        media (random SSRC, seq and timestamp origin, marker); `meta` describes the new one."""
+        assert self.media is not None
+        sender = self.media[0]
+        ssrc, seq = secrets.randbelow(1 << 32), secrets.randbelow(1 << 16)
+        sender.switch(ssrc, seq, secrets.randbelow(1 << 32))
+        self.wait(lambda: sender.switched is not None, 1.0)
+        assert sender.switched is not None
+        # sample k of the call (from tick 0) is still in the packet with seq seq0 + k // 160
+        self.ssrc, self.seq0 = ssrc, (seq - sender.switched) & 0xFFFF
+
     def hangup(self) -> None:
         """Stop sending, BYE unless the far end hung up, stop receiving."""
         if self.media:
