@@ -106,7 +106,7 @@ def test_reordered_onset_counts_from_the_onset_packet() -> None:
 
 def test_onset_in_the_last_half_sample_goes_to_the_next_packet() -> None:
     r = Responder(PT, seq0=10, delays=[0.5])
-    r.pending = {"target_ns": 5 * PTIME_NS + FRAME * SAMPLE_NS - 30_000}
+    r.pending = {"turn": 0, "target_ns": 5 * PTIME_NS + FRAME * SAMPLE_NS - 30_000}
     sent = b"".join(r.source(n, n * PTIME_NS) for n in range(8))
     m = g711.gate(PT, GATE).search(sent)
     assert m is not None

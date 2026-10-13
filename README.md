@@ -29,6 +29,18 @@ the injected delay and against the truth, and what the gap between them is made 
 scheduling error, network delay, loss, reordering). The methods are described in
 [`analyze.py`](src/rtpbench/analyze.py).
 
+### Speech detection
+
+```sh
+uv run --extra vad rtpbench calibrate --speech   # clean and mobile x PCMU and PCMA, ~40 minutes
+```
+
+The same call with real speech: the reference agent replies with clips from
+[`corpus/`](corpus/README.md) and the caller speaks them too. Speech boundaries are labelled on
+each clean clip ([`speech.py`](src/rtpbench/speech.py)); the summary gives, per detector
+([`detect.py`](src/rtpbench/detect.py)), how far detected onsets and offsets are from the labels
+on the caller's capture. `--replies DIR` makes the agent reply with your own WAVs instead.
+
 ## Development
 
 ```sh

@@ -2,7 +2,10 @@
 
   gate       |sample| >= 1000 on the 16-bit scale; gaps under 20 ms merged
   webrtcvad  WebRTC VAD, aggressiveness 3, 10 ms frames
-  silero     Silero VAD 6.2.3 (ONNX), 32 ms windows; speech from p >= 0.5 until p < 0.35
+  silero     Silero VAD 6.2.3 (ONNX) at 8 kHz, 32 ms windows; speech from p >= 0.5 until p < 0.35
+  silero16   the same on the audio upsampled to 16 kHz. Fed a whole call, the 8 kHz mode answers
+             speech that follows earlier speech and a long silence tens of ms late, sometimes not
+             at all; the 16 kHz mode on the same audio does not.
 
 The window detectors run raw: no minimum durations and no padding, so their bias shows. They
 need the `vad` extra (webrtcvad-wheels, onnxruntime); the Silero model is fetched once from
@@ -21,7 +24,7 @@ from typing import Any
 
 from rtpbench.voice import GATE, RATE
 
-DETECTORS = ("gate", "webrtcvad", "silero")
+DETECTORS = ("gate", "webrtcvad", "silero", "silero16")
 GATE_GAP = 160
 WEBRTC_MODE = 3
 WEBRTC_FRAME = 80
@@ -84,8 +87,9 @@ def _silero_model() -> bytes:
 _session: Any = None
 
 
-def silero(pcm: list[int]) -> list[tuple[int, int]]:
-    """As silero_vad.OnnxWrapper at 8 kHz: 256-sample windows, each with 32 samples of context."""
+def _silero(pcm: list[int], rate: int) -> list[tuple[int, int]]:
+    """As silero_vad.OnnxWrapper: 32 ms windows, each with 4 ms of context. At 16 kHz the input
+    is `pcm` upsampled 2x (zero-stuffing, then a 63-tap windowed-sinc low-pass at 4 kHz)."""
     import numpy as np
     import onnxruntime
 
@@ -95,14 +99,20 @@ def silero(pcm: list[int]) -> list[tuple[int, int]]:
         opts.inter_op_num_threads = opts.intra_op_num_threads = 1
         _session = onnxruntime.InferenceSession(_silero_model(), sess_options=opts)
     x = np.asarray(pcm, dtype=np.float32) / 32768
+    if rate == 16000:
+        up = np.zeros(2 * len(x), dtype=np.float32)
+        up[::2] = x
+        n = np.arange(63) - 31
+        x = np.convolve(up, (np.sinc(n / 2) * np.hamming(63)).astype(np.float32), "same")
+    win, ctx = SILERO_WINDOW * rate // RATE, 32 * rate // RATE
     state = np.zeros((2, 1, 128), dtype=np.float32)
-    context = np.zeros((1, 32), dtype=np.float32)
-    sr = np.array(RATE, dtype=np.int64)
+    context = np.zeros((1, ctx), dtype=np.float32)
+    sr = np.array(rate, dtype=np.int64)
     flags, speaking = [], False
-    for i in range(len(x) // SILERO_WINDOW):
-        chunk = np.concatenate([context, x[None, i * SILERO_WINDOW : (i + 1) * SILERO_WINDOW]], 1)
+    for i in range(len(x) // win):
+        chunk = np.concatenate([context, x[None, i * win : (i + 1) * win]], 1)
         out, state = _session.run(None, {"input": chunk, "state": state, "sr": sr})
-        context = chunk[:, -32:]
+        context = chunk[:, -ctx:]
         p = float(out[0, 0])
         speaking = p >= SILERO_ON or (speaking and p >= SILERO_OFF)
         flags.append(speaking)
@@ -112,5 +122,6 @@ def silero(pcm: list[int]) -> list[tuple[int, int]]:
 DETECT: dict[str, Callable[[list[int]], list[tuple[int, int]]]] = {
     "gate": gate,
     "webrtcvad": webrtc,
-    "silero": silero,
+    "silero": lambda pcm: _silero(pcm, RATE),
+    "silero16": lambda pcm: _silero(pcm, 16000),
 }

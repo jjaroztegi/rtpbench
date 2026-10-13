@@ -1,17 +1,19 @@
-"""`rtpbench calibrate`: reference agent behind a netem router, one call per profile."""
+"""`rtpbench calibrate`: reference agent behind a netem router, one call per profile and codec."""
 
 import hashlib
 import json
 import os
 import platform
 import secrets
+import shutil
 import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from rtpbench import analyze
+from rtpbench import analyze, speech, speechcal
+from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
 # netem arguments per direction, applied to both router egress interfaces; SIP is exempt
@@ -26,7 +28,7 @@ PROFILES = {
 
 def _image_tag() -> str:
     h = hashlib.sha256((ROOT / "Dockerfile").read_bytes())
-    for f in sorted((ROOT / "src").rglob("*.py")):
+    for f in sorted([*(ROOT / "src").rglob("*.py"), *(ROOT / "corpus").glob("*.wav")]):
         h.update(f.relative_to(ROOT).as_posix().encode() + f.read_bytes())
     return "rtpbench:" + h.hexdigest()[:12]
 
@@ -95,30 +97,66 @@ def conditions(stack: Stack, turns: int, seed: int) -> dict[str, Any]:
     }
 
 
-def calibrate(out: Path, profiles: list[str], turns: int, seed: int) -> str:
+def calibrate(
+    out: Path,
+    profiles: list[str],
+    turns: int | None,
+    seed: int,
+    codecs: list[str] | None = None,
+    real: bool = False,
+    replies: Path | None = None,
+) -> str:
+    """Timing calibration, or with `real` the speech-detection one: the agent replies with
+    corpus clips (or the WAVs in `replies`), every profile runs once per codec."""
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
+    agent_args, clips = [], None
+    if real:
+        if replies:
+            shutil.copytree(replies, out / "replies", dirs_exist_ok=True)
+            agent_args = ["--replies", "/out/replies"]
+            clips = {p.stem: speech.read_wav(p) for p in sorted((out / "replies").glob("*.wav"))}
+        else:
+            clips = {
+                n: pcm for n, pcm in speech.clips("tts-", "human-").items() if "-long" not in n
+            }
+        turns = turns or len(clips)
+        gap = max(map(len, clips.values())) / 8000 + SPEECH_DELAY_RANGE[1] + 1.0
+        agent_args += ["--speech"]
+    turns = turns or 20
+    runs = [(p, c) for p in profiles for c in codecs or [""]]
+    names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
     stack = Stack(out)
     try:
         stack.up()
         caller_ip = stack.sh("caller", "hostname -i").split()[0]
         agent_ip = stack.sh("agent", "hostname -i").split()[0]
-        (out / "conditions.json").write_text(json.dumps(conditions(stack, turns, seed), indent=1))
-        for name in profiles:
+        conds = conditions(stack, turns, seed) | {"codecs": codecs, "speech": real}
+        if replies:
+            conds["replies"] = sorted(clips or {})
+        (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+        for profile, codec in runs:
+            name = names[profile, codec]
             run = out / name
             run.mkdir(exist_ok=True)
-            stack.netem(PROFILES[name], [caller_ip, agent_ip])
+            stack.netem(PROFILES[profile], [caller_ip, agent_ip])
             args = ["--out", f"/out/{name}", "--seed", str(seed)]
-            stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", "agent", *args)
-            _wait_for(run / "ready", 30)
+            agent = ["python", "-m", "rtpbench", "agent", *args, *agent_args]
+            stack.compose("exec", "-d", "agent", *agent)
+            _wait_for(run / "ready", 120)
             print(f"{name}: calling ({turns} turns)", flush=True)
             call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
+            if codec:
+                call += ["--codec", codec]
+            if real:
+                call += ["--speech", "--gap", f"{gap:.1f}"]
             stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
             _wait_for(run / "agent.json", 30)
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
-    summary = analyze.summarize({name: out / name for name in profiles})
+    dirs = {names[r]: out / names[r] for r in runs}
+    summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
     (out / "summary.md").write_text(summary)
     return summary

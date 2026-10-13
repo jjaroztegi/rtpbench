@@ -3,4 +3,5 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends iproute2 tcpdump \
     && rm -rf /var/lib/apt/lists/*
 COPY src /app/src
+COPY corpus /app/corpus
 ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1

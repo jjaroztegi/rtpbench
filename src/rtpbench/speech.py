@@ -9,7 +9,11 @@ word-edge /s/ sits 25-35 dB below the active level, so a higher threshold cuts f
 """
 
 import math
+import wave
+from array import array
+from pathlib import Path
 
+CORPUS = Path(__file__).resolve().parents[2] / "corpus"
 WINDOW = 32  # samples, 4 ms
 STEP = 8  # samples, 1 ms
 BELOW_ACTIVE_DB = 35.0
@@ -74,3 +78,16 @@ def label(pcm: list[int], below_db: float = BELOW_ACTIVE_DB) -> list[tuple[int, 
         end = next((i for i in range(hi - 1, start - 1, -1) if abs(pcm[i]) >= amp), b * STEP) + 1
         spans.append((start, end))
     return spans
+
+
+def read_wav(path: Path) -> list[int]:
+    with wave.open(str(path)) as w:
+        if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, 8000):
+            raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM")
+        return list(array("h", w.readframes(w.getnframes())))
+
+
+def clips(*prefixes: str) -> dict[str, list[int]]:
+    """Corpus clips whose name starts with one of `prefixes`, in name order."""
+    paths = sorted(p for p in CORPUS.glob("*.wav") if p.stem.startswith(prefixes))
+    return {p.stem: read_wav(p) for p in paths}

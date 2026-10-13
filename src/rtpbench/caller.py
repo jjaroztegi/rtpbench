@@ -4,25 +4,23 @@ import random
 import secrets
 import socket
 import time
-import wave
-from array import array
-from pathlib import Path
 from typing import Any
 
-from rtpbench import g711, sip
+from rtpbench import g711, sip, speech
 from rtpbench.rtp import FRAME, PTIME_NS, Receiver, Sender
 from rtpbench.voice import GATE, RATE, voice
 
 LEAD_SECONDS = 1.0
 UTTERANCE_RANGE = (0.8, 1.6)
 GAP_SECONDS = 2.8  # longest delay (1.3 s) + response (0.8 s) + room for netem
+SPEECH_GAP_SECONDS = 9.0  # longest delay (2.5 s) + longest corpus reply (5.6 s) + room
 
 
-def read_wav(path: Path) -> list[int]:
-    with wave.open(str(path)) as w:
-        if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, RATE):
-            raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM")
-        return list(array("h", w.readframes(w.getnframes())))
+def speech_utterances(seed: int) -> list[tuple[str, list[int]]]:
+    """Every short corpus clip, in a seeded order unlike the agent's replies."""
+    clips = [(n, pcm) for n, pcm in speech.clips("tts-", "human-").items() if "-long" not in n]
+    random.Random(seed + 1).shuffle(clips)
+    return clips
 
 
 def script(
@@ -57,11 +55,16 @@ def call(
     uri: str,
     turns: int = 20,
     seed: int = 1,
-    utterances: list[list[int]] | None = None,
+    utterances: list[tuple[str, list[int]]] | None = None,
     lead: float = LEAD_SECONDS,
     gap: float = GAP_SECONDS,
+    codecs: tuple[int, ...] = (g711.PCMU, g711.PCMA),
 ) -> dict[str, Any]:
-    """Place the call; return where each turn's speech ended (packet and sample)."""
+    """Place the call; return where each turn's speech ended (packet and sample).
+
+    With utterances, each turn also carries its labelled speech spans as sample indices of the
+    stream (sample k is sample k % 160 of the packet with seq seq0 + k // 160).
+    """
     peer = parse_uri(uri)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect(peer)
@@ -70,23 +73,28 @@ def call(
     sock.bind(("0.0.0.0", 0))
     rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rtp.bind(("0.0.0.0", 0))
+    labels = [(n, speech.label(u)) for n, u in utterances] if utterances else []
     dialog = sip.Dialog(sock, peer, uri, local_ip)
-    ok = dialog.invite(sip.sdp(local_ip, rtp.getsockname()[1], [g711.PCMU, g711.PCMA]))
+    ok = dialog.invite(sip.sdp(local_ip, rtp.getsockname()[1], list(codecs)))
     ip, port, pts = sip.parse_sdp(ok.body)
     pt = next(p for p in pts if p in g711.NAMES)
 
-    pcm, spans = script(turns, seed, utterances, lead, gap)
+    pcm, spans = script(turns, seed, [u for _, u in utterances or []], lead, gap)
     audio = g711.encode(pt, pcm)
     gate = g711.gate(pt, GATE)
     silence = bytes([g711.SILENCE[pt]]) * FRAME
     frames = [audio[i : i + FRAME].ljust(FRAME, silence[:1]) for i in range(0, len(audio), FRAME)]
     seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
-    last = []
-    for start, end in spans:  # last sample the gate calls active, as the agent will see it
+    last: list[dict[str, Any]] = []
+    for i, (start, end) in enumerate(spans):  # last sample the gate calls active, as the agent sees
         m = gate.search(audio[start:end][::-1])
         assert m is not None
         idx = end - 1 - m.start()
-        last.append({"end_seq": (seq0 + idx // FRAME) & 0xFFFF, "end_off": idx % FRAME})
+        rec: dict[str, Any] = {"end_seq": (seq0 + idx // FRAME) & 0xFFFF, "end_off": idx % FRAME}
+        if labels:
+            clip, speech_spans = labels[i % len(labels)]
+            rec |= {"clip": clip, "speech": [[a + start, b + start] for a, b in speech_spans]}
+        last.append(rec)
 
     start = time.time_ns() + PTIME_NS
     sender = Sender(

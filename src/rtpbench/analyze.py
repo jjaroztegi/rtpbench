@@ -64,6 +64,63 @@ def by_seq(packets: Timed) -> Timed:
     return [seen[k] for k in sorted(seen)]
 
 
+@dataclass
+class Stream:
+    """Decoded audio as a method reads it, 160 samples per packet slot."""
+
+    seq: int  # RTP seq of slot 0
+    pcm: list[int]
+    times: list[int | None]  # time of each slot's sample 0; None for a lost packet
+
+    def index(self, seq0: int, k: int) -> int:
+        """Slot sample of sample k of a sender whose first packet had seq `seq0`."""
+        return k + rtp.FRAME * (((seq0 - self.seq + 0x8000) & 0xFFFF) - 0x8000)
+
+    def time(self, i: int, later: bool) -> int | None:
+        """Time of sample i. In a lost packet: the next arrived sample if `later`, else the
+        previous one (what a listener hears first / last)."""
+        k, off = divmod(i, rtp.FRAME)
+        if 0 <= k < len(self.times) and (t := self.times[k]) is not None:
+            return t + off * S
+        step = 1 if later else -1
+        while 0 <= (k := k + step) < len(self.times):
+            if (t := self.times[k]) is not None:
+                return t + (0 if later else rtp.FRAME - 1) * S
+        return None
+
+
+def stream(packets: Timed, pt: int, method: str = "wire") -> Stream:
+    """In sequence order (lost packets as silence) or, for concat, in arrival order."""
+    if any(len(p.payload) != rtp.FRAME for _, p in packets):
+        raise ValueError("only 20 ms G.711 packets are supported")
+    t0, ts0 = packets[0][0], packets[0][1].ts
+    if method == "concat":
+        payloads = [p.payload for _, p in packets]
+        times: list[int | None] = [t0 + k * rtp.PTIME_NS for k in range(len(packets))]
+        seq = packets[0][1].seq
+    else:
+        seen: dict[int, tuple[int, rtp.Packet]] = {}
+        ext, last = 0, packets[0][1].seq
+        for t, p in packets:
+            ext += ((p.seq - last + 0x8000) & 0xFFFF) - 0x8000
+            last = p.seq
+            seen.setdefault(ext, (t, p))
+        lo, hi = min(seen), max(seen)
+        silence = bytes([g711.SILENCE[pt]]) * rtp.FRAME
+        slots = [seen.get(k) for k in range(lo, hi + 1)]
+        payloads = [s[1].payload if s else silence for s in slots]
+        times = [
+            None
+            if s is None
+            else t0 + ((s[1].ts - ts0) & 0xFFFFFFFF) * S
+            if method == "rtp"
+            else s[0]
+            for s in slots
+        ]
+        seq = (packets[0][1].seq + lo) & 0xFFFF
+    return Stream(seq, g711.decode(pt, b"".join(payloads)), times)
+
+
 def view(packets: Timed, method: str) -> Iterable[tuple[int, bytes]]:
     """(time of sample 0, payload) per packet, in the order the method reads them."""
     if not packets:

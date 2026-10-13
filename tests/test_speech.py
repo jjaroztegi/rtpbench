@@ -52,7 +52,16 @@ def test_gate_merges_gaps_up_to_20_ms() -> None:
     assert spans[0][1] == 2560
 
 
-@pytest.mark.parametrize("name", ["webrtcvad", "silero"])
+@pytest.mark.parametrize("name", ["webrtcvad", "silero", "silero16"])
 def test_window_detectors_ignore_silence(name: str) -> None:
-    pytest.importorskip("onnxruntime" if name == "silero" else "webrtcvad")
+    pytest.importorskip("webrtcvad" if name == "webrtcvad" else "onnxruntime")
     assert detect.DETECT[name]([0] * 16000) == []
+
+
+def test_every_corpus_clip_labels_with_silence_around_it() -> None:
+    clips = speech.clips("tts-", "human-", "cough-")
+    assert len(clips) == 60
+    for name, pcm in clips.items():
+        spans = speech.label(pcm)
+        assert spans[0][0] >= 400, name  # at least 50 ms of non-speech before
+        assert spans[-1][1] <= len(pcm) - 400, name
