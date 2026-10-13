@@ -122,17 +122,22 @@ def sdp(
     pts: list[int],
     direction: str = "sendrecv",
     origin: tuple[int, int] | None = None,
+    dtmf: bool = False,
 ) -> bytes:
-    """An audio offer or answer; `origin` (session id, version) for a later one."""
+    """An audio offer or answer; `origin` (session id, version) for a later one; `dtmf` adds
+    RFC 4733 telephone-event."""
     sid, version = origin or (secrets.randbelow(1 << 31),) * 2
+    events = [TELEPHONE_EVENT] if dtmf else []
     lines = [
         "v=0",
         f"o=rtpbench {sid} {version} IN IP4 {ip}",
         "s=rtpbench",
         f"c=IN IP4 {ip}",
         "t=0 0",
-        f"m=audio {port} RTP/AVP {' '.join(map(str, pts))}",
+        f"m=audio {port} RTP/AVP {' '.join(map(str, [*pts, *events]))}",
         *(f"a=rtpmap:{pt} {NAMES[pt]}/8000" for pt in pts),
+        *(f"a=rtpmap:{pt} telephone-event/8000" for pt in events),
+        *(f"a=fmtp:{pt} 0-16" for pt in events),
         "a=ptime:20",
         f"a={direction}",
     ]
@@ -145,8 +150,10 @@ class Sdp:
     port: int = 0
     pts: list[int] = field(default_factory=list)
     direction: str = "sendrecv"
+    dtmf: int | None = None  # telephone-event payload type
 
 
+TELEPHONE_EVENT = 101
 DIRECTIONS = ("sendrecv", "sendonly", "recvonly", "inactive")
 # what an answerer that honours the offer replies with (RFC 3264 6.1)
 ANSWER = {
@@ -171,6 +178,8 @@ def parse_sdp(body: bytes) -> Sdp:
                 out.port, out.pts = int(fields[1]), [int(p) for p in fields[3:]]
         elif line[2:] in DIRECTIONS:  # media level comes later, so it wins
             out.direction = line[2:]
+        elif line.lower().startswith("a=rtpmap:") and "telephone-event/8000" in line.lower():
+            out.dtmf = int(line[9:].split()[0])
     return out
 
 

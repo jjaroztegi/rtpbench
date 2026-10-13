@@ -12,6 +12,7 @@ agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per 
 
 import json
 import re
+import struct
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from rtpbench import analyze, detect, g711, pcap, rtp, sip, speech, speechcal
-from rtpbench.agent import Behaviour
+from rtpbench.agent import DIGITS, Behaviour
 from rtpbench.caller import Media, Session, speech_utterances
 
 CODECS = (g711.PCMU, g711.PCMA)
@@ -35,6 +36,8 @@ WATCH_S = 2.0  # listen after the call ends for media that should have stopped
 HOLD_S = 3.0
 RESUME_MS = 1000
 CLOCK_MS = 40  # RTP timestamp gap vs arrival gap across a pause (two packets of jitter)
+KEY_MS = 100  # how long the caller holds a key
+DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
@@ -94,15 +97,37 @@ class Script(Media):
     """Caller media for a case: says the clips the script queues, silence otherwise, and keeps
     the agent's speech bursts as the gate hears them (to pace the script, not to measure)."""
 
-    def __init__(self, pt: int) -> None:
+    def __init__(self, pt: int, events: int | None = None) -> None:
         super().__init__(pt)
+        self.events = events  # telephone-event payload type
+        self.keys: list[str] = []  # digits to press
+        self.key: dict[str, int] | None = None  # the digit being sent
+        self.pressed: list[dict[str, Any]] = []
         self.queue: list[tuple[str, bytes, list[tuple[int, int]]]] = []
         self.said: list[dict[str, Any]] = []
         self.bursts: list[list[int]] = []
         self.muted = False  # send nothing (call inactive)
 
-    def idle(self) -> bytes | None:
-        return None if self.muted else self.silence
+    def press(self, digit: str) -> None:
+        with self.lock:
+            self.keys.append(digit)
+
+    def idle(self, n: int) -> bytes | rtp.Frame | None:
+        if self.key is None and self.keys and self.events is not None:
+            digit = self.keys.pop(0)
+            self.key = {"event": DIGITS.index(digit), "ts": n * rtp.FRAME, "dur": 0, "ends": 0}
+            self.pressed.append({"digit": digit, "seq_offset": n})
+        if (k := self.key) is None or self.events is None:
+            return None if self.muted else self.silence
+        # RFC 4733: one timestamp per event, duration so far, end bit on the last three
+        first = k["dur"] == 0
+        k["dur"] = min(k["dur"] + rtp.FRAME, KEY_MS * 8)
+        end = k["dur"] == KEY_MS * 8
+        k["ends"] += end
+        if k["ends"] == 3:
+            self.key = None
+        payload = struct.pack("!BBH", k["event"], 0x80 * end | 10, k["dur"])
+        return rtp.Frame(self.events, payload, k["ts"], first)
 
     def heard(self, onset: int, end: int) -> None:
         if self.bursts and onset - self.bursts[-1][1] <= analyze.AGENT_GAP_NS:
@@ -119,7 +144,7 @@ class Script(Media):
 
     def busy(self) -> bool:
         with self.lock:
-            return bool(self.queue or self.audio)
+            return bool(self.queue or self.audio or self.keys or self.key)
 
     def speech_after(self, t_ns: int) -> int | None:
         with self.lock:
@@ -200,6 +225,35 @@ def hold(dial: Dial, seed: int) -> dict[str, Any]:
         s.wait(lambda: s.remote_bye, HOLD_S)
     s.hangup()
     return s.meta(seed, s.remote_bye) | {"said": m.said}
+
+
+def _dtmf(dial: Dial, seed: int, info: bool) -> dict[str, Any]:
+    """Once the agent is quiet, press 5 (RFC 4733 if negotiated, or SIP INFO) and listen."""
+    s = dial(dtmf=not info)
+    s.answer()
+    m = Script(s.pt, s.dtmf)
+    s.start(m.source, m.on_packet)
+    s.wait(lambda: s.remote_bye, 1.0)
+    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    t = time.time_ns()
+    if info:
+        signal = f"Signal=5\r\nDuration={KEY_MS}\r\n".encode()
+        s.request("INFO", signal, content_type="application/dtmf-relay")
+    elif s.dtmf is not None:
+        m.press("5")
+        s.wait(lambda: s.remote_bye or not m.busy(), 5)
+    if s.wait(lambda: s.remote_bye or m.speech_after(t) is not None, DTMF_MAX_MS / 1000 + 3):
+        s.wait(lambda: s.remote_bye or m.quiet(), 30)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"pressed": m.pressed}
+
+
+def dtmf_rfc4733(dial: Dial, seed: int) -> dict[str, Any]:
+    return _dtmf(dial, seed, info=False)
+
+
+def dtmf_info(dial: Dial, seed: int) -> dict[str, Any]:
+    return _dtmf(dial, seed, info=True)
 
 
 @dataclass
@@ -407,6 +461,59 @@ def check_hold(w: Wire) -> Result:
     return r
 
 
+def _reaction(w: Wire, r: Result, t: int) -> Result:
+    """The agent's first speech after a digit at `t`."""
+    onset = w.speech_after(t)
+    r.checks.append(
+        Check(
+            f"agent reacts within {DTMF_MAX_MS} ms",
+            onset is not None and onset - t <= DTMF_MAX_MS * 1e6,
+        )
+    )
+    if onset is not None:
+        truth = w.truth("dtmf")
+        truth_ms = None if truth is None else (truth[0] - t) / 1e6
+        r.timings.append(
+            Timing("digit to agent speech", (onset - t) / 1e6, ONSET[w.log["pt"]], truth_ms)
+        )
+    return r
+
+
+def check_dtmf_rfc4733(w: Wire) -> Result:
+    """telephone-event in the answer; the agent reacts to the digit (timed from the first
+    packet with the end bit)."""
+    r = Result()
+    ok = w.find(_is_2xx_invite, sent=False)
+    pt = sip.parse_sdp(ok[1].body).dtmf if ok else None
+    r.checks.append(Check("telephone-event negotiated", pt is not None))
+    end = next(
+        (t for t, p in w.up if p.pt == pt and len(p.payload) >= 4 and p.payload[1] & 0x80), None
+    )
+    if pt is None or end is None:
+        return r
+    return _reaction(w, r, end)
+
+
+def check_dtmf_info(w: Wire) -> Result:
+    """INFO answered 2xx; the agent reacts to the digit (timed from the INFO)."""
+    r = Result()
+    info = w.find(lambda m: m.method == "INFO", sent=True)
+    if info is None:
+        r.checks.append(Check("INFO sent", None))
+        return r
+    resp = w.find(_final_to(info[1]), sent=False)
+    r.checks.append(
+        Check(
+            "INFO answered 2xx",
+            resp is not None and resp[1].status < 300,
+            resp[1].first if resp else "no response",
+        )
+    )
+    if resp:
+        r.timings.append(Timing("INFO to its response", (resp[0] - info[0]) / 1e6, WIRE))
+    return _reaction(w, r, info[0])
+
+
 @dataclass(frozen=True)
 class Case:
     """A caller script, its check, and the reference agent behaviours that pass and fail it."""
@@ -445,6 +552,10 @@ CASES = {
         Behaviour(),
         {"ignore": Behaviour(hold=False), "clock": Behaviour(clock=False)},
     ),
+    "dtmf-rfc4733": Case(
+        dtmf_rfc4733, check_dtmf_rfc4733, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}
+    ),
+    "dtmf-info": Case(dtmf_info, check_dtmf_info, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}),
 }
 
 

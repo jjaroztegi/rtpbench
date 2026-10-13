@@ -35,6 +35,7 @@ SPEECH_HANGOVER_NS = 1_000_000_000
 SPEECH_DELAY_RANGE = (1.5, 2.5)
 
 Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled speech spans
+DIGITS = "0123456789*#ABCD"  # RFC 4733 events 0-15
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ class Behaviour:
     linger_s: float = 0.0  # keep sending RTP this long after answering BYE
     hold: bool = True  # answer a re-INVITE's direction as offered; else sendrecv, never pause
     clock: bool = True  # RTP timestamps keep time while paused; else resume where they stopped
+    dtmf_s: float | None = None  # answer a digit (RFC 4733 or INFO) with speech this long after
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -89,6 +91,10 @@ class Responder:
         self.cut_ns: int | None = None
         self.sending, self.clock = True, True  # not sending: on hold
         self.skipped, self.paused = 0, True  # ticks not sent; marker on the next packet
+        self.events: int | None = None  # telephone-event payload type
+        self.dtmf_ns: int | None = None  # reply this long after a digit
+        self.digits: list[dict[str, Any]] = []
+        self.event_ts: int | None = None  # RTP timestamp of the last event that ended
 
     def speak(self, target_ns: int, reply: int, kind: str) -> None:
         """Say `self.replies[reply]`, its labelled onset at `target_ns`."""
@@ -96,7 +102,19 @@ class Responder:
             turn = len(self.turns)
             self.pending = {"turn": turn, "kind": kind, "reply": reply, "target_ns": target_ns}
 
+    def digit(self, at_ns: int, digit: str, via: str) -> None:
+        """A digit came in (the key released): note it and, if the case says so, answer."""
+        self.digits.append({"digit": digit, "via": via, "at_ns": at_ns})
+        if self.dtmf_ns is not None:
+            reply = len(self.digits) % len(self.replies)
+            self.speak(at_ns + self.dtmf_ns, reply, "dtmf")
+
     def on_packet(self, arrival: int, pkt: Packet) -> None:
+        if pkt.pt == self.events and len(pkt.payload) >= 4:
+            if pkt.payload[1] & 0x80 and pkt.ts != self.event_ts:  # end bit, first copy
+                self.event_ts = pkt.ts
+                self.digit(arrival, DIGITS[pkt.payload[0] % 16], "rfc4733")
+            return
         if pkt.pt != self.pt:
             return
         with self.lock:
@@ -228,7 +246,7 @@ class Uas:
         self.end_at: float | None = None
         self.done = False
         self.responder: Responder | None = None
-        self.pt = 0
+        self.pt, self.dtmf = 0, False
         self.sender: Sender | None = None
         self.threads: list[Sender | Receiver] = []
         self.meta: dict[str, Any] = {}
@@ -271,6 +289,13 @@ class Uas:
         elif msg.method == "BYE":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             self.end_at = time.monotonic() + self.case.linger_s
+        elif msg.method == "INFO" and "dtmf-relay" in msg.get("content-type").lower():
+            self._send(sip.response(msg, 200, "OK", self.to_tag))
+            body = dict(
+                line.partition("=")[::2] for line in msg.body.decode(errors="replace").split()
+            )
+            if self.responder and (signal := body.get("Signal", "").strip()):
+                self.responder.digit(time.time_ns(), signal, "info")
         else:
             self._send(sip.response(msg, 200, "OK", self.to_tag))
 
@@ -292,7 +317,9 @@ class Uas:
         self.pt = pt = next(pt for pt in offer.pts if pt in g711.NAMES)
         seq0, ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
         self.responder = r = self.make(pt, seq0)
-        r.clock = self.case.clock
+        r.clock, r.events = self.case.clock, offer.dtmf
+        r.dtmf_ns = None if self.case.dtmf_s is None else round(self.case.dtmf_s * 1e9)
+        self.dtmf = offer.dtmf is not None
         self._send(self._ok(self.invite, "sendrecv"), final=True)
         start = time.time_ns() + PTIME_NS
         self.sender = Sender(self.rtp, (offer.ip, offer.port), pt, r.source, start, seq0, ssrc)
@@ -307,7 +334,7 @@ class Uas:
         local = _local_ip(self.addr)
         contact = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
         origin = (self.origin[0], self.origin[1])
-        body = sip.sdp(local, self.rtp.getsockname()[1], [self.pt], direction, origin)
+        body = sip.sdp(local, self.rtp.getsockname()[1], [self.pt], direction, origin, self.dtmf)
         self.origin[1] += 1
         return sip.response(req, 200, "OK", self.to_tag, body, contact)
 
@@ -392,5 +419,9 @@ def serve(
             call.handle(sip.parse(data), addr)
         call.tick()
     call.stop()
-    turns = call.responder.turns if call.responder else []
-    return call.meta | {"seed": seed, "turns": turns}
+    r = call.responder
+    return call.meta | {
+        "seed": seed,
+        "turns": r.turns if r else [],
+        "digits": r.digits if r else [],
+    }

@@ -1,4 +1,5 @@
 import socket
+import struct
 import time
 from collections.abc import Iterator
 
@@ -6,7 +7,7 @@ import pytest
 
 from rtpbench import rtp, sip
 from rtpbench.agent import Responder
-from rtpbench.cases import Check, Result, Wire, check_cancel
+from rtpbench.cases import Check, Result, Script, Wire, check_cancel
 
 
 @pytest.fixture
@@ -133,3 +134,16 @@ def test_agent_on_hold_sends_nothing(clock: bool) -> None:
         assert isinstance(out[7], bytes)
     else:  # timestamps resume where they stopped
         assert out[7] == rtp.Frame(8, r.silence, 3 * rtp.FRAME, True)
+
+
+def test_rfc4733_digit_frames() -> None:
+    m = Script(8, events=101)
+    m.press("#")
+    out = [m.source(n, 0) for n in range(3, 12)]
+    events = [o for o in out if isinstance(o, rtp.Frame)]
+    assert [(f.ts, f.marker) for f in events] == [(3 * 160, True)] + [(3 * 160, False)] * 6
+    fields = [struct.unpack("!BBH", f.payload) for f in events]
+    # event 11, volume 10; duration grows to 100 ms; the end packet three times
+    assert fields == [(11, 10, d) for d in (160, 320, 480, 640)] + [(11, 0x8A, 800)] * 3
+    assert out[7:] == [m.silence] * 2
+    assert not m.busy()

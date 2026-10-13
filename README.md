@@ -72,6 +72,8 @@ cases call your agent from this machine (after `uv sync --extra vad`; capturing 
 | `bye` | caller hangs up a second into the agent's speech: 2xx to BYE, agent RTP stops within 500 ms |
 | `cancel` | caller cancels a ringing INVITE: 2xx to CANCEL, 487 to the INVITE, no RTP after |
 | `hold` | hold (sendonly, then inactive) and resume by re-INVITE: answers honour the offer, no agent RTP while held, RTP back within 1 s as the same stream (SSRC, next seq, timestamps kept time) |
+| `dtmf-rfc4733` | once the agent is quiet the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
+| `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
 
 ## Development
 
