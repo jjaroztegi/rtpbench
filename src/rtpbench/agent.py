@@ -51,9 +51,11 @@ class Behaviour:
     clock: bool = True  # RTP timestamps keep time while paused; else resume where they stopped
     dtmf_s: float | None = None  # answer a digit (RFC 4733 or INFO) with speech this long after
     refer_s: float | None = None  # blind REFER this long after the caller's first turn ends
-    # then: "complete" answers NOTIFYs and hangs up after the final one; "stay" answers them and
-    # stays; "early" hangs up on the 202 and answers NOTIFYs 481
+    # then: "complete" answers NOTIFYs and hangs up after a final one reporting 2xx; "always"
+    # hangs up after the final one whatever it reports; "stay" answers them and stays; "early"
+    # hangs up on the 202 and answers NOTIFYs 481
     transfer: str = "complete"
+    retake_s: float | None = None  # a transfer failed (final NOTIFY not 2xx): speak this long after
     timer: bool = False  # take session timers (RFC 4028) with the caller as refresher
     expire: bool = True  # with timer: BYE when the session expires unrefreshed
 
@@ -308,9 +310,15 @@ class Uas:
                 self._send(sip.response(msg, 481, "Subscription Does Not Exist", self.to_tag))
                 return
             self._send(sip.response(msg, 200, "OK", self.to_tag))
-            done = "terminated" in msg.get("subscription-state") and msg.body[8:9] == b"2"
-            if done and self.case.transfer == "complete":
+            final = "terminated" in msg.get("subscription-state")
+            ok = msg.body[8:9] == b"2"  # sipfrag "SIP/2.0 2xx"
+            if final and (
+                self.case.transfer == "always" or (ok and self.case.transfer == "complete")
+            ):
                 self._hang_up()
+            elif final and not ok and self.case.retake_s is not None and (r := self.responder):
+                retake = round(self.case.retake_s * 1e9)
+                r.speak(time.time_ns() + retake, (self.greeting + 1) % len(r.replies), "retake")
         elif msg.method == "INFO" and "dtmf-relay" in msg.get("content-type").lower():
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             body = dict(

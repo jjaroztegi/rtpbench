@@ -51,6 +51,7 @@ TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac
 MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was disturbed
 PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
+RETAKE_MAX_MS = 5000  # likewise an agent taking the call back after a failed transfer
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
@@ -319,6 +320,16 @@ def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """After the greeting, ask for a person; play the transferee to its REFER (202, then
     NOTIFY sipfrag 100 Trying and, a second later, 200 OK, without calling the target), and
     wait for the agent to hang up."""
+    return _refer(dial, seed, lines, "200 OK")
+
+
+def refer_fail(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """As `refer`, but the transfer fails: the final NOTIFY reports 486 Busy Here. Then listen
+    for the agent taking the call back."""
+    return _refer(dial, seed, lines, "486 Busy Here")
+
+
+def _refer(dial: Dial, seed: int, lines: Lines, outcome: str) -> dict[str, Any]:
     s = dial()
     s.answer()
     m = Script(s.pt)
@@ -327,7 +338,7 @@ def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     m.say(*_line(lines, "transfer", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):
-        for frag, state in (("100 Trying", "active;expires=60"), ("200 OK", "terminated")):
+        for frag, state in (("100 Trying", "active;expires=60"), (outcome, "terminated")):
             event = [("Event", "refer"), ("Subscription-State", state)]
             s.request("NOTIFY", f"SIP/2.0 {frag}\r\n".encode(), event, SIPFRAG)
             s.wait(lambda: False, 1.0)
@@ -647,10 +658,45 @@ def check_refer(w: Wire) -> Result:
     """A REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx (the subscription outlives
     a BYE, RFC 5057), and the agent hangs up within 10 s of the final NOTIFY."""
     r = Result()
+    if (last := _transfer(w, r)) is None:
+        return r
+    bye = w.find(lambda m: m.method == "BYE", sent=False)
+    in_time = bye is not None and bye[0] - last <= BYE_WAIT_S * 1e9
+    r.checks.append(Check(f"agent hangs up within {BYE_WAIT_S:.0f} s", in_time))
+    if bye:
+        r.timings.append(Timing("final NOTIFY to agent BYE", (bye[0] - last) / 1e6, WIRE))
+    return r
+
+
+def check_refer_fail(w: Wire) -> Result:
+    """As `check_refer` up to the NOTIFYs; then, the transfer having failed, the agent takes the
+    call back (RFC 5589 6.3: the transferor resumes the session): no BYE for 10 s, and speech
+    that starts within 5 s of the failure NOTIFY."""
+    r = Result()
+    if (last := _transfer(w, r)) is None:
+        return r
+    bye = w.find(lambda m: m.method == "BYE", sent=False)
+    keeps = bye is None or bye[0] - last > BYE_WAIT_S * 1e9
+    detail = "" if bye is None else f"BYE {(bye[0] - last) / 1e6:.0f} ms after it"
+    r.checks.append(Check(f"agent keeps the call for {BYE_WAIT_S:.0f} s", keeps, detail))
+    onset = w.speech_after(last)
+    spoke = onset is not None and onset - last <= RETAKE_MAX_MS * 1e6
+    r.checks.append(Check(f"agent speaks within {RETAKE_MAX_MS} ms", spoke and keeps))
+    if onset is not None and (bye is None or onset < bye[0]):
+        truth = w.truth("retake")
+        truth_ms = None if truth is None else (truth[0] - last) / 1e6
+        ms = (onset - last) / 1e6
+        r.timings.append(Timing("failure NOTIFY to agent speech", ms, w.onset(), truth_ms))
+    return r
+
+
+def _transfer(w: Wire, r: Result) -> int | None:
+    """The REFER and the NOTIFYs that report on it; when the last NOTIFY went (the REFER's time
+    if none did), or None without a REFER."""
     ref = w.find(lambda m: m.method == "REFER", sent=False)
     r.checks.append(Check("agent transfers (REFER)", ref is not None))
     if ref is None:
-        return r
+        return None
     said = w.said()
     if said:
         r.timings.append(Timing("end of the request to REFER", (ref[0] - said[1]) / 1e6, LABEL_END))
@@ -673,13 +719,7 @@ def check_refer(w: Wire) -> Result:
                 resp[1].first if resp else "no response",
             )
         )
-    bye = w.find(lambda m: m.method == "BYE", sent=False)
-    last = notifies[-1][0] if notifies else ref[0]
-    in_time = bye is not None and bye[0] - last <= BYE_WAIT_S * 1e9
-    r.checks.append(Check(f"agent hangs up within {BYE_WAIT_S:.0f} s", in_time))
-    if bye:
-        r.timings.append(Timing("final NOTIFY to agent BYE", (bye[0] - last) / 1e6, WIRE))
-    return r
+    return notifies[-1][0] if notifies else ref[0]
 
 
 def check_timer(w: Wire) -> Result:
@@ -786,6 +826,15 @@ CASES = {
         {
             "stays": Behaviour(refer_s=1.5, transfer="stay"),
             "early": Behaviour(refer_s=1.5, transfer="early"),
+        },
+    ),
+    "refer-fail": Case(
+        refer_fail,
+        check_refer_fail,
+        Behaviour(refer_s=1.5, retake_s=0.8),
+        {
+            "hangs-up": Behaviour(refer_s=1.5, transfer="always"),
+            "silent": Behaviour(refer_s=1.5),
         },
     ),
     "timer": Case(
