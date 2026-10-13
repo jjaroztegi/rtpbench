@@ -1,8 +1,8 @@
 import pytest
 
-from rtpbench import g711
+from rtpbench import analyze, g711
 from rtpbench.agent import HANGOVER_NS, Responder
-from rtpbench.analyze import Capture, Timed, latencies
+from rtpbench.analyze import Capture, Timed, latencies, stream_stats
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet
 from rtpbench.voice import GATE, voice
 
@@ -71,6 +71,19 @@ def test_late_first_packet_skews_rtp_timeline() -> None:
     assert got is not None
     assert ref is not None
     assert got == ref + 7_000_000
+
+
+def test_first_packet_overtaken() -> None:
+    cap = call(caller_end=9_003, onset=17_777, net_ns=0)
+    want = latencies(cap, PT, "wire")
+    (t0, p0), (t1, p1) = cap.down[:2]
+    cap.down[:2] = [(t0, p1), (t1, p0)]  # seq 1 arrives before seq 0
+    assert latencies(cap, PT, "wire") == want
+    # rtp anchors at the first packet to arrive (seq 1 at t0), so seq 0 sits 20 ms before it
+    times = analyze.stream(cap.down, PT, "rtp").times
+    assert times[:2] == [t0 - PTIME_NS, t0]  # not ~6 days later
+    n = len(cap.down)
+    assert stream_stats(cap.down) == {"received": n, "expected": n, "reordered": 1}
 
 
 @pytest.mark.parametrize("delay", [0.3, 0.4567891, 1.29])

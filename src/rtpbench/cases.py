@@ -566,18 +566,12 @@ def _final_to(req: sip.Message) -> Callable[[sip.Message], bool]:
     return lambda m: m.branch == req.branch and m.cseq_method == req.method and m.status >= 200
 
 
-def _signed(diff: int, bits: int) -> int:
-    """A difference of wrapping counters (RTP seq, timestamp) as a signed number."""
-    half = 1 << (bits - 1)
-    return ((diff + half) & ((1 << bits) - 1)) - half
-
-
 def _floor(pkts: analyze.Timed, ts0: int) -> float:
     """Least arrival time minus RTP time (ms, timestamps relative to `ts0`) over `pkts`: the
     sender's clock against the capture's, with the path's base delay and without its jitter.
     Comparing it across a pause shows whether the RTP clock kept time; one packet each side
     would carry two packets' jitter."""
-    return min(u / 1e6 - _signed(p.ts - ts0, 32) / 8 for u, p in pkts)
+    return min(u / 1e6 - analyze.signed(p.ts - ts0, 32) / 8 for u, p in pkts)
 
 
 # answers to a hold offer that honour it (RFC 3264 6.1: inactive is fine for sendonly)
@@ -807,7 +801,7 @@ def check_timer(w: Wire) -> Result:
     ssrcs = len({p.ssrc for _, p in near})
     skipped = max(
         (
-            _signed(b.ts - a.ts, 32) / 8 - _signed(b.seq - a.seq, 16) * PTIME_MS
+            analyze.signed(b.ts - a.ts, 32) / 8 - analyze.signed(b.seq - a.seq, 16) * PTIME_MS
             for a, b in itertools.pairwise(p for _, p in near)
         ),
         default=0.0,

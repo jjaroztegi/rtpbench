@@ -53,14 +53,28 @@ def load(path: Path) -> Capture:
     return Capture(up, down)
 
 
-def by_seq(packets: Timed) -> Timed:
-    """Sequence order (first copy of duplicates), unwrapping seq in arrival order."""
-    seen: dict[int, tuple[int, rtp.Packet]] = {}
-    ext, last = 0, packets[0][1].seq if packets else 0
-    for t, p in packets:
-        ext += ((p.seq - last + 0x8000) & 0xFFFF) - 0x8000
+def signed(diff: int, bits: int) -> int:
+    """A difference of wrapping counters (RTP seq, timestamp) as a signed number."""
+    half = 1 << (bits - 1)
+    return ((diff + half) & ((1 << bits) - 1)) - half
+
+
+def unwrap(packets: Timed) -> list[int]:
+    """Each packet's seq relative to the first to arrive, unwrapped in arrival order (negative
+    for packets the first one overtook)."""
+    ext, last, out = 0, packets[0][1].seq if packets else 0, []
+    for _, p in packets:
+        ext += signed(p.seq - last, 16)
         last = p.seq
-        seen.setdefault(ext, (t, p))
+        out.append(ext)
+    return out
+
+
+def by_seq(packets: Timed) -> Timed:
+    """Sequence order (first copy of duplicates)."""
+    seen: dict[int, tuple[int, rtp.Packet]] = {}
+    for k, tp in zip(unwrap(packets), packets, strict=True):
+        seen.setdefault(k, tp)
     return [seen[k] for k in sorted(seen)]
 
 
@@ -100,21 +114,14 @@ def stream(packets: Timed, pt: int, method: str = "wire") -> Stream:
         seq = packets[0][1].seq
     else:
         seen: dict[int, tuple[int, rtp.Packet]] = {}
-        ext, last = 0, packets[0][1].seq
-        for t, p in packets:
-            ext += ((p.seq - last + 0x8000) & 0xFFFF) - 0x8000
-            last = p.seq
-            seen.setdefault(ext, (t, p))
+        for k, tp in zip(unwrap(packets), packets, strict=True):
+            seen.setdefault(k, tp)
         lo, hi = min(seen), max(seen)
         silence = bytes([g711.SILENCE[pt]]) * rtp.FRAME
         slots = [seen.get(k) for k in range(lo, hi + 1)]
         payloads = [s[1].payload if s else silence for s in slots]
         times = [
-            None
-            if s is None
-            else t0 + ((s[1].ts - ts0) & 0xFFFFFFFF) * S
-            if method == "rtp"
-            else s[0]
+            None if s is None else t0 + signed(s[1].ts - ts0, 32) * S if method == "rtp" else s[0]
             for s in slots
         ]
         seq = (packets[0][1].seq + lo) & 0xFFFF
@@ -133,7 +140,7 @@ def view(packets: Timed, method: str) -> Iterable[tuple[int, bytes]]:
             total += len(p.payload)
         return
     for t, p in by_seq(packets):
-        yield (t0 + ((p.ts - ts0) & 0xFFFFFFFF) * S if method == "rtp" else t), p.payload
+        yield (t0 + signed(p.ts - ts0, 32) * S if method == "rtp" else t), p.payload
 
 
 def segments(
@@ -227,7 +234,9 @@ def stream_stats(packets: Timed) -> dict[str, int]:
     """Distinct packets received, packets the sender sent over that span, and late arrivals."""
     if not packets:
         return {"received": 0, "expected": 0, "reordered": 0}
-    rel = [(p.seq - packets[0][1].seq) & 0xFFFF for _, p in packets]
+    ext = unwrap(packets)
+    lo = min(ext)
+    rel = [k - lo for k in ext]
     reordered, top = 0, -1
     for r in rel:
         reordered += r < top
