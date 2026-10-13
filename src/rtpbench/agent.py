@@ -60,8 +60,10 @@ class Responder:
     def source(self, n: int, tick: int) -> bytes:
         with self.lock:
             p = self.pending
-            if self.pos is None and p is not None and p["target_ns"] < tick + PTIME_NS:
-                off = max(0, round((p["target_ns"] - tick) / SAMPLE_NS))
+            # a target in the last half sample rounds to the next tick's sample 0, not to 160
+            off = round((p["target_ns"] - tick) / SAMPLE_NS) if p else FRAME
+            if self.pos is None and p is not None and off < FRAME:
+                off = max(0, off)
                 p |= {"onset_seq": (self.seq0 + n) & 0xFFFF, "onset_off": off, "tick_ns": tick}
                 self.turns.append(p)
                 self.pending, self.pos = None, -off
