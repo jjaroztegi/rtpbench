@@ -1,14 +1,16 @@
 import random
 import socket
 import struct
+import threading
 import time
 from collections.abc import Iterator
 from typing import Any
 
 import pytest
 
-from rtpbench import cases, rtp, sip
+from rtpbench import cases, g711, rtp, sip
 from rtpbench.agent import Responder
+from rtpbench.caller import Session
 from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
 
 
@@ -76,6 +78,32 @@ def test_requests_retransmit_until_answered(pair: tuple[socket.socket, socket.so
 
 def uri(d: sip.Dialog) -> str:
     return sip.uri_of(d.contact)
+
+
+def test_answer_without_g711_hangs_up(pair: tuple[socket.socket, socket.socket]) -> None:
+    _, b = pair
+    seen: list[str] = []
+
+    def uas() -> None:  # answers G.722 only, then takes the BYE
+        while True:
+            data, addr = b.recvfrom(65535)
+            msg = sip.parse(data)
+            seen.append(msg.method)
+            if msg.method == "INVITE":
+                body = b"v=0\r\nc=IN IP4 127.0.0.1\r\nm=audio 4000 RTP/AVP 9\r\n"
+                contact = [("Contact", "<sip:agent@127.0.0.1>")]
+                b.sendto(sip.response(msg, 200, "OK", "t2", body, contact).render(), addr)
+            elif msg.method == "BYE":
+                b.sendto(sip.response(msg, 200, "OK").render(), addr)
+                return
+
+    s = Session(f"sip:agent@127.0.0.1:{b.getsockname()[1]}", (g711.PCMU,))
+    t = threading.Thread(target=uas)
+    t.start()
+    with pytest.raises(sip.SipError, match=r"no G\.711 format \(payload types 9\)"):
+        s.answer(timeout=2)
+    t.join()
+    assert seen == ["INVITE", "ACK", "BYE"]
 
 
 def test_verdict() -> None:

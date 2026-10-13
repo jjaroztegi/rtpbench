@@ -137,7 +137,7 @@ class Session:
             self.final = msg
             answer = sip.parse_sdp(msg.body)
             self.addr = (answer.ip, answer.port)
-            self.pt = next(p for p in answer.pts if p in g711.NAMES)
+            self.pt = next((p for p in answer.pts if p in g711.NAMES), -1)  # -1: answer() ends it
             self.dtmf = answer.dtmf
 
     def _incoming(self, req: sip.Message) -> None:
@@ -170,12 +170,17 @@ class Session:
         self.dialog.cancel(self.invite)
 
     def answer(self, timeout: float = 32.0) -> sip.Message:
-        """The 2xx to the INVITE (ACKed); raises on a failure or no answer."""
+        """The 2xx to the INVITE (ACKed); raises on a failure, no answer, or an answer without
+        G.711 (after hanging up)."""
         self.wait(lambda: self.final is not None, timeout)
         if self.final is None:
             raise sip.SipError("INVITE timed out")
         if self.final.status >= 300:
             raise sip.SipError(self.final.first)
+        if self.pt < 0:
+            self.request("BYE")
+            pts = " ".join(map(str, sip.parse_sdp(self.final.body).pts))
+            raise sip.SipError(f"answer has no G.711 format (payload types {pts or 'none'})")
         return self.final
 
     def request(
