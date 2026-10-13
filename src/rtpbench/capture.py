@@ -2,6 +2,8 @@
 
 import signal
 import subprocess
+import sys
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,8 +11,11 @@ from pathlib import Path
 
 @contextmanager
 def capture(path: Path, iface: str = "eth0", bpf: str = "udp") -> Iterator[None]:
-    cmd = ["tcpdump", "-i", iface, "-n", "-Z", "root", "--time-stamp-precision=nano"]
-    proc = subprocess.Popen([*cmd, "-w", str(path), bpf], stderr=subprocess.PIPE, text=True)
+    # Immediate mode: without it libpcap hands packets over in blocks of up to a second, and
+    # stopping tcpdump right after a BYE loses the end of the call.
+    cmd = ["tcpdump", "-i", iface, "-n", "-Z", "root", "--immediate-mode"]
+    cmd += ["--time-stamp-precision=nano", "-w", str(path), bpf]
+    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
     assert proc.stderr is not None
     line = proc.stderr.readline()
     if "listening on" not in line:
@@ -19,5 +24,9 @@ def capture(path: Path, iface: str = "eth0", bpf: str = "udp") -> Iterator[None]
     try:
         yield
     finally:
+        time.sleep(0.2)
         proc.send_signal(signal.SIGINT)
-        proc.wait(timeout=10)
+        _, err = proc.communicate(timeout=10)
+        print(f"{path.name}: " + "; ".join(err.split("\n")[:3]).strip("; "), file=sys.stderr)
+        if "\n0 packets dropped by kernel" not in err:
+            raise RuntimeError(f"tcpdump dropped packets writing {path}:\n{err}")
