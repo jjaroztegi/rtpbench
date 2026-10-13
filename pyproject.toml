@@ -8,6 +8,9 @@ authors = [{ name = "Juanjo Aroztegi", email = "juanjo@aroztegi.com" }]
 requires-python = ">=3.14"
 dependencies = []
 
+[project.optional-dependencies]
+vad = ["onnxruntime>=1.31", "webrtcvad-wheels>=2.0.14"]
+
 [project.scripts]
 rtpbench = "rtpbench.cli:main"
 
@@ -31,6 +34,10 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "PT", "RUF"]
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime", "webrtcvad"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
