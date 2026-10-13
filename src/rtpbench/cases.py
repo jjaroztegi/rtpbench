@@ -70,17 +70,23 @@ WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibr
 # speech detection error per netem profile and codec, from the calibrations under that profile;
 # a profile without its own calibration (or a target outside the router) takes the clean bar
 ONSET = {
-    ("clean", g711.PCMU): Bar(
-        -3.8, 32.9, "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
-    ),
-    ("clean", g711.PCMA): Bar(
-        -88.1, 24.3, "webrtcvad onset, p5..p95, PCMA, clean (calibrate --speech)"
-    ),
+    (profile, pt): Bar(lo, hi, f"webrtcvad onset, p5..p95, {g711.NAMES[pt]}, {profile} {how}")
+    for profile, pt, lo, hi, how in (
+        ("clean", g711.PCMU, -3.8, 32.9, "(calibrate --speech)"),
+        ("clean", g711.PCMA, -88.1, 24.3, "(calibrate --speech)"),
+        ("lte", g711.PCMU, -3.4, 32.3, "(calibrate --speech --profiles lte)"),
+        ("lte", g711.PCMA, -87.6, 25.2, "(calibrate --speech --profiles lte)"),
+        ("lte-bad", g711.PCMU, -16.7, 52.5, "(calibrate --speech --profiles lte-bad)"),
+        ("lte-bad", g711.PCMA, -96.9, 35.1, "(calibrate --speech --profiles lte-bad)"),
+    )
 }
 STOP = {  # agent stop time on a hard cut, by the gate
-    ("clean", g711.PCMA): Bar(
-        -71.9, 0.0, "gate stop time, p5..p95, PCMA, clean (calibrate --barge-in)"
-    ),
+    (profile, g711.PCMA): Bar(lo, 0.0, f"gate stop time, p5..p95, PCMA, {profile} {how}")
+    for profile, lo, how in (
+        ("clean", -71.9, "(calibrate --barge-in)"),
+        ("lte", -72.1, "(calibrate --barge-in --profiles lte)"),
+        ("lte-bad", -118.8, "(calibrate --barge-in --profiles lte-bad)"),
+    )
 }
 
 
