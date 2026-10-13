@@ -31,6 +31,7 @@ GREETING_WAIT_S = 10.0
 GREETING_MAX_MS = 2000  # a caller left in silence longer than this starts saying "hello?"
 REPLY_WAIT_S = 15.0
 BYE_AFTER_NS = 1_000_000_000  # into the agent's speech
+BYE_AUDIBLE_S = 3.0  # then wait this long for a moment the agent is audible
 CANCEL_AFTER_S = 0.2  # after the first provisional response
 MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be on its way
 WATCH_S = 2.0  # listen after the call ends for media that should have stopped
@@ -187,11 +188,22 @@ def greeting(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
-def _talking(s: Session, m: Script, seed: int, lines: Lines) -> int | None:
-    """When the agent started talking: its greeting, or else its reply to a question."""
+def _greeting(s: Session, m: Script) -> int | None:
+    """When the agent started its greeting, if it greets within GREETING_WAIT_S."""
     t0 = time.time_ns()
-    if s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S):
-        return m.speech_after(t0)
+    s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S)
+    return m.speech_after(t0)
+
+
+def _settle(s: Session, m: Script) -> None:
+    """Let the agent's greeting, if any, start and end: an agent may take a second or two to
+    start (one that opens its AI session after answering), so a fixed wait is not enough."""
+    _greeting(s, m)
+    s.wait(lambda: s.remote_bye or m.quiet(), 30)
+
+
+def _reply(s: Session, m: Script, seed: int, lines: Lines) -> int | None:
+    """Ask a question; when the agent started its reply."""
     m.say(*_line(lines, "prompt", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     t1 = time.time_ns()
@@ -200,13 +212,25 @@ def _talking(s: Session, m: Script, seed: int, lines: Lines) -> int | None:
 
 
 def bye(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """Get the agent talking, BYE a second into it, then watch for media."""
+    """Get the agent talking (its greeting, or else its reply to a question), BYE at least a
+    second into it while it is audible, then watch for media. A greeting that ends without such
+    a moment gives way to a question."""
     s = dial()
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
-    if (onset := _talking(s, m, seed, lines)) is not None:
-        s.wait(lambda: s.remote_bye or time.time_ns() >= onset + BYE_AFTER_NS, 5)
+
+    def into(onset: int) -> bool:
+        def audible() -> bool:
+            return time.time_ns() >= onset + BYE_AFTER_NS and not m.quiet(analyze.AGENT_GAP_NS)
+
+        return s.wait(lambda: s.remote_bye or audible(), BYE_AFTER_NS / 1e9 + BYE_AUDIBLE_S)
+
+    greeted = _greeting(s, m)
+    if greeted is None or not into(greeted):
+        s.wait(lambda: s.remote_bye or m.quiet(), 30)
+        if (replied := _reply(s, m, seed, lines)) is not None:
+            into(replied)
     s.hangup()
     s.wait(lambda: False, WATCH_S)
     return s.meta(seed, s.remote_bye) | {"said": m.said}
@@ -226,13 +250,12 @@ def cancel(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 
 def hold(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """Once the agent is quiet: hold (sendonly), resume, hold (inactive), resume; 3 s each."""
+    """After the greeting: hold (sendonly), resume, hold (inactive), resume; 3 s each."""
     s = dial()
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
-    s.wait(lambda: s.remote_bye, 1.0)
-    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    _settle(s, m)
     for offer in ("sendonly", "sendrecv", "inactive", "sendrecv"):
         if s.remote_bye:
             break
@@ -244,13 +267,12 @@ def hold(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 
 def _dtmf(dial: Dial, seed: int, lines: Lines, info: bool) -> dict[str, Any]:
-    """Once the agent is quiet, press 5 (RFC 4733 if negotiated, or SIP INFO) and listen."""
+    """After the greeting, press 5 (RFC 4733 if negotiated, or SIP INFO) and listen."""
     s = dial(dtmf=not info)
     s.answer()
     m = Script(s.pt, s.dtmf)
     s.start(m.source, m.on_packet)
-    s.wait(lambda: s.remote_bye, 1.0)
-    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    _settle(s, m)
     t = time.time_ns()
     if info:
         signal = f"Signal=5\r\nDuration={KEY_MS}\r\n".encode()
@@ -273,15 +295,14 @@ def dtmf_info(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 
 def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """Once the agent is quiet, ask for a person; play the transferee to its REFER (202, then
+    """After the greeting, ask for a person; play the transferee to its REFER (202, then
     NOTIFY sipfrag 100 Trying and, a second later, 200 OK, without calling the target), and
     wait for the agent to hang up."""
     s = dial()
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
-    s.wait(lambda: s.remote_bye, 1.0)
-    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    _settle(s, m)
     m.say(*_line(lines, "transfer", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):

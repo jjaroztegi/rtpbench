@@ -75,10 +75,10 @@ a person) in the agent's language; the corpus is used otherwise.
 | case | what passes |
 | --- | --- |
 | `greeting` | the agent speaks first, within 2 s of its 200 OK |
-| `bye` | caller hangs up a second into the agent's speech: 2xx to BYE, agent RTP stops within 500 ms |
+| `bye` | caller hangs up at least a second into the agent's speech (its greeting, or its reply to a question), while it is audible: 2xx to BYE, agent RTP stops within 500 ms |
 | `cancel` | caller cancels a ringing INVITE: 2xx to CANCEL, 487 to the INVITE, no RTP after |
 | `hold` | hold (sendonly, then inactive) and resume by re-INVITE: answers honour the offer, no agent RTP while held, RTP back within 1 s as the same stream (SSRC, next seq, timestamps kept time) |
-| `dtmf-rfc4733` | once the agent is quiet the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
+| `dtmf-rfc4733` | once the agent's greeting is over the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
 | `refer` | the caller asks for a person; rtpbench plays the transferee (202, NOTIFY sipfrag 100 then 200, without calling the target): REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
 | `timer` | session timers offered (90 s, caller refreshes) and refreshed once at half time, then not again: the 2xx takes them (Session-Expires, `refresher=uac`, Require: timer), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE between 45 and 90 s after the refresh (RFC 4028) |
