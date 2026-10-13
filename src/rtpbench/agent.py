@@ -50,6 +50,10 @@ class Behaviour:
     hold: bool = True  # answer a re-INVITE's direction as offered; else sendrecv, never pause
     clock: bool = True  # RTP timestamps keep time while paused; else resume where they stopped
     dtmf_s: float | None = None  # answer a digit (RFC 4733 or INFO) with speech this long after
+    refer_s: float | None = None  # blind REFER this long after the caller's first turn ends
+    # then: "complete" answers NOTIFYs and hangs up after the final one; "stay" answers them and
+    # stays; "early" hangs up on the 202 and answers NOTIFYs 481
+    transfer: str = "complete"
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -95,6 +99,7 @@ class Responder:
         self.dtmf_ns: int | None = None  # reply this long after a digit
         self.digits: list[dict[str, Any]] = []
         self.event_ts: int | None = None  # RTP timestamp of the last event that ended
+        self.ends: list[int] = []  # caller turn ends, when answering no turns
 
     def speak(self, target_ns: int, reply: int, kind: str) -> None:
         """Say `self.replies[reply]`, its labelled onset at `target_ns`."""
@@ -130,6 +135,8 @@ class Responder:
             elif self.speaking and arrival - self.end_ns >= self.hangover_ns:
                 self.speaking = False
                 if self.interjecting or not self.delays:
+                    if not self.interjecting:
+                        self.ends.append(self.end_ns)
                     self.interjecting = False
                     return
                 turn = len(self.turns) + (self.pending is not None)
@@ -247,6 +254,9 @@ class Uas:
         self.done = False
         self.responder: Responder | None = None
         self.pt, self.dtmf = 0, False
+        self.dialog: sip.Dialog | None = None  # for requests of our own (REFER, BYE)
+        self.refer: sip.Message | None = None
+        self.bye: sip.Message | None = None
         self.sender: Sender | None = None
         self.threads: list[Sender | Receiver] = []
         self.meta: dict[str, Any] = {}
@@ -266,6 +276,7 @@ class Uas:
     def handle(self, msg: sip.Message, addr: tuple[str, int]) -> None:
         inv = self.invite
         if msg.status:
+            self._response(msg)
             return
         if inv is None and msg.method == "INVITE":
             self.addr = addr
@@ -289,6 +300,14 @@ class Uas:
         elif msg.method == "BYE":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             self.end_at = time.monotonic() + self.case.linger_s
+        elif msg.method == "NOTIFY":
+            if self.case.transfer == "early":
+                self._send(sip.response(msg, 481, "Subscription Does Not Exist", self.to_tag))
+                return
+            self._send(sip.response(msg, 200, "OK", self.to_tag))
+            done = "terminated" in msg.get("subscription-state") and msg.body[8:9] == b"2"
+            if done and self.case.transfer == "complete":
+                self._hang_up()
         elif msg.method == "INFO" and "dtmf-relay" in msg.get("content-type").lower():
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             body = dict(
@@ -298,6 +317,22 @@ class Uas:
                 self.responder.digit(time.time_ns(), signal, "info")
         else:
             self._send(sip.response(msg, 200, "OK", self.to_tag))
+
+    def _response(self, msg: sip.Message) -> None:
+        if self.dialog is None:
+            return
+        self.dialog.answered(msg)
+        taken = self.refer is not None and msg.branch == self.refer.branch and msg.status == 202
+        if self.bye and msg.branch == self.bye.branch and msg.status >= 200:
+            self.end_at = time.monotonic() + (5.0 if self.case.transfer == "early" else 0.0)
+        elif taken and self.case.transfer == "early":  # blind: done once the REFER is taken
+            self._hang_up()
+
+    def _hang_up(self) -> None:
+        assert self.dialog is not None
+        if self.bye is None:
+            self.bye = self.dialog.request("BYE")
+            self.dialog.send(self.bye)
 
     def _invite(self, msg: sip.Message) -> None:
         self.invite = msg
@@ -321,6 +356,9 @@ class Uas:
         r.dtmf_ns = None if self.case.dtmf_s is None else round(self.case.dtmf_s * 1e9)
         self.dtmf = offer.dtmf is not None
         self._send(self._ok(self.invite, "sendrecv"), final=True)
+        self.dialog = sip.Dialog.uas(
+            self.sock, self.addr, self.invite, _local_ip(self.addr), self.to_tag
+        )
         start = time.time_ns() + PTIME_NS
         self.sender = Sender(self.rtp, (offer.ip, offer.port), pt, r.source, start, seq0, ssrc)
         self.threads = [self.sender, Receiver(self.rtp, r.on_packet)]
@@ -353,6 +391,10 @@ class Uas:
 
     def tick(self) -> None:
         now = time.monotonic()
+        if self.dialog:
+            self.dialog.retransmit()
+        if self.refer is None and self._since_turn(self.case.refer_s):
+            self._transfer()
         if self.answer_at is not None and now >= self.answer_at:
             self.answer_at = None
             self._answer()
@@ -362,6 +404,21 @@ class Uas:
             self.resend_at = now + self.interval
         if self.end_at is not None and now >= self.end_at:
             self.done = True
+
+    def _since_turn(self, seconds: float | None) -> bool:
+        """The caller's first turn ended at least `seconds` ago."""
+        r = self.responder
+        if r is None or not r.ends or seconds is None:
+            return False
+        return time.time_ns() >= r.ends[0] + seconds * 1e9
+
+    def _transfer(self) -> None:
+        """Blind transfer (RFC 5589): REFER the caller to an operator."""
+        assert self.dialog is not None
+        local = self.dialog.local_ip
+        headers = [("Refer-To", f"<sip:operator@{local}>"), ("Referred-By", f"<sip:agent@{local}>")]
+        self.refer = self.dialog.request("REFER", headers=headers)
+        self.dialog.send(self.refer)
 
     def stop(self) -> None:
         for t in self.threads:

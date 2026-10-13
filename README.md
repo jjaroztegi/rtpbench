@@ -65,6 +65,8 @@ calibrations above. Without a URI, every case runs against the reference agent o
 behaviour that should pass it and once with each behaviour that should fail it, so the case
 itself is proven; the command fails if any verdict is not the expected one. With a URI, the
 cases call your agent from this machine (after `uv sync --extra vad`; capturing needs root).
+`--lines DIR` gives the caller its own `prompt.wav` (a question) and `transfer.wav` (asking for
+a person) in the agent's language; the corpus is used otherwise.
 
 | case | what passes |
 | --- | --- |
@@ -74,6 +76,7 @@ cases call your agent from this machine (after `uv sync --extra vad`; capturing 
 | `hold` | hold (sendonly, then inactive) and resume by re-INVITE: answers honour the offer, no agent RTP while held, RTP back within 1 s as the same stream (SSRC, next seq, timestamps kept time) |
 | `dtmf-rfc4733` | once the agent is quiet the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
+| `refer` | the caller asks for a person; rtpbench plays the transferee (202, NOTIFY sipfrag 100 then 200, without calling the target): REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
 
 ## Development
 

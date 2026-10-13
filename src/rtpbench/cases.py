@@ -37,6 +37,9 @@ HOLD_S = 3.0
 RESUME_MS = 1000
 CLOCK_MS = 40  # RTP timestamp gap vs arrival gap across a pause (two packets of jitter)
 KEY_MS = 100  # how long the caller holds a key
+REFER_WAIT_S = 20.0  # after asking for a person
+BYE_WAIT_S = 10.0  # after the transfer is reported done
+SIPFRAG = "message/sipfrag;version=2.0"
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
@@ -49,6 +52,9 @@ class Bar(NamedTuple):
     source: str
 
 
+LABEL_END = Bar(
+    -17.0, 17.0, "caller's labelled end; ±5 dB of label threshold, median (calibrate --speech)"
+)
 WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibrate)")
 ONSET = {
     g711.PCMU: Bar(-3.8, 32.9, "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"),
@@ -156,9 +162,15 @@ class Script(Media):
 
 
 Dial = Callable[..., Session]
+Lines = dict[str, list[int]]  # caller lines by name (prompt, transfer), 8 kHz PCM
 
 
-def greeting(dial: Dial, seed: int) -> dict[str, Any]:
+def _line(lines: Lines, name: str, seed: int) -> tuple[str, list[int]]:
+    """The caller's own line, or else a corpus utterance."""
+    return (name, lines[name]) if name in lines else speech_utterances(seed)[0]
+
+
+def greeting(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """Answer, listen for the agent's first words and let it finish, hang up."""
     s = dial()
     s.answer()
@@ -171,32 +183,32 @@ def greeting(dial: Dial, seed: int) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
-def _talking(s: Session, m: Script, seed: int) -> int | None:
+def _talking(s: Session, m: Script, seed: int, lines: Lines) -> int | None:
     """When the agent started talking: its greeting, or else its reply to a question."""
     t0 = time.time_ns()
     if s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S):
         return m.speech_after(t0)
-    m.say(*speech_utterances(seed)[0])
+    m.say(*_line(lines, "prompt", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     t1 = time.time_ns()
     s.wait(lambda: s.remote_bye or m.speech_after(t1) is not None, REPLY_WAIT_S)
     return m.speech_after(t1)
 
 
-def bye(dial: Dial, seed: int) -> dict[str, Any]:
+def bye(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """Get the agent talking, BYE a second into it, then watch for media."""
     s = dial()
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
-    if (onset := _talking(s, m, seed)) is not None:
+    if (onset := _talking(s, m, seed, lines)) is not None:
         s.wait(lambda: s.remote_bye or time.time_ns() >= onset + BYE_AFTER_NS, 5)
     s.hangup()
     s.wait(lambda: False, WATCH_S)
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
-def cancel(dial: Dial, seed: int) -> dict[str, Any]:
+def cancel(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """INVITE, CANCEL it once it rings, then watch for media."""
     s = dial()
     if s.wait(lambda: s.final is not None or s.ringing, 32) and s.final is None:
@@ -209,7 +221,7 @@ def cancel(dial: Dial, seed: int) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye)
 
 
-def hold(dial: Dial, seed: int) -> dict[str, Any]:
+def hold(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """Once the agent is quiet: hold (sendonly), resume, hold (inactive), resume; 3 s each."""
     s = dial()
     s.answer()
@@ -227,7 +239,7 @@ def hold(dial: Dial, seed: int) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
-def _dtmf(dial: Dial, seed: int, info: bool) -> dict[str, Any]:
+def _dtmf(dial: Dial, seed: int, lines: Lines, info: bool) -> dict[str, Any]:
     """Once the agent is quiet, press 5 (RFC 4733 if negotiated, or SIP INFO) and listen."""
     s = dial(dtmf=not info)
     s.answer()
@@ -248,12 +260,34 @@ def _dtmf(dial: Dial, seed: int, info: bool) -> dict[str, Any]:
     return s.meta(seed, s.remote_bye) | {"pressed": m.pressed}
 
 
-def dtmf_rfc4733(dial: Dial, seed: int) -> dict[str, Any]:
-    return _dtmf(dial, seed, info=False)
+def dtmf_rfc4733(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _dtmf(dial, seed, lines, info=False)
 
 
-def dtmf_info(dial: Dial, seed: int) -> dict[str, Any]:
-    return _dtmf(dial, seed, info=True)
+def dtmf_info(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    return _dtmf(dial, seed, lines, info=True)
+
+
+def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """Once the agent is quiet, ask for a person; play the transferee to its REFER (202, then
+    NOTIFY sipfrag 100 Trying and, a second later, 200 OK, without calling the target), and
+    wait for the agent to hang up."""
+    s = dial()
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    s.wait(lambda: s.remote_bye, 1.0)
+    s.wait(lambda: s.remote_bye or m.quiet(), 20)
+    m.say(*_line(lines, "transfer", seed))
+    s.wait(lambda: s.remote_bye or not m.busy(), 30)
+    if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):
+        for frag, state in (("100 Trying", "active;expires=60"), ("200 OK", "terminated")):
+            event = [("Event", "refer"), ("Subscription-State", state)]
+            s.request("NOTIFY", f"SIP/2.0 {frag}\r\n".encode(), event, SIPFRAG)
+            s.wait(lambda: False, 1.0)
+        s.wait(lambda: s.remote_bye, BYE_WAIT_S)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
 @dataclass
@@ -295,6 +329,15 @@ class Wire:
 
     def speech_after(self, t: int) -> int | None:
         return next((a for a, _ in self.speech if a > t), None)
+
+    def said(self) -> tuple[int, int] | None:
+        """First and last labelled sample of the caller's last line, as captured."""
+        pkts = [(t, p) for t, p in self.up if p.pt == self.log.get("pt")]
+        if not pkts or not self.log.get("said"):
+            return None
+        st, s0 = analyze.stream(pkts, self.log["pt"]), self.log["seq0"]
+        spans = self.log["said"][-1]["speech"]
+        return speechcal._truth(st, [(st.index(s0, a), st.index(s0, b)) for a, b in spans])
 
     def truth(self, kind: str) -> tuple[int, int] | None:
         """Labelled first and last sample of the reference agent's `kind` reply, as captured."""
@@ -514,11 +557,50 @@ def check_dtmf_info(w: Wire) -> Result:
     return _reaction(w, r, info[0])
 
 
+def check_refer(w: Wire) -> Result:
+    """A REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx (the subscription outlives
+    a BYE, RFC 5057), and the agent hangs up within 10 s of the final NOTIFY."""
+    r = Result()
+    ref = w.find(lambda m: m.method == "REFER", sent=False)
+    r.checks.append(Check("agent transfers (REFER)", ref is not None))
+    if ref is None:
+        return r
+    said = w.said()
+    if said:
+        r.timings.append(Timing("end of the request to REFER", (ref[0] - said[1]) / 1e6, LABEL_END))
+    target = sip.uri_of(ref[1].get("refer-to"))
+    r.checks.append(
+        Check("Refer-To is a SIP or tel URI", target.startswith(("sip:", "sips:", "tel:")), target)
+    )
+    sent: dict[str, tuple[int, sip.Message]] = {}  # first copy of each NOTIFY
+    for t, out, m in w.msgs:
+        if out and m.method == "NOTIFY":
+            sent.setdefault(m.branch, (t, m))
+    notifies = list(sent.values())
+    for _, n in notifies:
+        resp = w.find(_final_to(n), sent=False)
+        what = n.body.decode(errors="replace").strip()
+        r.checks.append(
+            Check(
+                f"NOTIFY ({what}) answered 2xx",
+                resp is not None and resp[1].status < 300,
+                resp[1].first if resp else "no response",
+            )
+        )
+    bye = w.find(lambda m: m.method == "BYE", sent=False)
+    last = notifies[-1][0] if notifies else ref[0]
+    in_time = bye is not None and bye[0] - last <= BYE_WAIT_S * 1e9
+    r.checks.append(Check(f"agent hangs up within {BYE_WAIT_S:.0f} s", in_time))
+    if bye:
+        r.timings.append(Timing("final NOTIFY to agent BYE", (bye[0] - last) / 1e6, WIRE))
+    return r
+
+
 @dataclass(frozen=True)
 class Case:
     """A caller script, its check, and the reference agent behaviours that pass and fail it."""
 
-    script: Callable[[Dial, int], dict[str, Any]]
+    script: Callable[[Dial, int, Lines], dict[str, Any]]
     check: Callable[[Wire], Result]
     good: Behaviour
     bad: dict[str, Behaviour]
@@ -556,11 +638,22 @@ CASES = {
         dtmf_rfc4733, check_dtmf_rfc4733, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}
     ),
     "dtmf-info": Case(dtmf_info, check_dtmf_info, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}),
+    "refer": Case(
+        refer,
+        check_refer,
+        Behaviour(refer_s=1.5),
+        {
+            "stays": Behaviour(refer_s=1.5, transfer="stay"),
+            "early": Behaviour(refer_s=1.5, transfer="early"),
+        },
+    ),
 }
 
 
-def run(name: str, uri: str, seed: int) -> dict[str, Any]:
-    """The caller side of a case; its log (with the error if the call failed)."""
+def run(name: str, uri: str, seed: int, lines: Path | None = None) -> dict[str, Any]:
+    """The caller side of a case; its log (with the error if the call failed). `lines`: a
+    directory with the caller's own prompt.wav and transfer.wav (else corpus utterances)."""
+    said = {p.stem: speech.read_wav(p) for p in sorted(lines.glob("*.wav"))} if lines else {}
     calls: list[Session] = []
 
     def dial(**options: Any) -> Session:
@@ -568,7 +661,7 @@ def run(name: str, uri: str, seed: int) -> dict[str, Any]:
         return calls[-1]
 
     try:
-        return {"case": name} | CASES[name].script(dial, seed)
+        return {"case": name} | CASES[name].script(dial, seed, said)
     except sip.SipError as e:
         log = calls[0].meta(seed, False) if calls else {"seed": seed}
         return {"case": name, "error": str(e)} | log

@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
+    p.add_argument("--lines", type=Path, help="with a URI: prompt.wav, transfer.wav to say")
 
     p = sub.add_parser("case", help="run one case's caller side (inside a container)")
     p.add_argument("name")
@@ -95,7 +96,9 @@ def main(argv: list[str] | None = None) -> None:
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else list(cases.CASES)
-        summary, proven = run_cases(out, args.uri, names, args.profile, args.seed, args.iface)
+        summary, proven = run_cases(
+            out, args.uri, names, args.profile, args.seed, args.iface, args.lines
+        )
         print(summary)
         print(f"results in {out}")
         if not proven:

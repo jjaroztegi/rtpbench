@@ -146,7 +146,7 @@ class Session:
         if req.method == "INVITE":
             self.dialog.reply(req, 488, "Not Acceptable Here")
             return
-        self.dialog.reply(req)
+        self.dialog.reply(req, *((202, "Accepted") if req.method == "REFER" else ()))
         self.remote_bye |= req.method == "BYE"
 
     def wait(self, cond: Callable[[], bool], timeout: float) -> bool:

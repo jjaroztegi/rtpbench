@@ -175,7 +175,13 @@ def calibrate(
 
 
 def cases(
-    out: Path, uri: str | None, names: list[str], profile: str, seed: int, iface: str
+    out: Path,
+    uri: str | None,
+    names: list[str],
+    profile: str,
+    seed: int,
+    iface: str,
+    lines: Path | None = None,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent (each behaviour of each case, in Docker
     behind the netem router), or against `uri` from here (capturing on `iface`). Returns the
@@ -194,7 +200,7 @@ def cases(
             run.mkdir(exist_ok=True)
             print(f"{name}: calling {uri}", flush=True)
             with capture(run / "caller.pcap", iface):
-                log = cs.run(name, uri, seed)
+                log = cs.run(name, uri, seed, lines)
             (run / "caller.json").write_text(json.dumps(log, indent=1))
             runs.append((name, None, run))
         if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
