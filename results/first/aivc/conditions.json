@@ -1,0 +1,68 @@
+{
+ "date": "2026-10-13T18:57:17+00:00",
+ "commit": "461a75e",
+ "kernel": "6.18.54.1-microsoft-standard-WSL2",
+ "docker": "29.8.2",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "aivc",
+ "engine": {
+  "domain": "openai.azure.com",
+  "query": "model=gpt-realtime-2.1"
+ },
+ "images": "CONTAINER                    REPOSITORY          TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-6adabb-agent-1      rtpbench            2f9f40cd7102        linux/amd64         34cd937c44e6        203MB               7 seconds ago\nrtpbench-6adabb-caller-1     rtpbench            2f9f40cd7102        linux/amd64         34cd937c44e6        203MB               7 seconds ago\nrtpbench-6adabb-engine-1     rtpbench-aivc       09e14d0             linux/amd64         690491e1824d        1.91GB              2 hours ago\nrtpbench-6adabb-opensips-1   opensips/opensips   <none>              linux/amd64         81a7fa3c7bdb        406MB               3 weeks ago\nrtpbench-6adabb-router-1     rtpbench            2f9f40cd7102        linux/amd64         34cd937c44e6        203MB               7 seconds ago\nrtpbench-6adabb-target-1     rtpbench            2f9f40cd7102        linux/amd64         34cd937c44e6        203MB               7 seconds ago",
+ "processes": [
+  {
+   "dir": "aivc-clean",
+   "commit": "461a75e",
+   "date": "2026-10-13T18:57:17+00:00",
+   "profiles": [
+    "clean"
+   ]
+  },
+  {
+   "dir": "aivc-lte",
+   "commit": "461a75e",
+   "date": "2026-10-13T18:57:36+00:00",
+   "profiles": [
+    "lte"
+   ]
+  },
+  {
+   "dir": "aivc-lte-bad",
+   "commit": "461a75e",
+   "date": "2026-10-13T18:57:57+00:00",
+   "profiles": [
+    "lte-bad"
+   ]
+  },
+  {
+   "dir": "aivc-codec",
+   "commit": "6cb5866-dirty",
+   "date": "2026-10-13T19:05:01+00:00",
+   "profiles": [
+    "clean",
+    "lte",
+    "lte-bad"
+   ]
+  }
+ ],
+ "judged_at": "144b4ee"
+}
