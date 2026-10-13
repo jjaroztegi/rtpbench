@@ -1,4 +1,7 @@
-"""Minimal SIP over UDP: enough for one audio call as UAC or UAS (RFC 3261 subset)."""
+"""Minimal SIP over UDP: one audio call as UAC or UAS (RFC 3261 subset).
+
+Messages stay plain header lists, so a caller can add, drop or reorder anything before sending.
+"""
 
 import secrets
 import socket
@@ -7,7 +10,7 @@ from dataclasses import dataclass, field
 
 from rtpbench.g711 import NAMES
 
-T1 = 0.5
+T1, T2 = 0.5, 4.0
 _COMPACT = {
     "i": "call-id",
     "f": "from",
@@ -15,6 +18,7 @@ _COMPACT = {
     "v": "via",
     "m": "contact",
     "l": "content-length",
+    "c": "content-type",
 }
 
 
@@ -47,6 +51,10 @@ class Message:
     def cseq_method(self) -> str:
         return self.get("cseq").split()[-1]
 
+    @property
+    def branch(self) -> str:
+        return param(self.get("via"), "branch")
+
     def render(self) -> bytes:
         lines = [self.first, *(f"{k}: {v}" for k, v in self.headers if k != "Content-Length")]
         lines.append(f"Content-Length: {len(self.body)}")
@@ -66,11 +74,17 @@ def parse(data: bytes) -> Message:
     return Message(first, headers, body)
 
 
-def tag(value: str) -> str:
-    for param in value.split(";")[1:]:
-        if param.strip().lower().startswith("tag="):
-            return param.split("=", 1)[1].strip()
+def param(value: str, name: str) -> str:
+    """A header parameter (`tag`, `branch`, `refresher`...) outside the <URI>."""
+    for p in value.rsplit(">", 1)[-1].split(";")[1:]:
+        key, _, v = p.partition("=")
+        if key.strip().lower() == name:
+            return v.strip()
     return ""
+
+
+def tag(value: str) -> str:
+    return param(value, "tag")
 
 
 def uri_of(value: str) -> str:
@@ -134,106 +148,153 @@ class SipError(Exception):
     pass
 
 
+@dataclass
+class _Tx:
+    msg: Message
+    due: float  # next retransmission
+    interval: float
+    end: float  # give up (timer B/F)
+
+
 class Dialog:
-    """One call from the UAC side: INVITE, ACK, in-dialog requests and BYE."""
+    """One call's dialog from either side: builds in-dialog requests and retransmits them over
+    UDP (timer A for INVITE until a provisional, timer E otherwise) until a final response."""
 
-    def __init__(self, sock: socket.socket, peer: tuple[str, int], uri: str, local_ip: str) -> None:
-        self.sock, self.peer, self.uri, self.local_ip = sock, peer, uri, local_ip
-        port = sock.getsockname()[1]
-        self.contact = f"<sip:rtpbench@{local_ip}:{port}>"
-        self.from_ = f"<sip:rtpbench@{local_ip}>;tag={secrets.token_hex(4)}"
-        self.to = f"<{uri}>"
-        self.call_id = f"{secrets.token_hex(8)}@{local_ip}"
-        self.cseq = 1
-        self.target = uri
+    def __init__(
+        self,
+        sock: socket.socket,
+        peer: tuple[str, int],
+        local_ip: str,
+        local: str,
+        remote: str,
+        call_id: str,
+        target: str,
+        user: str = "rtpbench",
+    ) -> None:
+        self.sock, self.peer, self.local_ip = sock, peer, local_ip
+        self.local, self.remote, self.call_id, self.target = local, remote, call_id, target
+        self.contact = f"<sip:{user}@{local_ip}:{sock.getsockname()[1]}>"
+        self.cseq = 0
         self.routes: list[str] = []
+        self.pending: dict[tuple[str, str], _Tx] = {}  # (branch, method)
 
-    def _request(self, method: str, branch: str, body: bytes = b"", uri: str = "") -> Message:
+    @classmethod
+    def uac(cls, sock: socket.socket, peer: tuple[str, int], uri: str, local_ip: str) -> Dialog:
+        local = f"<sip:rtpbench@{local_ip}>;tag={secrets.token_hex(4)}"
+        call_id = f"{secrets.token_hex(8)}@{local_ip}"
+        return cls(sock, peer, local_ip, local, f"<{uri}>", call_id, uri)
+
+    @classmethod
+    def uas(
+        cls, sock: socket.socket, peer: tuple[str, int], invite: Message, local_ip: str, to_tag: str
+    ) -> Dialog:
+        d = cls(
+            sock,
+            peer,
+            local_ip,
+            f"{invite.get('to')};tag={to_tag}",
+            invite.get("from"),
+            invite.get("call-id"),
+            uri_of(invite.get("contact")),
+            "agent",
+        )
+        d.routes = invite.all("record-route")
+        return d
+
+    def request(
+        self,
+        method: str,
+        body: bytes = b"",
+        headers: list[tuple[str, str]] | None = None,
+        content_type: str = "application/sdp",
+    ) -> Message:
+        """A new in-dialog request with its own CSeq and branch, not yet sent."""
+        if method != "ACK":
+            self.cseq += 1
         port = self.sock.getsockname()[1]
-        headers = [("Via", f"SIP/2.0/UDP {self.local_ip}:{port};branch={branch};rport")]
-        headers += [("Route", r) for r in self.routes]
-        headers += [
+        branch = "z9hG4bK" + secrets.token_hex(6)
+        hdrs = [("Via", f"SIP/2.0/UDP {self.local_ip}:{port};branch={branch};rport")]
+        hdrs += [("Route", r) for r in self.routes]
+        hdrs += [
             ("Max-Forwards", "70"),
-            ("From", self.from_),
-            ("To", self.to),
+            ("From", self.local),
+            ("To", self.remote),
             ("Call-ID", self.call_id),
             ("CSeq", f"{self.cseq} {method}"),
             ("Contact", self.contact),
             ("User-Agent", "rtpbench"),
+            *(headers or []),
         ]
         if body:
-            headers.append(("Content-Type", "application/sdp"))
-        return Message(f"{method} {uri or self.target} SIP/2.0", headers, body)
+            hdrs.append(("Content-Type", content_type))
+        return Message(f"{method} {self.target} SIP/2.0", hdrs, body)
 
-    def _send(self, msg: Message) -> None:
+    def send(self, msg: Message) -> None:
+        """Send; a request other than ACK is retransmitted until its final response."""
         self.sock.sendto(msg.render(), self.peer)
+        if msg.method and msg.method != "ACK":
+            now = time.monotonic()
+            self.pending[msg.branch, msg.method] = _Tx(msg, now + T1, T1, now + 64 * T1)
+
+    def retransmit(self) -> float:
+        """Resend what is due; seconds until the next resend (at most 0.1)."""
+        now, wait = time.monotonic(), 0.1
+        for key, tx in list(self.pending.items()):
+            if now >= tx.end:
+                del self.pending[key]
+                continue
+            if now >= tx.due:
+                self.sock.sendto(tx.msg.render(), self.peer)
+                tx.interval = (
+                    tx.interval * 2 if tx.msg.method == "INVITE" else min(tx.interval * 2, T2)
+                )
+                tx.due = now + tx.interval
+            wait = min(wait, tx.due - now)
+        return max(0.001, wait)
+
+    def answered(self, resp: Message) -> None:
+        """A response arrived: stop retransmitting its request (INVITE: on any response)."""
+        key = (resp.branch, resp.cseq_method)
+        if (tx := self.pending.get(key)) is None:
+            return
+        if resp.status >= 200:
+            del self.pending[key]
+        elif tx.msg.method == "INVITE":
+            tx.due = tx.end  # timer A stops; the entry stays until the final response
 
     def recv(self, timeout: float) -> Message | None:
-        self.sock.settimeout(timeout)
-        try:
-            data, _ = self.sock.recvfrom(65535)
-        except TimeoutError:
-            return None
-        return parse(data)
-
-    def invite(self, offer: bytes, timeout: float = 32.0) -> Message:
-        """Send INVITE with retransmissions (timer A), ACK the final response, return the 2xx."""
-        branch = "z9hG4bK" + secrets.token_hex(6)
-        req = self._request("INVITE", branch, offer)
-        deadline, interval, provisional = time.monotonic() + timeout, T1, False
-        self._send(req)
-        resend = time.monotonic() + interval
-        while time.monotonic() < deadline:
-            msg = self.recv(max(0.01, (deadline if provisional else resend) - time.monotonic()))
-            if msg is None:
-                if not provisional:
-                    self._send(req)
-                    interval = min(interval * 2, 4.0)
-                    resend = time.monotonic() + interval
+        """Next message within `timeout`, retransmitting meanwhile."""
+        deadline = time.monotonic() + timeout
+        while (left := deadline - time.monotonic()) > 0:
+            self.sock.settimeout(min(left, self.retransmit()))
+            try:
+                data, _ = self.sock.recvfrom(65535)
+            except TimeoutError:
                 continue
-            if msg.get("call-id") != self.call_id or msg.cseq_method != "INVITE":
-                continue
-            if msg.status < 200:
-                provisional = True
-                continue
-            self.to = msg.get("to")
-            if msg.status >= 300:
-                ack = self._request("ACK", branch, uri=self.uri)
-                self._send(ack)
-                raise SipError(msg.first)
-            self.target = uri_of(msg.get("contact")) or self.uri
-            self.routes = list(reversed(msg.all("record-route")))
-            self.ack()
+            msg = parse(data)
+            if msg.status:
+                self.answered(msg)
             return msg
-        raise SipError("INVITE timed out")
+        return None
 
-    def ack(self) -> None:
-        self._send(self._request("ACK", "z9hG4bK" + secrets.token_hex(6)))
+    def confirm(self, ok: Message) -> None:
+        """UAC: take the remote tag, target and route set from a 2xx to INVITE, and ACK it."""
+        self.remote = ok.get("to")
+        self.target = uri_of(ok.get("contact")) or self.target
+        self.routes = list(reversed(ok.all("record-route")))
+        ack = self.request("ACK")
+        cseq = ok.get("cseq").split()[0] + " ACK"
+        ack.headers = [(k, cseq if k == "CSeq" else v) for k, v in ack.headers]
+        self.send(ack)
 
-    def reply(self, req: Message) -> None:
-        """Answer an in-dialog request from the far end (BYE, OPTIONS, re-INVITE refused)."""
-        if req.method == "ACK":
-            return
-        if req.method == "INVITE":
-            self._send(response(req, 488, "Not Acceptable Here"))
-        else:
-            self._send(response(req, 200, "OK"))
+    def ack_failure(self, invite: Message, resp: Message) -> None:
+        """ACK a non-2xx final response: the INVITE's branch, Request-URI and CSeq number."""
+        keep = ("Via", "Route", "Max-Forwards", "From", "Call-ID")
+        headers = [(k, v) for k, v in invite.headers if k in keep]
+        headers += [("To", resp.get("to")), ("CSeq", invite.get("cseq").split()[0] + " ACK")]
+        self.send(Message(f"ACK {invite.first.split()[1]} SIP/2.0", headers))
 
-    def bye(self, timeout: float = 8.0) -> None:
-        self.cseq += 1
-        req = self._request("BYE", "z9hG4bK" + secrets.token_hex(6))
-        deadline, interval = time.monotonic() + timeout, T1
-        while time.monotonic() < deadline:
-            self._send(req)
-            end = time.monotonic() + interval
-            while (left := end - time.monotonic()) > 0:
-                msg = self.recv(left)
-                if msg is None:
-                    break
-                if msg.status and msg.cseq_method == "BYE":
-                    return
-                if msg.status == 200 and msg.cseq_method == "INVITE":
-                    self.ack()
-                elif msg.method:
-                    self.reply(msg)
-            interval = min(interval * 2, 4.0)
+    def reply(self, req: Message, status: int = 200, reason: str = "OK", body: bytes = b"") -> None:
+        extra = [("Contact", self.contact)] if req.method == "INVITE" else []
+        resp = response(req, status, reason, tag(self.local), body, extra)
+        self.sock.sendto(resp.render(), self.peer)

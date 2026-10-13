@@ -1,0 +1,296 @@
+"""Conformance cases: scripted calls with a verdict and timings with error bars.
+
+A case is a caller script (a `Session` driven step by step, with `Script` media), a check that
+reads only the caller's capture and log, and reference-agent behaviours: one that should pass and
+at least one that should fail. Against the reference agent each case runs once per behaviour,
+which proves the case itself; against a real target it runs once.
+
+Every timing carries the error bar of the way it is measured, from the calibrations. SIP and RTP
+events are capture times (`rtpbench calibrate`: wire timing within 0.41 ms on a clean network);
+agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per codec).
+"""
+
+import json
+import re
+import time
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
+from functools import cached_property
+from pathlib import Path
+from typing import Any, NamedTuple
+
+from rtpbench import analyze, detect, g711, pcap, rtp, sip, speechcal
+from rtpbench.agent import Behaviour
+from rtpbench.caller import Media, Session
+
+CODECS = (g711.PCMU, g711.PCMA)
+QUIET_NS = 1_500_000_000  # agent silence that ends what it was saying
+GREETING_WAIT_S = 10.0
+GREETING_MAX_MS = 2000  # a caller left in silence longer than this starts saying "hello?"
+_SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
+
+
+class Bar(NamedTuple):
+    """measured - truth lies within [lo, hi] ms."""
+
+    lo: float
+    hi: float
+    source: str
+
+
+WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibrate)")
+ONSET = {
+    g711.PCMU: Bar(-3.8, 32.9, "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"),
+    g711.PCMA: Bar(-88.1, 24.3, "webrtcvad onset, p5..p95, PCMA, clean (calibrate --speech)"),
+}
+
+
+@dataclass
+class Timing:
+    name: str
+    ms: float
+    bar: Bar
+    truth_ms: float | None = None  # known when the reference agent logged it
+
+    def error(self) -> str:
+        """measured - truth, flagged when outside the error bar."""
+        if self.truth_ms is None:
+            return ""
+        e = self.ms - self.truth_ms
+        return f"{e:+.1f}" + ("" if self.bar.lo <= e <= self.bar.hi else " (outside the bar)")
+
+    def __str__(self) -> str:  # the true value lies within ms - hi .. ms - lo
+        return f"{self.ms:.1f} ms ({-self.bar.hi:+.1f}/{-self.bar.lo:+.1f})"
+
+
+@dataclass
+class Check:
+    name: str
+    ok: bool | None  # None: the case could not get far enough to tell
+    detail: str = ""
+
+
+@dataclass
+class Result:
+    checks: list[Check] = field(default_factory=list)
+    timings: list[Timing] = field(default_factory=list)
+
+    @property
+    def verdict(self) -> str:
+        if any(c.ok is False for c in self.checks):
+            return "fail"
+        return "inconclusive" if any(c.ok is None for c in self.checks) else "pass"
+
+
+class Script(Media):
+    """Caller media for a case: says the clips the script queues, silence otherwise, and keeps
+    the agent's speech bursts as the gate hears them (to pace the script, not to measure)."""
+
+    def __init__(self, pt: int) -> None:
+        super().__init__(pt)
+        self.queue: list[tuple[str, bytes, list[tuple[int, int]]]] = []
+        self.said: list[dict[str, Any]] = []
+        self.bursts: list[list[int]] = []
+
+    def heard(self, onset: int, end: int) -> None:
+        if self.bursts and onset - self.bursts[-1][1] <= analyze.AGENT_GAP_NS:
+            self.bursts[-1][1] = max(self.bursts[-1][1], end)
+        else:
+            self.bursts.append([onset, end])
+
+    def step(self, n: int, tick: int) -> None:
+        if self.queue:
+            self.said.append(self.play(n, self.queue.pop(0)) | {"tick_ns": tick})
+
+    def speech_after(self, t_ns: int) -> int | None:
+        with self.lock:
+            return next((on for on, _ in self.bursts if on > t_ns), None)
+
+    def quiet(self, ns: int = QUIET_NS) -> bool:
+        with self.lock:
+            return time.time_ns() - self.agent_last >= ns
+
+
+Dial = Callable[..., Session]
+
+
+def greeting(dial: Dial, seed: int) -> dict[str, Any]:
+    """Answer, listen for the agent's first words and let it finish, hang up."""
+    s = dial()
+    s.answer()
+    m = Script(s.pt)
+    s.start(m.source, m.on_packet)
+    t0 = time.time_ns()
+    if s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S):
+        s.wait(lambda: s.remote_bye or m.quiet(), 30)
+    s.hangup()
+    return s.meta(seed, s.remote_bye) | {"said": m.said}
+
+
+@dataclass
+class Wire:
+    """One case call as the caller's capture saw it, plus the logs."""
+
+    log: dict[str, Any]  # caller.json
+    agent: dict[str, Any] | None  # agent.json, from the reference agent only
+    msgs: list[tuple[int, bool, sip.Message]]  # capture time, sent by the caller, message
+    up: analyze.Timed  # RTP the caller sent
+    down: analyze.Timed  # RTP the caller received
+
+    def find(
+        self, pred: Callable[[sip.Message], bool], sent: bool, after: int = 0
+    ) -> tuple[int, sip.Message] | None:
+        """First message sent (or received) after `after` matching `pred`."""
+        return next(
+            ((t, m) for t, out, m in self.msgs if out == sent and t > after and pred(m)), None
+        )
+
+    @cached_property
+    def audio(self) -> analyze.Stream | None:
+        pkts = [(t, p) for t, p in self.down if p.pt == self.log.get("pt")]
+        return analyze.stream(pkts, self.log["pt"]) if pkts else None
+
+    @cached_property
+    def speech(self) -> list[tuple[int, int]]:
+        """Agent speech (webrtcvad) as [onset, end] capture times."""
+        st = self.audio
+        if st is None:
+            return []
+        spans = [(st.time(a, True), st.time(b - 1, False)) for a, b in detect.webrtc(st.pcm)]
+        return [(a, b) for a, b in spans if a is not None and b is not None]
+
+    def speech_after(self, t: int) -> int | None:
+        return next((a for a, _ in self.speech if a > t), None)
+
+    def truth(self, kind: str) -> tuple[int, int] | None:
+        """Labelled first and last sample of the reference agent's `kind` reply, as captured."""
+        turns = self.agent["turns"] if self.agent else []
+        turn = next((u for u in turns if u.get("kind") == kind), None)
+        if (st := self.audio) is None or turn is None or self.agent is None:
+            return None
+        a0 = self.agent["seq0"]
+        return speechcal._truth(st, [(st.index(a0, a), st.index(a0, b)) for a, b in turn["speech"]])
+
+
+def load(run: Path) -> Wire:
+    log = json.loads((run / "caller.json").read_text())
+    agent_path = run / "agent.json"
+    agent = json.loads(agent_path.read_text()) if agent_path.exists() else None
+    msgs: list[tuple[int, bool, sip.Message]] = []
+    up: analyze.Timed = []
+    down: analyze.Timed = []
+    me, port = "", log.get("rtp_port")
+    for g in pcap.read(run / "caller.pcap"):
+        if _SIP.match(g.payload):
+            msg = sip.parse(g.payload)
+            if msg.get("call-id") != log.get("call_id"):
+                continue
+            me = me or g.src  # the caller sends the first message, its INVITE
+            msgs.append((g.t_ns, g.src == me, msg))
+        elif port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
+            (up if g.sport == port else down).append((g.t_ns, p))
+    return Wire(log, agent, msgs, up, down)
+
+
+def _is_2xx_invite(m: sip.Message) -> bool:
+    return 200 <= m.status < 300 and m.cseq_method == "INVITE"
+
+
+def check_greeting(w: Wire) -> Result:
+    r = Result()
+    ok = w.find(_is_2xx_invite, sent=False)
+    r.checks.append(Check("call answered", ok is not None))
+    if ok is None:
+        return r
+    onset = w.speech_after(ok[0])
+    r.checks.append(Check("agent speaks first", onset is not None))
+    if onset is None:
+        return r
+    ms = (onset - ok[0]) / 1e6
+    truth = w.truth("greeting")
+    truth_ms = None if truth is None else (truth[0] - ok[0]) / 1e6
+    r.timings.append(Timing("200 OK to agent speech", ms, ONSET[w.log["pt"]], truth_ms))
+    r.checks.append(Check(f"agent speaks within {GREETING_MAX_MS} ms", ms <= GREETING_MAX_MS))
+    return r
+
+
+@dataclass(frozen=True)
+class Case:
+    """A caller script, its check, and the reference agent behaviours that pass and fail it."""
+
+    script: Callable[[Dial, int], dict[str, Any]]
+    check: Callable[[Wire], Result]
+    good: Behaviour
+    bad: dict[str, Behaviour]
+
+    def behaviours(self) -> dict[str, Behaviour]:
+        return {"good": self.good} | self.bad
+
+
+CASES = {
+    "greeting": Case(
+        greeting,
+        check_greeting,
+        Behaviour(greet_s=0.8),
+        {"late": Behaviour(greet_s=3.0), "silent": Behaviour()},
+    ),
+}
+
+
+def run(name: str, uri: str, seed: int) -> dict[str, Any]:
+    """The caller side of a case; its log (with the error if the call failed)."""
+    calls: list[Session] = []
+
+    def dial(**options: Any) -> Session:
+        calls.append(Session(uri, CODECS, **options))
+        return calls[-1]
+
+    try:
+        return {"case": name} | CASES[name].script(dial, seed)
+    except sip.SipError as e:
+        log = calls[0].meta(seed, False) if calls else {"seed": seed}
+        return {"case": name, "error": str(e)} | log
+
+
+def judge(run: Path) -> Result:
+    """The case's verdict from a run directory."""
+    w = load(run)
+    if "error" in w.log:
+        return Result([Check("call completed", False, w.log["error"])])
+    return CASES[w.log["case"]].check(w)
+
+
+def _row(r: Result) -> list[str]:
+    failed = "; ".join(
+        f"{c.name}{f' ({c.detail})' if c.detail else ''}" for c in r.checks if not c.ok
+    )
+    timings = "<br>".join(f"{t.name}: {t}" for t in r.timings) or "-"
+    return [r.verdict, timings, failed or "-"]
+
+
+def summarize(runs: list[tuple[str, str | None, Path]]) -> tuple[str, list[dict[str, Any]], bool]:
+    """Markdown summary, per-run records, and whether every reference behaviour got the verdict
+    it should (good: pass, bad: fail)."""
+    records, rows, proven = [], [], True
+    for name, behaviour, path in runs:
+        r = judge(path)
+        rec: dict[str, Any] = {"case": name, "behaviour": behaviour, "run": path.name}
+        rec |= {"verdict": r.verdict} | asdict(r)
+        records.append(rec)
+        if behaviour is None:
+            rows.append([name, *_row(r)])
+            continue
+        want = "pass" if behaviour == "good" else "fail"
+        proven &= r.verdict == want
+        errors = [t.error() for t in r.timings if t.truth_ms is not None]
+        rows.append([name, behaviour, want, *_row(r), ", ".join(errors) or "-"])
+    if runs and runs[0][1] is not None:
+        head = ["case", "agent", "expected", "result", "timings, ms (error bar)", "failed checks"]
+        out = analyze._table([*head, "measured - truth, ms"], rows)
+        out += f"\nEvery case {'proven' if proven else 'NOT proven'}: good passes, bad fails.\n"
+    else:
+        out = analyze._table(["case", "result", "timings, ms (error bar)", "failed checks"], rows)
+    bars = {b for r in records for t in r["timings"] for b in [Bar(*t["bar"])]}
+    out += "\nError bars: true value = measured - error, error within\n\n"
+    out += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))
+    return out, records, proven

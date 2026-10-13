@@ -8,7 +8,9 @@ import secrets
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -77,21 +79,21 @@ def _wait_for(path: Path, timeout: float) -> None:
         time.sleep(0.1)
 
 
-def conditions(stack: Stack, turns: int, seed: int) -> dict[str, Any]:
-    def run(*cmd: str) -> str:
-        return subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT).stdout.strip()
+def _host(cmd: str) -> str:
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=ROOT).stdout.strip()
 
-    cpu = stack.sh("router", "grep -m1 'model name' /proc/cpuinfo | cut -d: -f2")
+
+def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
+    """Versions and host; `sh` runs a command where the capture runs (a container or here)."""
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
-        "commit": run("git", "describe", "--always", "--dirty"),
-        "kernel": stack.sh("router", "uname -r"),
-        "cpu": cpu.strip(),
-        "docker": run("docker", "version", "--format", "{{.Server.Version}}"),
-        "python": stack.sh("router", "python -V"),
-        "tcpdump": stack.sh("router", "tcpdump --version 2>&1 | head -1"),
+        "commit": _host("git describe --always --dirty"),
+        "kernel": sh("uname -r"),
+        "cpu": sh("grep -m1 'model name' /proc/cpuinfo | cut -d: -f2").strip(),
+        "docker": _host("docker version --format '{{.Server.Version}}'"),
+        "python": sh("python3 -V"),
+        "tcpdump": sh("tcpdump --version 2>&1 | head -1"),
         "host": platform.platform(),
-        "turns_per_profile": turns,
         "seed": seed,
         "netem_per_direction": PROFILES,
     }
@@ -135,7 +137,8 @@ def calibrate(
         stack.up()
         caller_ip = stack.sh("caller", "hostname -i").split()[0]
         agent_ip = stack.sh("agent", "hostname -i").split()[0]
-        conds = conditions(stack, turns, seed) | {"codecs": codecs, "speech": real, "barge": barge}
+        conds = conditions(partial(stack.sh, "router"), seed) | {"turns_per_profile": turns}
+        conds |= {"codecs": codecs, "speech": real, "barge": barge}
         if replies:
             conds["replies"] = sorted(clips or {})
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
@@ -169,3 +172,61 @@ def calibrate(
         summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
     (out / "summary.md").write_text(summary)
     return summary
+
+
+def cases(
+    out: Path, uri: str | None, names: list[str], profile: str, seed: int, iface: str
+) -> tuple[str, bool]:
+    """Conformance cases against the reference agent (each behaviour of each case, in Docker
+    behind the netem router), or against `uri` from here (capturing on `iface`). Returns the
+    summary and, for the reference agent, whether every case was proven."""
+    from rtpbench import cases as cs
+    from rtpbench.capture import capture
+
+    out.mkdir(parents=True, exist_ok=True)
+    out = out.resolve()
+    runs: list[tuple[str, str | None, Path]] = []
+    if uri:
+        conds = conditions(_host, seed) | {"target": uri, "iface": iface}
+        conds["python"] = platform.python_version()
+        for name in names:
+            run = out / name
+            run.mkdir(exist_ok=True)
+            print(f"{name}: calling {uri}", flush=True)
+            with capture(run / "caller.pcap", iface):
+                log = cs.run(name, uri, seed)
+            (run / "caller.json").write_text(json.dumps(log, indent=1))
+            runs.append((name, None, run))
+        if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
+            subprocess.run(["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True)
+    else:
+        stack = Stack(out)
+        try:
+            stack.up()
+            caller_ip = stack.sh("caller", "hostname -i").split()[0]
+            agent_ip = stack.sh("agent", "hostname -i").split()[0]
+            stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+            conds = conditions(partial(stack.sh, "router"), seed) | {"profile": profile}
+            for name in names:
+                for behaviour in cs.CASES[name].behaviours():
+                    tag = f"{name}-{behaviour}"
+                    run = out / tag
+                    run.mkdir(exist_ok=True)
+                    args = ["--out", f"/out/{tag}", "--seed", str(seed)]
+                    agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
+                    stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
+                    _wait_for(run / "ready", 120)
+                    print(f"{tag}: calling", flush=True)
+                    call = ["case", name, f"sip:agent@{agent_ip}", *args]
+                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+                    _wait_for(run / "agent.json", 30)
+                    runs.append((name, behaviour, run))
+        finally:
+            if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+                stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
+            stack.down()
+    (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+    summary, records, proven = cs.summarize(runs)
+    (out / "results.json").write_text(json.dumps(records, indent=1))
+    (out / "summary.md").write_text(summary)
+    return summary, proven or uri is not None

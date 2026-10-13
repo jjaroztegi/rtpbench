@@ -52,6 +52,24 @@ reference agent stops (a hard cut, a known delay after it hears the caller) or c
 script both ends share says ([`bargein.py`](src/rtpbench/bargein.py)). The summary gives the
 stop time error per detector and timing method, and whether rtpbench told stops from carry-ons.
 
+## Conformance cases
+
+```sh
+uv run --extra vad rtpbench cases          # every case against the reference agent (Docker)
+sudo .venv/bin/rtpbench cases sip:agent@host   # the same cases against your agent
+```
+
+Each case ([`cases.py`](src/rtpbench/cases.py)) is a scripted call with a verdict (pass, fail
+or inconclusive) and timings, each with the error bar of how it is measured, from the
+calibrations above. Without a URI, every case runs against the reference agent once with a
+behaviour that should pass it and once with each behaviour that should fail it, so the case
+itself is proven; the command fails if any verdict is not the expected one. With a URI, the
+cases call your agent from this machine (after `uv sync --extra vad`; capturing needs root).
+
+| case | what passes |
+| --- | --- |
+| `greeting` | the agent speaks first, within 2 s of its 200 OK |
+
 ## Development
 
 ```sh

@@ -72,9 +72,18 @@ def parse_uri(uri: str) -> tuple[str, int]:
 
 
 class Session:
-    """One call: the SIP dialog and the RTP socket, from INVITE to BYE."""
+    """One call: the SIP dialog and the RTP socket, from INVITE to BYE.
 
-    def __init__(self, uri: str, codecs: tuple[int, ...]) -> None:
+    The INVITE goes out at once; `wait` pumps SIP (retransmissions, answers to what the far end
+    sends) until a condition holds, so a script can act between messages while media flows.
+    """
+
+    def __init__(
+        self,
+        uri: str,
+        codecs: tuple[int, ...],
+        headers: list[tuple[str, str]] | None = None,
+    ) -> None:
         peer = parse_uri(uri)
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         probe.connect(peer)
@@ -83,12 +92,104 @@ class Session:
         sock.bind(("0.0.0.0", 0))
         self.rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.rtp.bind(("0.0.0.0", 0))
-        self.dialog = sip.Dialog(sock, peer, uri, local_ip)
-        ok = self.dialog.invite(sip.sdp(local_ip, self.rtp.getsockname()[1], list(codecs)))
-        ip, port, pts = sip.parse_sdp(ok.body)
-        self.addr = (ip, port)
-        self.pt = next(p for p in pts if p in g711.NAMES)
+        self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
+        offer = sip.sdp(local_ip, self.rtp.getsockname()[1], list(codecs))
+        self.invite = self.dialog.request("INVITE", offer, headers)
+        self.final: sip.Message | None = None  # final response to the INVITE
+        self.responses: list[sip.Message] = []
+        self.requests: list[sip.Message] = []  # from the far end
+        self.remote_bye = False
+        self.addr, self.pt = ("", 0), 0
         self.seq0, self.ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
+        self.media: tuple[Sender, Receiver] | None = None
+        self.dialog.send(self.invite)
+
+    def pump(self, timeout: float) -> None:
+        """Handle the next SIP message, if one comes within `timeout`."""
+        msg = self.dialog.recv(timeout)
+        if msg is None or msg.get("call-id") != self.dialog.call_id:
+            return
+        if not msg.status:
+            self._incoming(msg)
+            return
+        self.responses.append(msg)
+        if msg.cseq_method != "INVITE" or msg.status < 200:
+            return
+        if msg.status >= 300:
+            if msg.branch == self.invite.branch:
+                self.final = msg
+                self.dialog.ack_failure(self.invite, msg)
+            return
+        self.dialog.confirm(msg)  # every 2xx, retransmissions included
+        if self.final is None and msg.branch == self.invite.branch:
+            self.final = msg
+            ip, port, pts = sip.parse_sdp(msg.body)
+            self.addr, self.pt = (ip, port), next(p for p in pts if p in g711.NAMES)
+
+    def _incoming(self, req: sip.Message) -> None:
+        self.requests.append(req)
+        if req.method == "ACK":
+            return
+        if req.method == "INVITE":
+            self.dialog.reply(req, 488, "Not Acceptable Here")
+            return
+        self.dialog.reply(req)
+        self.remote_bye |= req.method == "BYE"
+
+    def wait(self, cond: Callable[[], bool], timeout: float) -> bool:
+        """Pump SIP until `cond()` or `timeout` seconds; whether `cond()` held."""
+        deadline = time.monotonic() + timeout
+        while not cond():
+            if (left := deadline - time.monotonic()) <= 0:
+                return False
+            self.pump(min(left, 0.05))
+        return True
+
+    def answer(self, timeout: float = 32.0) -> sip.Message:
+        """The 2xx to the INVITE (ACKed); raises on a failure or no answer."""
+        self.wait(lambda: self.final is not None, timeout)
+        if self.final is None:
+            raise sip.SipError("INVITE timed out")
+        if self.final.status >= 300:
+            raise sip.SipError(self.final.first)
+        return self.final
+
+    def request(
+        self, method: str, body: bytes = b"", headers: list[tuple[str, str]] | None = None
+    ) -> sip.Message | None:
+        """Send an in-dialog request; its final response, or None after timer F (32 s)."""
+        req = self.dialog.request(method, body, headers)
+        self.dialog.send(req)
+
+        def final() -> sip.Message | None:
+            return next(
+                (r for r in self.responses if r.branch == req.branch and r.status >= 200), None
+            )
+
+        self.wait(lambda: final() is not None, 64 * sip.T1)
+        return final()
+
+    def start(
+        self, source: Callable[[int, int], bytes], sink: Callable[[int, Packet], None]
+    ) -> None:
+        start = time.time_ns() + PTIME_NS
+        self.media = (
+            Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc),
+            Receiver(self.rtp, sink),
+        )
+        for t in self.media:
+            t.start()
+
+    def hangup(self) -> None:
+        """Stop sending, BYE unless the far end hung up, stop receiving."""
+        if self.media:
+            self.media[0].stop.set()
+            self.media[0].join()
+        if not self.remote_bye:
+            self.request("BYE")
+        if self.media:
+            self.media[1].stop.set()
+            self.media[1].join()
 
     def run(
         self,
@@ -97,33 +198,16 @@ class Session:
         until: Callable[[int], bool],
     ) -> bool:
         """Media until `until(now_ns)`, then hang up. True if the far end hung up first."""
-        start = time.time_ns() + PTIME_NS
-        sender = Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc)
-        receiver = Receiver(self.rtp, sink)
-        sender.start()
-        receiver.start()
-        remote_bye = False
-        while not until(time.time_ns()):
-            msg = self.dialog.recv(0.1)
-            if msg is None:
-                continue
-            if msg.status == 200 and msg.cseq_method == "INVITE":
-                self.dialog.ack()
-            elif msg.method:
-                self.dialog.reply(msg)
-                if remote_bye := msg.method == "BYE":
-                    break
-        sender.stop.set()
-        receiver.stop.set()
-        sender.join()
-        receiver.join()
-        if not remote_bye:
-            self.dialog.bye()
-        return remote_bye
+        self.start(source, sink)
+        self.wait(lambda: self.remote_bye or until(time.time_ns()), float("inf"))
+        self.hangup()
+        return self.remote_bye
 
     def meta(self, seed: int, remote_bye: bool) -> dict[str, Any]:
         return {"pt": self.pt, "ssrc": self.ssrc, "seq0": self.seq0, "seed": seed} | {
-            "remote_bye": remote_bye
+            "remote_bye": remote_bye,
+            "call_id": self.dialog.call_id,
+            "rtp_port": self.rtp.getsockname()[1],
         }
 
 
@@ -143,6 +227,7 @@ def call(
     """
     labels = [(n, speech.label(u)) for n, u in utterances] if utterances else []
     s = Session(uri, codecs)
+    s.answer()
     pcm, spans = script(turns, seed, [u for _, u in utterances or []], lead, gap)
     audio = g711.encode(s.pt, pcm)
     gate = g711.gate(s.pt, GATE)
@@ -167,7 +252,59 @@ def call(
     return s.meta(seed, remote_bye) | {"turns": last}
 
 
-class Conversation:
+class Media:
+    """Caller audio as an RTP source, one clip at a time, and the agent's audio as a sink: when
+    the gate last heard the agent, and each packet's first active sample."""
+
+    def __init__(self, pt: int) -> None:
+        self.pt = pt
+        self.gate = g711.gate(pt, GATE)
+        self.silence = bytes([g711.SILENCE[pt]]) * FRAME
+        self.lock = threading.Lock()
+        self.audio, self.apos = b"", 0
+        self.agent_last = 0
+
+    def on_packet(self, arrival: int, pkt: Packet) -> None:
+        if pkt.pt != self.pt or not (first := self.gate.search(pkt.payload)):
+            return
+        last = self.gate.search(pkt.payload[::-1])
+        assert last is not None
+        with self.lock:
+            end = arrival + (len(pkt.payload) - 1 - last.start()) * SAMPLE_NS
+            self.heard(arrival + first.start() * SAMPLE_NS, end)
+            self.agent_last = max(self.agent_last, end)
+
+    def heard(self, onset: int, end: int) -> None:
+        """A packet with agent speech from `onset` to `end` arrived (under the lock)."""
+
+    def step(self, n: int, tick: int) -> None:
+        """Nothing is playing at tick n: start a clip with `play`, or not (under the lock)."""
+
+    def finished(self, tick: int) -> None:
+        """The clip just ended (under the lock)."""
+
+    def play(self, n: int, clip: tuple[str, bytes, list[tuple[int, int]]]) -> dict[str, Any]:
+        """Start `clip` (name, encoded audio, labelled spans) at tick n; its spans in the stream."""
+        name, audio, spans = clip
+        self.audio, self.apos = audio, 0
+        start = n * FRAME
+        return {"clip": name, "speech": [[a + start, b + start] for a, b in spans]}
+
+    def source(self, n: int, tick: int) -> bytes:
+        with self.lock:
+            if not self.audio:
+                self.step(n, tick)
+            if not self.audio:
+                return self.silence
+            out = self.audio[self.apos : self.apos + FRAME].ljust(FRAME, self.silence[:1])
+            self.apos += FRAME
+            if self.apos >= len(self.audio):
+                self.audio = b""
+                self.finished(tick)
+            return out
+
+
+class Conversation(Media):
     """Barge-in script as an RTP source: each turn a prompt, then, once the agent's reply has
     started, an interjection `at_s` later, then quiet before the next prompt."""
 
@@ -177,60 +314,31 @@ class Conversation:
         script: list[tuple[Labelled, Labelled, dict[str, Any]]],
         lead_ns: int,
     ) -> None:
-        self.gate = g711.gate(pt, GATE)
-        self.silence = bytes([g711.SILENCE[pt]]) * FRAME
+        super().__init__(pt)
         self.script = [
             ((pn, g711.encode(pt, p), ps), (jn, g711.encode(pt, j), js), st)
             for (pn, p, ps), (jn, j, js), st in script
         ]
         self.lead_ns = lead_ns
-        self.lock = threading.Lock()
         self.turns: list[dict[str, Any]] = []
         self.state, self.turn = "lead", 0
         self.t0: int | None = None
-        self.audio, self.apos = b"", 0
         self.since = 0  # when the current state began
         self.wait_until = 0
         self.onset: int | None = None  # first agent sample heard after the prompt
-        self.agent_last = 0
         self.done = False
 
-    def on_packet(self, arrival: int, pkt: Packet) -> None:
-        if not (first := self.gate.search(pkt.payload)):
-            return
-        last = self.gate.search(pkt.payload[::-1])
-        assert last is not None
-        with self.lock:
-            end = arrival + (len(pkt.payload) - 1 - last.start()) * SAMPLE_NS
-            self.agent_last = max(self.agent_last, end)
-            on = arrival + first.start() * SAMPLE_NS
-            if self.state == "reply" and self.onset is None and on > self.since:
-                self.onset = on
+    def heard(self, onset: int, end: int) -> None:
+        if self.state == "reply" and self.onset is None and onset > self.since:
+            self.onset = onset
 
-    def _play(self, n: int, clip: tuple[str, bytes, list[tuple[int, int]]]) -> dict[str, Any]:
-        name, audio, spans = clip
-        self.audio, self.apos = audio, 0
-        start = n * FRAME
-        return {"clip": name, "speech": [[a + start, b + start] for a, b in spans]}
+    def finished(self, tick: int) -> None:
+        self.state = "reply" if self.state == "prompt" else "quiet"
+        self.since, self.onset = tick, None
 
-    def source(self, n: int, tick: int) -> bytes:
-        with self.lock:
-            if self.t0 is None:
-                self.t0 = tick
-            if not self.audio:
-                self._step(n, tick)
-            if not self.audio:
-                return self.silence
-            out = self.audio[self.apos : self.apos + FRAME].ljust(FRAME, self.silence[:1])
-            self.apos += FRAME
-            if self.apos >= len(self.audio):
-                self.audio = b""
-                self.state = "reply" if self.state == "prompt" else "quiet"
-                self.since, self.onset = tick, None
-            return out
-
-    def _step(self, n: int, tick: int) -> None:
-        assert self.t0 is not None
+    def step(self, n: int, tick: int) -> None:
+        if self.t0 is None:
+            self.t0 = tick
         if self.done:  # the sender keeps ticking until the call notices
             return
         _, interjection, step = self.script[self.turn]
@@ -241,7 +349,7 @@ class Conversation:
         elif self.state == "reply" and tick - self.since > REPLY_TIMEOUT_NS:
             self.state, self.since = "quiet", tick
         elif self.state == "barge" and tick >= self.wait_until:
-            self.turns[-1] |= {"kind": step["kind"], "at_s": step["at_s"]} | self._play(
+            self.turns[-1] |= {"kind": step["kind"], "at_s": step["at_s"]} | self.play(
                 n, interjection
             )
             self.state = "interject"
@@ -257,7 +365,7 @@ class Conversation:
 
     def _prompt(self, n: int, tick: int) -> None:
         prompt, _, step = self.script[self.turn]
-        rec = self._play(n, prompt)
+        rec = self.play(n, prompt)
         self.turns.append(
             {
                 "prompt": rec["clip"],
@@ -300,6 +408,7 @@ def converse(
         lines.append((labelled(prompts[i % len(prompts)]), labelled(said), step))
         used[step["kind"]] += 1
     s = Session(uri, codecs)
+    s.answer()
     conv = Conversation(s.pt, lines, round(lead * 1e9))
     remote_bye = s.run(conv.source, conv.on_packet, lambda _now: conv.done)
     return s.meta(seed, remote_bye) | {"turns": conv.turns}

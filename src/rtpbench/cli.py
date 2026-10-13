@@ -26,6 +26,21 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
     p.add_argument("--seed", type=int, default=1)
 
+    p = sub.add_parser("cases", help="conformance cases: reference agent (Docker), or a SIP URI")
+    p.add_argument("uri", nargs="?", help="target; without one, prove each case on the reference")
+    p.add_argument("--only", help="comma-separated cases (default: all)")
+    p.add_argument("--profile", default="clean", help="netem profile (reference agent only)")
+    p.add_argument("--out", type=Path, help="default: results/<timestamp>")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
+
+    p = sub.add_parser("case", help="run one case's caller side (inside a container)")
+    p.add_argument("name")
+    p.add_argument("uri")
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--iface", default="eth0")
+
     p = sub.add_parser("analyze", help="summarise run directories already captured")
     p.add_argument("runs", type=Path, nargs="+")
 
@@ -35,6 +50,8 @@ def main(argv: list[str] | None = None) -> None:
         p.add_argument("--barge-in", action="store_true", help="follow the barge-in script")
         if name == "agent":
             p.add_argument("--replies", type=Path, help="with --speech: reply with these WAVs")
+            p.add_argument("--case", help="behave as this conformance case needs")
+            p.add_argument("--behaviour", default="good", help="with --case: which behaviour")
         else:
             p.add_argument("uri")
             p.add_argument("--turns", type=int, default=20)
@@ -72,6 +89,17 @@ def main(argv: list[str] | None = None) -> None:
             )
         )
         print(f"results in {out}")
+    elif args.cmd == "cases":
+        from rtpbench import cases
+        from rtpbench.bench import cases as run_cases
+
+        out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+        names = args.only.split(",") if args.only else list(cases.CASES)
+        summary, proven = run_cases(out, args.uri, names, args.profile, args.seed, args.iface)
+        print(summary)
+        print(f"results in {out}")
+        if not proven:
+            raise SystemExit(1)
     elif args.cmd == "analyze":
         from rtpbench import bargein, speechcal
 
@@ -88,13 +116,25 @@ def main(argv: list[str] | None = None) -> None:
             if args.cmd == "agent":
                 from rtpbench.agent import serve
 
+                behaviour = None
+                if args.case:
+                    from rtpbench.cases import CASES
+
+                    behaviour = CASES[args.case].behaviours()[args.behaviour]
                 log = serve(
                     args.out / "ready",
                     seed=args.seed,
                     real=args.speech,
                     replies=args.replies,
                     barge=args.barge_in,
+                    case=behaviour,
                 )
+                if args.case:
+                    log |= {"case": args.case, "behaviour": args.behaviour}
+            elif args.cmd == "case":
+                from rtpbench.cases import run
+
+                log = run(args.name, args.uri, args.seed)
             else:
                 from rtpbench import speech
                 from rtpbench.caller import call, converse, speech_utterances

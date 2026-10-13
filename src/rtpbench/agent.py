@@ -8,6 +8,8 @@ its first labelled speech sample, and whatever precedes it in the clip is sent b
 With a barge-in plan, caller speech that starts while the agent is replying is an interjection,
 never a turn: the agent stops (hard cut) the planned delay after the interjection's first
 active sample arrived, or carries on, as the plan says.
+
+In a conformance case the agent answers no turns; it does what the case's `Behaviour` says.
 """
 
 import random
@@ -15,6 +17,7 @@ import secrets
 import socket
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +34,14 @@ SPEECH_HANGOVER_NS = 1_000_000_000
 SPEECH_DELAY_RANGE = (1.5, 2.5)
 
 Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled speech spans
+
+
+@dataclass(frozen=True)
+class Behaviour:
+    """What the reference agent does in a conformance case (see `cases`)."""
+
+    greet_s: float | None = None  # greet this long after sending the 200 OK
+    greeting: str = "short"  # a short corpus clip, or a long one (9-15 s)
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -71,6 +82,12 @@ class Responder:
         self.interjecting = False  # the caller's current burst started while we replied
         self.cut_ns: int | None = None
 
+    def speak(self, target_ns: int, reply: int, kind: str) -> None:
+        """Say `self.replies[reply]`, its labelled onset at `target_ns`."""
+        with self.lock:
+            turn = len(self.turns)
+            self.pending = {"turn": turn, "kind": kind, "reply": reply, "target_ns": target_ns}
+
     def on_packet(self, arrival: int, pkt: Packet) -> None:
         if pkt.pt != self.pt:
             return
@@ -86,7 +103,7 @@ class Responder:
                 self.speaking = True
             elif self.speaking and arrival - self.end_ns >= self.hangover_ns:
                 self.speaking = False
-                if self.interjecting:
+                if self.interjecting or not self.delays:
                     self.interjecting = False
                     return
                 turn = len(self.turns) + (self.pending is not None)
@@ -119,7 +136,8 @@ class Responder:
     def source(self, n: int, tick: int) -> bytes:
         with self.lock:
             p = self.pending
-            name, audio, spans = self.replies[p["turn"] % len(self.replies)] if p else ("", b"", [])
+            pick = p.get("reply", p["turn"]) if p else 0
+            name, audio, spans = self.replies[pick % len(self.replies)] if p else ("", b"", [])
             lead = spans[0][0] if spans else 0
             # a start in the last half sample rounds to the next tick's sample 0, not to 160
             off = round((p["target_ns"] - tick) / SAMPLE_NS) - lead if p else FRAME
@@ -171,16 +189,21 @@ def serve(
     real: bool = False,
     replies: Path | None = None,
     barge: bool = False,
+    case: Behaviour | None = None,
 ) -> dict[str, Any]:
     """Answer one call; return its per-turn ground truth. Touches `ready` once listening.
 
     `real`: reply with speech (corpus clips, or the WAVs in `replies`), not the synthetic voice.
     `barge`: reply with the long corpus clips and follow the barge-in plan.
+    `case`: answer no turns; behave as a conformance case asks (short then long corpus clips).
     """
     real = real or barge
     rng = random.Random(seed)
     delays = [rng.uniform(*(SPEECH_DELAY_RANGE if real else DELAY_RANGE)) for _ in range(1000)]
     clips = speech_replies(seed, replies, long=barge) if real else None
+    if case:
+        delays, short = [], speech_replies(seed)
+        clips = short + speech_replies(seed, long=True)
     plan = bargein.plan(seed) if barge else None
     hangover = SPEECH_HANGOVER_NS if real else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -231,6 +254,9 @@ def serve(
             ]
             for t in threads:
                 t.start()
+            if case and case.greet_s is not None:
+                greeting = 0 if case.greeting == "short" else len(short)
+                responder.speak(time.time_ns() + round(case.greet_s * 1e9), greeting, "greeting")
             meta = {"pt": pt, "ssrc": ssrc, "seq0": seq0, "seed": seed}
         elif msg.method == "ACK":
             acked = True
