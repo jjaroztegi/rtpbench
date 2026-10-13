@@ -476,7 +476,8 @@ def serve(
             len(short) * (case.greeting == "long"),
         )
     plan = bargein.plan(seed) if barge else None
-    hangover = SPEECH_HANGOVER_NS if real else HANGOVER_NS
+    # case callers speak real speech too, whose pauses would end a turn mid-sentence
+    hangover = SPEECH_HANGOVER_NS if real or case else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", sip_port))
     rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
