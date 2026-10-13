@@ -344,6 +344,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         recs = json.loads((out / "results.json").read_text())
         runs = [cs.Run(*(r[f] for f in cs.Run._fields)) for r in recs]
     summary, records, ok = cs.summarize(out, runs)
+    sections: list[tuple[str, str]] = []
     for sub, title, pooled in (
         ("latency", "Turn latency", speechcal.pooled),
         ("barge-in", "Barge-in", bargein.pooled),
@@ -352,8 +353,9 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
             calls.setdefault(path.parts[-4], []).append(path.parent)
         if calls:
-            summary += f"\n## {title}\n\n" + pooled(calls)
+            sections.append((title, pooled(calls)))
+            summary += f"\n## {title}\n\n" + sections[-1][1]
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
-    (out / "report.html").write_text(report.render(out))
+    (out / "report.html").write_text(report.render(out, sections))
     return summary, ok

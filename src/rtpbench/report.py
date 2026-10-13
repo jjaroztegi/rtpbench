@@ -228,10 +228,39 @@ def _messages(w: cases.Wire) -> str:
     )
 
 
-def render(out: Path) -> str:
+def _markdown(md: str) -> str:
+    """A pooled summary (paragraphs and pipe tables, as `analyze._table` writes them)."""
+    out: list[str] = []
+    rows: list[list[str]] = []
+
+    def flush() -> None:
+        if rows:
+            th = "".join(f"<th>{escape(c)}</th>" for c in rows[0])
+            trs = "".join(
+                "<tr>" + "".join(f'<td class="n">{escape(c)}</td>' for c in r) + "</tr>"
+                for r in rows[1:]
+            )
+            out.append(f'<div class="scroll"><table><tr>{th}</tr>{trs}</table></div>')
+            rows.clear()
+
+    for line in md.splitlines():
+        if line.startswith("|"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if not all(set(c) <= set("-: ") for c in cells):  # the --- separator
+                rows.append(cells)
+        else:
+            flush()
+            if line.strip():
+                out.append(f'<p class="note">{escape(line)}</p>')
+    flush()
+    return "".join(out)
+
+
+def render(out: Path, sections: list[tuple[str, str]] | None = None) -> str:
     """The report for a results directory written by `rtpbench cases` or `rtpbench target`:
-    per profile, the cases with their repeats grouped; then a timeline for the first repeat of
-    each, and for every repeat whose verdict differs from it."""
+    per profile, the cases with their repeats grouped; `sections` (title, markdown: turn latency
+    and barge-in against a target); then a timeline for the first repeat of each case, and for
+    every repeat whose verdict differs from it."""
     from rtpbench.bench import PROFILES
 
     records = json.loads((out / "results.json").read_text())
@@ -260,7 +289,12 @@ def render(out: Path) -> str:
     parts += [
         '<p class="note">True value = measured &minus; error; the error lies within:</p><ul>',
         *(f"<li>[{b.lo:+.1f}, {b.hi:+.1f}] ms: {escape(b.source)}</li>" for b in sorted(bars)),
-        "</ul><h2>Calls</h2>",
+        "</ul>",
+    ]
+    for title, md in sections or []:
+        parts += [f"<h2>{escape(title)}, {escape(target)}</h2>", _markdown(md)]
+    parts += [
+        "<h2>Calls</h2>",
         '<div class="legend"><span><i style="background:var(--caller)"></i>caller</span>'
         '<span><i style="background:var(--agent)"></i>agent</span>'
         "<span>tall bars: speech · thin: RTP flowing · ticks: SIP (hover for detail)</span></div>",
