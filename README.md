@@ -96,6 +96,12 @@ repeat whose verdict differs from it.
 `--lines DIR` gives the caller its own `prompt.wav` (a question) and `transfer.wav` (asking for
 a person) in the agent's language; the corpus is used otherwise.
 
+The transfer target is `sip:operator@operator`, an `operator` service on the agent's side of the
+router that rings for a second, answers and says a few words (or answers 486 when the transferee
+asks it to be busy, for `refer-fail`). The transferee's INVITE goes through the router (and the
+carrier, with `--carrier`) like any other call. Against a URI, `--proxy HOST` says where the
+transferee sends it; by default it goes to the Refer-To host.
+
 | case | what passes |
 | --- | --- |
 | `greeting` | the agent speaks first, within 2 s of its 200 OK |
@@ -104,8 +110,8 @@ a person) in the agent's language; the corpus is used otherwise.
 | `hold` | hold (sendonly, then inactive) and resume by re-INVITE: answers honour the offer, no agent RTP while held, RTP back within 1 s as the same stream (SSRC, next seq, timestamps kept time) |
 | `dtmf-rfc4733` | once the agent's greeting is over the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
-| `refer` | the caller asks for a person; rtpbench plays the transferee (202, NOTIFY sipfrag 100 then 200, without calling the target): REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
-| `refer-fail` | as `refer`, but the final NOTIFY reports `486 Busy Here`: the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
+| `refer` | the caller asks for a person and is the transferee: 202, NOTIFY sipfrag 100, a real call to the Refer-To target (the operator below, which answers), NOTIFY with its final response: REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
+| `refer-fail` | as `refer`, but the operator is busy, so the final NOTIFY reports `486 Busy Here`: the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
 | `codec-pcmu` | the caller offers PCMU alone: answered 2xx with PCMU alone (RFC 3264 6.1: the answer's formats come from the offer) and the agent's RTP is PCMU |
 | `codec-pcma` | the same with PCMA |
 | `timer` | session timers offered (90 s, caller refreshes) and refreshed once at half time, then not again: the 2xx takes them (Session-Expires, `refresher=uac`, Require: timer), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE between 45 and 90 s after the refresh (RFC 4028) |
@@ -140,7 +146,7 @@ of each); `report.html` the case timelines; `target.log` the target's own logs.
 
 | target | what |
 | --- | --- |
-| [`aivc`](targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit, OpenSIPS 3.6 (images pinned by digest), openai flavor as upstream's example sets it, plus a transfer target. Needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (e.g. Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`) |
+| [`aivc`](targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit, OpenSIPS 3.6 (images pinned by digest), openai flavor as upstream's example sets it, plus a transfer target (`transfer_to`, the operator). Needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (e.g. Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`) |
 
 ## Carrier
 

@@ -1,4 +1,5 @@
-# caller | router | agent. netem runs only on the router, so both captures sit at true endpoints.
+# caller | router | agent (and operator). netem runs only on the router, so both captures sit at
+# true endpoints.
 # Driven by `rtpbench calibrate`, which sets RTPBENCH_IMAGE, RTPBENCH_OUT and a unique project name.
 x-node: &node
   image: ${RTPBENCH_IMAGE:?}
@@ -20,6 +21,17 @@ services:
     networks: [agentnet]
     volumes: ["${RTPBENCH_OUT:?}:/out"]
     command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec sleep infinity'
+
+  # the transfer target a transferee calls (agent.OPERATOR), on the agent's side of the router
+  operator:
+    <<: *node
+    depends_on: [router]
+    networks: [agentnet]
+    command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec python -m rtpbench operator'
+    healthcheck:
+      test: test -e /tmp/ready
+      interval: 1s
+      retries: 30
 
   caller:
     <<: *node

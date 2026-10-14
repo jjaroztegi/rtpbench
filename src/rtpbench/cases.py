@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from rtpbench import analyze, detect, g711, pcap, rtp, sip, speech, speechcal
-from rtpbench.agent import DIGITS, Behaviour
+from rtpbench.agent import BUSY, DIGITS, Behaviour
 from rtpbench.caller import Media, Session, speech_utterances
 
 CODECS = (g711.PCMU, g711.PCMA)
@@ -333,19 +333,21 @@ def dtmf_info(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 
 def refer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """After the greeting, ask for a person; play the transferee to its REFER (202, then
-    NOTIFY sipfrag 100 Trying and, a second later, 200 OK, without calling the target), and
-    wait for the agent to hang up."""
-    return _refer(dial, seed, lines, "200 OK")
+    """After the greeting, ask for a person; be the transferee to its REFER: 202, NOTIFY
+    sipfrag 100 Trying, call the Refer-To target (the operator answers), NOTIFY its final
+    response; wait for the agent to hang up."""
+    return _refer(dial, seed, lines)
 
 
 def refer_fail(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """As `refer`, but the transfer fails: the final NOTIFY reports 486 Busy Here. Then listen
-    for the agent taking the call back."""
-    return _refer(dial, seed, lines, "486 Busy Here")
+    """As `refer`, but the operator is busy, so the final NOTIFY reports 486 Busy Here. Then
+    listen for the agent taking the call back."""
+    return _refer(dial, seed, lines, [BUSY])
 
 
-def _refer(dial: Dial, seed: int, lines: Lines, outcome: str) -> dict[str, Any]:
+def _refer(
+    dial: Dial, seed: int, lines: Lines, headers: list[tuple[str, str]] | None = None
+) -> dict[str, Any]:
     s = dial()
     s.answer()
     m = Script(s.pt)
@@ -353,15 +355,40 @@ def _refer(dial: Dial, seed: int, lines: Lines, outcome: str) -> dict[str, Any]:
     _settle(s, m)
     m.say(*_line(lines, "transfer", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
+    transfer: dict[str, Any] = {}
     if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):
-        final = "terminated;reason=noresource"  # as RFC 5589's flows
-        for frag, state in (("100 Trying", "active;expires=60"), (outcome, final)):
-            event = [("Event", "refer"), ("Subscription-State", state)]
-            s.request("NOTIFY", f"SIP/2.0 {frag}\r\n".encode(), event, SIPFRAG)
-            s.wait(lambda: False, 1.0)
-        s.wait(lambda: s.remote_bye, BYE_WAIT_S)
+        ref = next(r for r in s.requests if r.method == "REFER")
+        event = [("Event", "refer")]
+        trying = [*event, ("Subscription-State", "active;expires=60")]
+        s.request("NOTIFY", b"SIP/2.0 100 Trying\r\n", trying, SIPFRAG)
+        # RFC 3515 2.4.2 / RFC 3892: the transferee INVITEs the Refer-To URI, Referred-By copied
+        by = [("Referred-By", v) for v in [ref.get("referred-by")] if v]
+        t = dial(to=sip.uri_of(ref.get("refer-to")), headers=[*by, *(headers or [])])
+        both = (s, t)
+        _pump(both, lambda: t.final is not None, 64 * sip.T1)
+        frag = t.final.first.removeprefix("SIP/2.0 ") if t.final else "408 Request Timeout"
+        transfer = {"uri": t.dialog.target, "call_id": t.dialog.call_id, "final": frag}
+        final = [*event, ("Subscription-State", "terminated;reason=noresource")]  # RFC 5589
+        s.request("NOTIFY", f"SIP/2.0 {frag}\r\n".encode(), final, SIPFRAG)
+        if t.final is not None and t.final.status < 300:
+            tm = Media(t.pt)
+            t.start(tm.source, tm.on_packet)
+        _pump(both, lambda: s.remote_bye, BYE_WAIT_S)
+        if t.media:
+            t.hangup()
     s.hangup()
-    return s.meta(seed, s.remote_bye) | {"said": m.said}
+    return s.meta(seed, s.remote_bye) | {"said": m.said, "transfer": transfer}
+
+
+def _pump(calls: tuple[Session, ...], cond: Callable[[], bool], timeout: float) -> bool:
+    """`Session.wait` over several calls at once."""
+    deadline = time.monotonic() + timeout
+    while not cond():
+        if time.monotonic() >= deadline:
+            return False
+        for c in calls:
+            c.pump(0.01)
+    return True
 
 
 def _codec(dial: Dial, seed: int, lines: Lines, pt: int) -> dict[str, Any]:
@@ -1090,14 +1117,18 @@ def names(carrier: bool) -> list[str]:
     return [name for name, case in CASES.items() if case.route != skip]
 
 
-def run(name: str, uri: str, seed: int, lines: Path | None = None) -> dict[str, Any]:
+def run(
+    name: str, uri: str, seed: int, lines: Path | None = None, proxy: str | None = None
+) -> dict[str, Any]:
     """The caller side of a case; its log (with the error if the call failed). `lines`: a
-    directory with the caller's own prompt.wav and transfer.wav (else corpus utterances)."""
+    directory with the caller's own prompt.wav and transfer.wav (else corpus utterances).
+    `proxy`: where calls to other URIs (a transfer's) go, else to their own host."""
     said = {p.stem: speech.read_wav(p) for p in sorted(lines.glob("*.wav"))} if lines else {}
     calls: list[Session] = []
 
-    def dial(**options: Any) -> Session:
-        calls.append(Session(uri, options.pop("codecs", CODECS), **options))
+    def dial(to: str | None = None, **options: Any) -> Session:
+        codecs = options.pop("codecs", CODECS)
+        calls.append(Session(to or uri, codecs, proxy=proxy if to else None, **options))
         return calls[-1]
 
     try:

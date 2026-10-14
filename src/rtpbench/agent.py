@@ -38,6 +38,10 @@ SPEECH_DELAY_RANGE = (1.5, 2.5)
 Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled speech spans
 DIGITS = "0123456789*#ABCD"  # RFC 4733 events 0-15
 EVENT_END_NS = 3 * PTIME_NS  # no packet of an event this long: it ended (RFC 4733 2.5.2.2)
+# where transfers go: the `operator` service, which answers (after ringing, and says a few words)
+# unless the INVITE carries the BUSY header, which the transferee adds for a transfer meant to fail
+OPERATOR = "sip:operator@operator"
+BUSY = ("X-Operator", "busy")
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,7 @@ class Behaviour:
     any_ptime: bool = True  # hear audio packets of any length; else 20 ms ones only
     any_ssrc: bool = True  # hear the caller from any SSRC; else from the first one only
     refresh: bool = True  # keep sending after a re-INVITE; else stop (one-way audio)
+    busy: bool = False  # 486 Busy Here to the INVITE (the operator of a failed transfer)
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -382,7 +387,10 @@ class Uas:
         self.late = not msg.body and self.case.late_offer
         compact = any(k.lower() in sip._COMPACT for k, _ in msg.headers)
         malformed = re.search(rb"^a=ssrc:\d+\r?$", msg.body, re.MULTILINE)
-        if compact and not self.case.compact:  # a parser that knows the long names only
+        if self.case.busy:
+            self._send(sip.response(msg, 486, "Busy Here", self.to_tag), final=True)
+            self.end_at = time.monotonic() + 64 * sip.T1
+        elif compact and not self.case.compact:  # a parser that knows the long names only
             self._send(sip.response(msg, 500, "Server Internal Error", self.to_tag), final=True)
             self.end_at = time.monotonic() + 64 * sip.T1
         elif not self.late and (
@@ -507,7 +515,7 @@ class Uas:
         """Blind transfer (RFC 5589): REFER the caller to an operator."""
         assert self.dialog is not None
         local = self.dialog.local_ip
-        headers = [("Refer-To", f"<sip:operator@{local}>"), ("Referred-By", f"<sip:agent@{local}>")]
+        headers = [("Refer-To", f"<{OPERATOR}>"), ("Referred-By", f"<sip:agent@{local}>")]
         self.refer = self.dialog.request("REFER", headers=headers)
         self.dialog.send(self.refer)
 
@@ -574,3 +582,42 @@ def serve(
         "turns": r.turns if r else [],
         "digits": r.digits if r else [],
     }
+
+
+def operator(ready: Path, sip_port: int = 5060) -> None:
+    """The transfer target: takes any number of calls, each on its own RTP socket; rings for a
+    second, answers and says a few words, or is busy when the INVITE asks (BUSY). Runs until
+    killed; touches `ready` once listening."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("0.0.0.0", sip_port))
+    sock.settimeout(0.02)
+    clips = speech_replies(1)[:2]  # encoded per call: a greeting is all it says
+    calls: dict[str, Uas] = {}
+    ready.touch()
+    while True:
+        try:
+            data, addr = sock.recvfrom(65535)
+        except TimeoutError:
+            pass
+        else:
+            msg = sip.parse(data)
+            call_id = msg.get("call-id")
+            if call_id not in calls and msg.method == "INVITE" and not sip.tag(msg.get("to")):
+                busy = msg.get(BUSY[0]).lower() == BUSY[1]
+                case = Behaviour(busy=True) if busy else Behaviour(ring_s=1.0, greet_s=0.5)
+                rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                rtp.bind(("0.0.0.0", 0))
+                calls[call_id] = Uas(
+                    sock, rtp, case, lambda pt, seq0: Responder(pt, seq0, [], clips), 0
+                )
+                print(f"operator: {call_id} {'busy' if busy else 'answers'}", flush=True)
+            if call := calls.get(call_id):
+                call.handle(msg, addr)
+            elif msg.method not in ("", "ACK"):
+                sock.sendto(sip.response(msg, 481, "Call Does Not Exist").render(), addr)
+        for call_id, call in list(calls.items()):
+            call.tick()
+            if call.done:
+                call.stop()
+                call.rtp.close()
+                del calls[call_id]

@@ -73,7 +73,8 @@ def parse_uri(uri: str) -> tuple[str, int]:
 
 
 class Session:
-    """One call: the SIP dialog and the RTP socket, from INVITE to BYE.
+    """One call: the SIP dialog and the RTP socket, from INVITE to BYE (sent to the URI's host,
+    or to `proxy`, a host[:port]).
 
     The INVITE goes out at once; `wait` pumps SIP (retransmissions, answers to what the far end
     sends) until a condition holds, so a script can act between messages while media flows.
@@ -85,8 +86,9 @@ class Session:
         codecs: tuple[int, ...],
         headers: list[tuple[str, str]] | None = None,
         dtmf: bool = False,
+        proxy: str | None = None,
     ) -> None:
-        peer = parse_uri(uri)
+        peer = parse_uri(proxy or uri)  # an outbound proxy takes the request whatever its URI
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         probe.connect(peer)
         local_ip = probe.getsockname()[0]

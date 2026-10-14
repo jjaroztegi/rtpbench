@@ -54,6 +54,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--iface", default="eth0")
     p.add_argument("--lines", type=Path, help="prompt.wav, transfer.wav to say")
+    p.add_argument("--proxy", help="send a transfer's INVITE here (default: the Refer-To host)")
+
+    p = sub.add_parser("operator", help="run the transfer target (inside a container)")
+    p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
     p = sub.add_parser("report", help="judge a cases directory again; rewrite its report")
     p.add_argument("out", type=Path)
@@ -141,6 +145,10 @@ def main(argv: list[str] | None = None) -> None:
         profiles = args.profiles.split(",")
         print(target(out, args.name, names, profiles, args.runs, args.seed, args.carrier))
         print(f"results in {out}")
+    elif args.cmd == "operator":
+        from rtpbench.agent import operator
+
+        operator(args.ready)
     elif args.cmd == "report":
         from rtpbench.bench import judge
 
@@ -180,7 +188,7 @@ def main(argv: list[str] | None = None) -> None:
             elif args.cmd == "case":
                 from rtpbench.cases import run
 
-                log = run(args.name, args.uri, args.seed, args.lines)
+                log = run(args.name, args.uri, args.seed, args.lines, args.proxy)
             else:
                 from rtpbench import speech
                 from rtpbench.caller import call, converse, speech_utterances

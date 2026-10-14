@@ -95,7 +95,8 @@ class Stack:
         return self.sh("router", f"getent hosts {service}").split()[0]
 
     def entry(self, service: str) -> str:
-        """Where the caller sends its calls for `service`: the service, or the carrier."""
+        """Where the caller sends its calls for `service` (the agent, a target, the operator):
+        the service, or the carrier."""
         return self.ip("carrier" if self.carrier else service)
 
     @contextmanager
@@ -280,6 +281,7 @@ def cases(
         try:
             stack.up()
             caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
+            proxy = stack.entry("operator")  # the transferee's next hop for a transfer
             conds = conditions(partial(stack.sh, "router"), seed)
             conds |= {"profiles": profiles, "runs": runs}
             if carrier:
@@ -296,7 +298,8 @@ def cases(
                             stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
                             _wait_for(out / rel / "ready", 120)
                             print(f"{rel}: calling", flush=True)
-                            call = ["case", name, f"sip:agent@{agent_ip}", *args]
+                            call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
+                            call += args
                             with stack.tap(rel):
                                 stack.compose(
                                     "exec", "-T", "caller", "python", "-m", "rtpbench", *call
@@ -350,11 +353,12 @@ def target(
         conds |= {"profiles": profiles, "runs": runs, "target": name, "engine": engine}
         conds["images"] = stack.compose("images")
         uri = f"sip:{user}@{target_ip}"
+        proxy = stack.entry("operator")
         turns = lines("turn-*.wav")
         latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
         barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
         calls = {
-            **{c: ["case", c, uri, "--lines", *inside(LINES)] for c in cs.CASES},
+            **{c: ["case", c, uri, "--proxy", proxy, "--lines", *inside(LINES)] for c in cs.CASES},
             "latency": ["call", uri, *latency],
             "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
         }

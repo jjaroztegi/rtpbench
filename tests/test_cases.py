@@ -4,12 +4,13 @@ import struct
 import threading
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from rtpbench import cases, g711, rtp, sip
-from rtpbench.agent import Responder
+from rtpbench.agent import BUSY, OPERATOR, Responder, operator
 from rtpbench.caller import Session
 from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
 
@@ -301,3 +302,24 @@ def test_digit_whose_end_packets_were_all_lost() -> None:
     r.on_packet(130 * ms, end)  # a late end packet of the same event is not a second digit
     r.source(2, 200 * ms)
     assert len(r.digits) == 1
+
+
+def test_operator_answers_or_is_busy(tmp_path: Path) -> None:
+    """The transfer target answers after ringing, or is busy when the transferee asks; a call
+    reaches it by proxy, whatever host the Refer-To names."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    ready = tmp_path / "ready"
+    threading.Thread(target=operator, args=(ready, port), daemon=True).start()
+    while not ready.exists():
+        time.sleep(0.01)
+    proxy = f"127.0.0.1:{port}"
+    busy = Session(OPERATOR, (g711.PCMU,), headers=[BUSY], proxy=proxy)
+    busy.wait(lambda: busy.final is not None, 5)
+    assert busy.final is not None
+    assert busy.final.first == "SIP/2.0 486 Busy Here"
+    call = Session(OPERATOR, (g711.PCMU,), proxy=proxy)
+    assert call.answer(5).status == 200
+    assert call.ringing
+    call.hangup()
