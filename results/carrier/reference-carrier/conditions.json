@@ -1,6 +1,6 @@
 {
  "date": "2026-10-14T00:49:26+00:00",
- "commit": "f538e35",
+ "commit": "ba5f743",
  "kernel": "6.18.54.1-microsoft-standard-WSL2",
  "docker": "29.8.2",
  "python": "Python 3.14.8",
@@ -26,7 +26,7 @@
  "processes": [
   {
    "dir": "reference-carrier-clean",
-   "commit": "f538e35",
+   "commit": "ba5f743",
    "date": "2026-10-14T00:49:26+00:00",
    "profiles": [
     "clean"
@@ -34,7 +34,7 @@
   },
   {
    "dir": "reference-carrier-lte",
-   "commit": "f538e35",
+   "commit": "ba5f743",
    "date": "2026-10-14T00:49:46+00:00",
    "profiles": [
     "lte"
@@ -42,7 +42,7 @@
   },
   {
    "dir": "reference-carrier-lte-bad",
-   "commit": "f538e35",
+   "commit": "ba5f743",
    "date": "2026-10-14T00:50:06+00:00",
    "profiles": [
     "lte-bad"

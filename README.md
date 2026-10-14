@@ -185,15 +185,15 @@ uv run --extra vad rtpbench target aivc --profiles clean,lte,lte-bad --runs 10  
 ```
 
 Conditions: WSL2 Ubuntu 24.04 (kernel 6.18.54.1), Docker 29.8.2;
-python:3.14.8-slim and tcpdump 4.99.5 in the containers. Calls placed at commit 461a75e (the codec
-cases at 6cb5866), judged at 144b4ee. Repeat k used seed k. Each profile of each target ran as
+python:3.14.8-slim and tcpdump 4.99.5 in the containers. Calls placed at commit b08f2c3 (the codec
+cases at ae4f22b), judged at dd46f39. Repeat k used seed k. Each profile of each target ran as
 its own process, six at once. AI Voice Connector CE at 09e14d0 with OpenSIPS 3.6.9, openai flavor
 as in upstream's example, engine Azure OpenAI `gpt-realtime-2.1` (2026-07-07)
 through `OPENAI_URL`; the agent's latency includes the engine's.
 
 Re-running these commands today does not give byte-identical captures: since #27 the refer cases
 end with a final NOTIFY whose `Subscription-State` is `terminated;reason=noresource` (plain
-`terminated` before). The published runs judged again at 4cd2060 give the same verdicts and
+`terminated` before). The published runs judged again at 6f6bcc3 give the same verdicts and
 timings.
 
 ### Cases
@@ -268,8 +268,8 @@ uv run rtpbench calibrate --carrier --profiles clean,lte,lte-bad --turns 50
 ```
 
 Conditions are those of the first results, plus OpenSIPS 3.6.9 and rtpengine 12.5.1.31 in the
-carrier. Calls were placed at commit c85b825, except the reference agent through the carrier,
-placed at f538e35: the same code with a larger capture buffer. A run at c85b825 was voided when
+carrier. Calls were placed at commit 9677e36, except the reference agent through the carrier,
+placed at ba5f743: the same code with a larger capture buffer. A run at 9677e36 was voided when
 the carrier's capture dropped a packet. Each profile ran as its own process.
 
 The carrier does not change how exactly rtpbench times the wire. Through it, wire timing stays
