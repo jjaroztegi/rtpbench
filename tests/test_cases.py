@@ -323,3 +323,17 @@ def test_operator_answers_or_is_busy(tmp_path: Path) -> None:
     assert call.answer(5).status == 200
     assert call.ringing
     call.hangup()
+
+
+def test_offer_in_a_reinvite_2xx_is_answered(pair: tuple[socket.socket, socket.socket]) -> None:
+    """RFC 3261 14.1: a re-INVITE without SDP gets the offer in its 2xx; the caller answers it
+    with the call's codec and sends to the address it gives. A 2xx without SDP gets no answer."""
+    a, _ = pair
+    s = Session(f"sip:agent@127.0.0.1:{a.getsockname()[1]}", (g711.PCMU, g711.PCMA))
+    s.pt = g711.PCMA
+    offer = sip.sdp("127.0.0.9", 4000, [g711.PCMU, g711.PCMA], "sendrecv")
+    answer = sip.parse_sdp(s._answer(sip.Message("SIP/2.0 200 OK", body=offer)))
+    assert (answer.pts, answer.direction, s.addr) == ([g711.PCMA], "sendrecv", ("127.0.0.9", 4000))
+    assert s._answer(sip.Message("SIP/2.0 200 OK")) == b""
+    held = sip.parse_sdp(sip.sdp("127.0.0.1", 4000, [0], "", conn="0.0.0.0"))
+    assert (held.ip, held.direction) == ("0.0.0.0", "sendrecv")  # no attribute: sendrecv

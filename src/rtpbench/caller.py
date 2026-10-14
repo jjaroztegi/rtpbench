@@ -132,7 +132,8 @@ class Session:
                 self.dialog.ack_failure(req, msg)
             return
         if not initial:
-            self.dialog.ack(msg)
+            req = self.invites.get(msg.branch)
+            self.dialog.ack(msg, self._answer(msg) if req is not None and not req.body else b"")
             return
         self.dialog.confirm(msg)  # every 2xx, retransmissions included
         if self.final is None:
@@ -141,6 +142,21 @@ class Session:
             self.addr = (answer.ip, answer.port)
             self.pt = next((p for p in answer.pts if p in g711.NAMES), -1)  # -1: answer() ends it
             self.dtmf = answer.dtmf
+
+    def _answer(self, ok: sip.Message) -> bytes:
+        """Answer to the offer in a 2xx to a re-INVITE without one (RFC 3261 14.1): the call's
+        codec if offered (else the first G.711 offered), the address it gives from now on."""
+        offer = sip.parse_sdp(ok.body)
+        if not offer.port:
+            return b""  # no offer in it: the agent got it wrong; the ACK has nothing to answer
+        if self.pt not in offer.pts:
+            self.pt = next((p for p in offer.pts if p in g711.NAMES), self.pt)
+        self.addr = (offer.ip, offer.port)
+        if self.media:
+            self.media[0].addr = self.addr
+        port = self.rtp.getsockname()[1]
+        direction = sip.ANSWER[offer.direction]
+        return sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
 
     def _incoming(self, req: sip.Message) -> None:
         self.requests.append(req)
@@ -207,16 +223,30 @@ class Session:
         return final()
 
     def reinvite(
-        self, direction: str = "sendrecv", headers: list[tuple[str, str]] | None = None
+        self,
+        direction: str = "sendrecv",
+        headers: list[tuple[str, str]] | None = None,
+        conn: str | None = None,
+        offer: bool = True,
+        pt: int | None = None,
     ) -> sip.Message | None:
         """Offer the call's codec again, `direction` (sendonly, inactive: hold; sendrecv
-        unchanged: a refresh, same SDP version); the response."""
-        if direction != "sendrecv" or self.held:
+        unchanged: a refresh, same SDP version; "": no attribute); `conn` 0.0.0.0 holds the RFC
+        2543 way; `pt` offers that codec alone instead (a codec change: the media switches to it
+        on a 2xx); `offer` False sends no SDP (the 2xx offers, the ACK answers). The response."""
+        hold = direction not in ("sendrecv", "") or conn == "0.0.0.0"
+        if hold or self.held or pt is not None:
             self.origin = (self.origin[0], self.origin[1] + 1)
-        self.held = direction != "sendrecv"
+        self.held = hold
         port = self.rtp.getsockname()[1]
-        sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
-        return self.request("INVITE", sdp, headers)
+        codec = self.pt if pt is None else pt
+        sdp = sip.sdp(self.dialog.local_ip, port, [codec], direction, self.origin, conn=conn)
+        resp = self.request("INVITE", sdp if offer else b"", headers)
+        if pt is not None and resp is not None and resp.status < 300:
+            self.pt = pt
+            if self.media:
+                self.media[0].pt = pt
+        return resp
 
     def start(self, source: Source, sink: Callable[[int, Packet], None]) -> None:
         start = time.time_ns() + PTIME_NS
@@ -332,6 +362,12 @@ class Media:
             end = arrival + (len(pkt.payload) - 1 - last.start()) * SAMPLE_NS
             self.heard(arrival + first.start() * SAMPLE_NS, end)
             self.agent_last = max(self.agent_last, end)
+
+    def recodec(self, pt: int) -> None:
+        """Speak and listen in another G.711 law from now on (a codec change)."""
+        with self.lock:
+            self.pt, self.gate = pt, g711.gate(pt, GATE)
+            self.silence = bytes([g711.SILENCE[pt]]) * FRAME
 
     def heard(self, onset: int, end: int) -> None:
         """A packet with agent speech from `onset` to `end` arrived (under the lock)."""

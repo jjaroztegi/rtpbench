@@ -73,6 +73,9 @@ class Behaviour:
     any_ptime: bool = True  # hear audio packets of any length; else 20 ms ones only
     any_ssrc: bool = True  # hear the caller from any SSRC; else from the first one only
     refresh: bool = True  # keep sending after a re-INVITE; else stop (one-way audio)
+    zero_hold: bool = True  # an offer with c=0.0.0.0 holds (RFC 3264 8.4); else keep sending
+    reoffer: bool = True  # offer in the 2xx to a re-INVITE without SDP; else a 2xx without SDP
+    recodec: bool = True  # take a re-INVITE's other G.711 law; else answer the old one (stale)
     busy: bool = False  # 486 Busy Here to the INVITE (the operator of a failed transfer)
 
 
@@ -127,6 +130,14 @@ class Responder:
         with self.lock:
             turn = len(self.turns)
             self.pending = {"turn": turn, "kind": kind, "reply": reply, "target_ns": target_ns}
+
+    def recodec(self, pt: int) -> None:
+        """Speak and hear the other G.711 law from now on (the caller changed codec)."""
+        replies = [(n, g711.encode(pt, g711.decode(self.pt, a)), s) for n, a, s in self.replies]
+        with self.lock:
+            self.response = g711.encode(pt, g711.decode(self.pt, self.response))
+            self.pt, self.replies, self.gate = pt, replies, g711.gate(pt, GATE)
+            self.silence = bytes([g711.SILENCE[pt]]) * FRAME
 
     def digit(self, at_ns: int, digit: str, via: str) -> None:
         """A digit came in (the key released): note it and, if the case says so, answer."""
@@ -473,14 +484,24 @@ class Uas:
         answer says the agent does not send."""
         offer = sip.parse_sdp(msg.body)
         direction = sip.ANSWER[offer.direction] if self.case.hold else "sendrecv"
+        zero = offer.ip == "0.0.0.0"  # RFC 3264 8.4: send nothing
         self.reinvite = msg.branch
+        law = next((pt for pt in offer.pts if pt in g711.NAMES), self.pt)
         if self.responder:
+            if law != self.pt and self.case.recodec:
+                self.pt = law
+                self.responder.recodec(law)
+                if self.sender:
+                    self.sender.pt = law
             with self.responder.lock:
                 sending = direction in ("sendrecv", "sendonly") and self.case.refresh
-                self.responder.sending = sending
-            if offer.port and self.sender:
+                self.responder.sending = sending and not (zero and self.case.zero_hold)
+            if offer.port and self.sender and not zero:
                 self.sender.addr = (offer.ip, offer.port)
-        self._send(self._ok(msg, direction), final=True)
+        ok = self._ok(msg, direction)
+        if not msg.body and not self.case.reoffer:
+            ok.body, ok.headers = b"", [h for h in ok.headers if h[0] != "Content-Type"]
+        self._send(ok, final=True)
 
     def tick(self) -> None:
         now = time.monotonic()

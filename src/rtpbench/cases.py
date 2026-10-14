@@ -289,16 +289,27 @@ def cancel(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 def hold(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """After the greeting: hold (sendonly), resume, hold (inactive), resume; 3 s each."""
+    held: list[tuple[str, str | None]] = [("sendonly", None), ("inactive", None)]
+    return _hold(dial, seed, [o for h in held for o in (h, ("sendrecv", None))])
+
+
+def hold_zero(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """After the greeting: hold the RFC 2543 way (c=0.0.0.0, no direction attribute; RFC 3264
+    8.4: an agent MUST be able to receive it, and then sends nothing), resume; 3 s each."""
+    return _hold(dial, seed, [("", "0.0.0.0"), ("sendrecv", None)])
+
+
+def _hold(dial: Dial, seed: int, offers: list[tuple[str, str | None]]) -> dict[str, Any]:
     s = dial()
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
     _settle(s, m)
-    for offer in ("sendonly", "sendrecv", "inactive", "sendrecv"):
+    for direction, conn in offers:
         if s.remote_bye:
             break
-        m.muted = offer == "inactive"
-        s.reinvite(offer)
+        m.muted = direction == "inactive"
+        s.reinvite(direction, conn=conn)
         s.wait(lambda: s.remote_bye, HOLD_S)
     s.hangup()
     return s.meta(seed, s.remote_bye) | {"said": m.said}
@@ -437,7 +448,7 @@ def _carried(
     seed: int,
     lines: Lines,
     mutation: str | None = None,
-    midway: Callable[[Session], Any] | None = None,
+    midway: Callable[[Session, Script], Any] | None = None,
 ) -> dict[str, Any]:
     """Through what a carrier sends: after the greeting (and `midway`, if given) ask a question
     and listen for the reply. `mutation` asks the carrier for one, in an X-Mutation header it
@@ -448,7 +459,7 @@ def _carried(
     s.start(m.source, m.on_packet)
     _settle(s, m)
     if midway and not s.remote_bye:
-        midway(s)
+        midway(s, m)
     _reply(s, m, seed, lines)
     s.wait(lambda: s.remote_bye, 1.0)
     s.hangup()
@@ -474,13 +485,32 @@ def ptime_30(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 def ssrc_change(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """The caller's stream becomes a new RTP source before the question (the carrier relays
     it as it comes)."""
-    return _carried(dial, seed, lines, midway=Session.switch)
+    return _carried(dial, seed, lines, midway=lambda s, m: s.switch())
 
 
 def reinvite(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     """A session refresh before the question: re-INVITE with the same SDP (RFC 4028 sends one
     every half interval; carriers typically every 15 min)."""
-    return _carried(dial, seed, lines, midway=Session.reinvite)
+    return _carried(dial, seed, lines, midway=lambda s, m: s.reinvite())
+
+
+def reinvite_nosdp(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """A re-INVITE without SDP before the question (RFC 3261 14.1: the 2xx offers, the ACK
+    answers), as PBXs send one to move or audit the media."""
+    return _carried(dial, seed, lines, midway=lambda s, m: s.reinvite(offer=False))
+
+
+def codec_change(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """Before the question a re-INVITE offers the other G.711 law alone; on its 2xx the caller
+    speaks and listens in it (a leg moved to another gateway, a transfer to another trunk)."""
+
+    def change(s: Session, m: Script) -> None:
+        law = g711.PCMU if s.pt == g711.PCMA else g711.PCMA
+        resp = s.reinvite(pt=law)
+        if resp is not None and resp.status < 300:
+            m.recodec(law)
+
+    return _carried(dial, seed, lines, midway=change)
 
 
 @dataclass
@@ -668,8 +698,13 @@ def _floor(pkts: analyze.Timed, ts0: int) -> float:
     return min(u / 1e6 - analyze.signed(p.ts - ts0, 32) / 8 for u, p in pkts)
 
 
-# answers to a hold offer that honour it (RFC 3264 6.1: inactive is fine for sendonly)
-HOLD_ANSWERS = {"sendonly": ("recvonly", "inactive"), "inactive": ("inactive",)}
+# answers to a hold offer that honour it (RFC 3264 6.1: inactive is fine for sendonly; 8.4 asks
+# nothing of the answer to c=0.0.0.0, only that the answerer sends nothing)
+HOLD_ANSWERS = {
+    "sendonly": ("recvonly", "inactive"),
+    "inactive": ("inactive",),
+    "c=0.0.0.0": sip.DIRECTIONS,
+}
 
 
 def check_hold(w: Wire) -> Result:
@@ -686,7 +721,8 @@ def check_hold(w: Wire) -> Result:
         r.checks.append(Check("hold and resume sent", None, "the call ended first"))
         return r
     for (t_hold, held), (t_back, back) in zip(reinvites[::2], reinvites[1::2], strict=False):
-        offer = sip.parse_sdp(held.body).direction
+        sdp = sip.parse_sdp(held.body)
+        offer = "c=0.0.0.0" if sdp.ip == "0.0.0.0" else sdp.direction
         answers = []
         for t, req, want in ((t_hold, held, HOLD_ANSWERS[offer]), (t_back, back, ("sendrecv",))):
             what = f"{offer} hold" if req is held else f"resume from {offer}"
@@ -962,8 +998,42 @@ def check_reinvite(w: Wire) -> Result:
     if not refresh:
         r.checks.append(Check("refresh sent", None, "the call ended first"))
         return r
+    if not refresh[0][1].body:  # the 2xx offers (RFC 3261 14.1), overlapping the session (14.2)
+        resp = w.find(_final_to(refresh[0][1]), sent=False)
+        first = w.find(_is_2xx_invite, sent=False)
+        before = set(sip.parse_sdp(first[1].body).pts) if first else set()
+        got = sip.parse_sdp(resp[1].body).pts if resp else []
+        detail = " ".join(map(str, got)) or "no SDP"
+        r.checks.append(Check("2xx offers the call's codec", bool(before & set(got)), detail))
     if _refreshed(w, r, refresh[0]) is None:
         return r
+    return _replies(w, r)
+
+
+def check_codec_change(w: Wire) -> Result:
+    """A re-INVITE offering the other G.711 law alone: 2xx with that law alone (RFC 3264 6.1),
+    agent RTP in it from then on, and the agent replies to a question asked in it within 10 s."""
+    r = Result()
+    invites: dict[str, tuple[int, sip.Message]] = {}
+    for t, out, m in w.msgs:
+        if out and m.method == "INVITE":
+            invites.setdefault(m.branch, (t, m))
+    change = list(invites.values())[1:2]
+    if not change:
+        r.checks.append(Check("codec change sent", None, "the call ended first"))
+        return r
+    law = sip.parse_sdp(change[0][1].body).pts[0]
+    name = g711.NAMES[law]
+    resp = w.find(_final_to(change[0][1]), sent=False)
+    ok = resp is not None and resp[1].status < 300
+    r.checks.append(Check(f"{name} re-INVITE answered 2xx", ok, resp[1].first if resp else ""))
+    if resp is None or not ok:
+        return r
+    answer = sip.parse_sdp(resp[1].body).pts
+    r.checks.append(Check(f"answer has {name} alone", answer == [law], " ".join(map(str, answer))))
+    after = {p.pt for u, p in w.down if u > resp[0] + MEDIA_GRACE_MS * 1e6}
+    detail = "payload types " + (" ".join(map(str, sorted(after))) or "none")
+    r.checks.append(Check(f"agent RTP is {name} after it", after == {law}, detail))
     return _replies(w, r)
 
 
@@ -1107,6 +1177,25 @@ CASES = {
         check_reinvite,
         Behaviour(greet_s=0.5, reply_s=1.0),
         {"one-way": Behaviour(greet_s=0.5, reply_s=1.0, refresh=False)},
+    ),
+    "reinvite-nosdp": Case(
+        reinvite_nosdp,
+        check_reinvite,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"no-offer": Behaviour(greet_s=0.5, reply_s=1.0, reoffer=False)},
+    ),
+    "hold-zero": Case(
+        hold_zero,
+        check_hold,
+        Behaviour(),
+        {"ignores-address": Behaviour(zero_hold=False)},
+    ),
+    "codec-change": Case(
+        codec_change,
+        check_codec_change,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"stale": Behaviour(greet_s=0.5, reply_s=1.0, recodec=False)},
+        route="direct",  # rtpengine transcodes a stale answer to the offered law
     ),
 }
 

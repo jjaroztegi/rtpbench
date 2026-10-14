@@ -123,23 +123,25 @@ def sdp(
     direction: str = "sendrecv",
     origin: tuple[int, int] | None = None,
     dtmf: bool = False,
+    conn: str | None = None,
 ) -> bytes:
     """An audio offer or answer; `origin` (session id, version) for a later one; `dtmf` adds
-    RFC 4733 telephone-event."""
+    RFC 4733 telephone-event; `conn` another connection address (0.0.0.0: RFC 2543 hold);
+    `direction` "" leaves the attribute out."""
     sid, version = origin or (secrets.randbelow(1 << 31),) * 2
     events = [TELEPHONE_EVENT] if dtmf else []
     lines = [
         "v=0",
         f"o=rtpbench {sid} {version} IN IP4 {ip}",
         "s=rtpbench",
-        f"c=IN IP4 {ip}",
+        f"c=IN IP4 {conn or ip}",
         "t=0 0",
         f"m=audio {port} RTP/AVP {' '.join(map(str, [*pts, *events]))}",
         *(f"a=rtpmap:{pt} {NAMES[pt]}/8000" for pt in pts),
         *(f"a=rtpmap:{pt} telephone-event/8000" for pt in events),
         *(f"a=fmtp:{pt} 0-16" for pt in events),
         "a=ptime:20",
-        f"a={direction}",
+        *([f"a={direction}"] if direction else []),
     ]
     return ("\r\n".join(lines) + "\r\n").encode()
 
@@ -326,9 +328,9 @@ class Dialog:
         self.routes = list(reversed(ok.all("record-route")))
         self.ack(ok)
 
-    def ack(self, ok: Message) -> None:
-        """ACK a 2xx to an INVITE."""
-        ack = self.request("ACK")
+    def ack(self, ok: Message, body: bytes = b"") -> None:
+        """ACK a 2xx to an INVITE (with `body`, the answer to an offer in the 2xx)."""
+        ack = self.request("ACK", body)
         cseq = ok.get("cseq").split()[0] + " ACK"
         ack.headers = [(k, cseq if k == "CSeq" else v) for k, v in ack.headers]
         self.send(ack)
