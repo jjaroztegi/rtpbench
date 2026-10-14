@@ -52,7 +52,7 @@ MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was dis
 PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 RETAKE_MAX_MS = 5000  # likewise an agent taking the call back after a failed transfer
-REPLY_MAX_MS = 10000  # an agent that heard the question replies by then (AIVC CE's longest: 8.2 s)
+REPLY_MAX_MS = 10000  # an agent that heard the question replies by then (AIVC CE slowest: 8.2 s)
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 

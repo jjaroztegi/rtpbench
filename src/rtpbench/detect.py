@@ -1,6 +1,6 @@
 """Speech detectors for received audio: [start, end) sample spans of detected speech.
 
-  gate       |sample| >= 1000 on the 16-bit scale; gaps under 20 ms merged
+  gate       |sample| >= 1000 on the 16-bit scale (the calibration's rule); gaps under 20 ms merged
   webrtcvad  WebRTC VAD, aggressiveness 3, 10 ms frames
   silero     Silero VAD 6.2.3 (ONNX) at 8 kHz, 32 ms windows; speech from p >= 0.5 until p < 0.35
   silero16   the same on the audio upsampled to 16 kHz. Fed a whole call, the 8 kHz mode answers
