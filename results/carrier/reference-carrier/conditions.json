@@ -1,0 +1,52 @@
+{
+ "date": "2026-10-14T00:49:26+00:00",
+ "commit": "f538e35",
+ "kernel": "6.18.54.1-microsoft-standard-WSL2",
+ "docker": "29.8.2",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "images": "CONTAINER                         REPOSITORY           TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-2cc99d-agent-1           rtpbench             6f6303db7d8b        linux/amd64         6e323cb15e98        203MB               4 seconds ago\nrtpbench-2cc99d-caller-1          rtpbench             6f6303db7d8b        linux/amd64         6e323cb15e98        203MB               4 seconds ago\nrtpbench-2cc99d-carrier-1         rtpbench             6f6303db7d8b        linux/amd64         6e323cb15e98        203MB               4 seconds ago\nrtpbench-2cc99d-carrier-media-1   rtpbench-rtpengine   12.5.1.31           linux/amd64         9e1da26e4e38        442MB               2 hours ago\nrtpbench-2cc99d-carrier-sip-1     opensips/opensips    <none>              linux/amd64         81a7fa3c7bdb        406MB               3 weeks ago\nrtpbench-2cc99d-router-1          rtpbench             6f6303db7d8b        linux/amd64         6e323cb15e98        203MB               4 seconds ago",
+ "processes": [
+  {
+   "dir": "reference-carrier-clean",
+   "commit": "f538e35",
+   "date": "2026-10-14T00:49:26+00:00",
+   "profiles": [
+    "clean"
+   ]
+  },
+  {
+   "dir": "reference-carrier-lte",
+   "commit": "f538e35",
+   "date": "2026-10-14T00:49:46+00:00",
+   "profiles": [
+    "lte"
+   ]
+  },
+  {
+   "dir": "reference-carrier-lte-bad",
+   "commit": "f538e35",
+   "date": "2026-10-14T00:50:06+00:00",
+   "profiles": [
+    "lte-bad"
+   ]
+  }
+ ]
+}

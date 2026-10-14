@@ -1,0 +1,4412 @@
+[
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/01/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1105.958637,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1078.420358
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/01/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/01/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved +0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.333952,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1106.004943,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1078.514591
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/01/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 0 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.311127,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/02/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1242.903443,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1231.529097
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/02/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/02/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.320812,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1222.868914,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1211.490646
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/02/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 8 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.305366,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/03/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1235.425943,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1231.425943
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/03/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/03/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.343442,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1235.388362,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1231.388362
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/03/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 3 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.336917,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/04/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1215.246321,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1197.768205
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/04/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/04/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.243321,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1215.255526,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1197.750794
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/04/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 11 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.26984,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/05/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1258.615133,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1255.365133
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/05/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/05/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved +0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.243175,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1258.705523,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1255.455523
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/05/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 7 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.284906,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/06/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1198.750894,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1185.750141
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/06/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/06/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.349163,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1198.721081,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1185.67865
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/06/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 11 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.309892,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/07/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1267.618021,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1250.667294
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/07/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/07/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.378284,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1267.722046,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1250.695843
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/07/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 14 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.405062,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/08/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1189.729575,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1186.723882
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/08/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/08/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.248502,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1189.596162,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1186.623057
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/08/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 18 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.264846,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/09/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1230.75566,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1230.75566
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/09/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/09/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.296846,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1230.572547,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1230.572547
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/09/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 12 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.344263,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/10/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1286.624826,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1273.645385
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/10/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/10/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.2644,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1286.606943,
+    "bar": [
+     -3.8,
+     32.9,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech)"
+    ],
+    "truth_ms": 1273.622823
+   }
+  ]
+ },
+ {
+  "profile": "clean",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/10/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 11 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.36616,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/01/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1188.341292,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1157.986286
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/01/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/01/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -3 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.281952,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1187.662038,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1157.468886
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/01/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 54 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.300734,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/02/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1303.071712,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1290.710713
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/02/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/02/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -47 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.53567,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1297.681008,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1290.77468
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/02/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 59 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.247366,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/03/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1335.594201,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1331.594201
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/03/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/03/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -1 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.414874,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1352.72928,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1348.72928
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/03/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 55 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.296698,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/04/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1340.269242,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1317.03253
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/04/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/04/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.864789,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1319.286331,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1300.279822
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/04/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 43 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.25973,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/05/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1338.553544,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1335.303544
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/05/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/05/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -1 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.485122,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1343.038772,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1339.788772
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/05/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 33 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.445626,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/06/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1276.261809,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1264.990613
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/06/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/06/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -3 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.725837,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1275.389619,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1263.498962
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/06/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 64 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.337806,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/07/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1368.190374,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1350.066135
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/07/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/07/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -3 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.30397,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1346.095352,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1332.790121
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/07/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 44 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.355389,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/08/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1276.015808,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1265.718583
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/08/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/08/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -6 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.227585,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1274.406539,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1265.498147
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/08/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 63 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.380121,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/09/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1208.219746,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1208.219746
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/09/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/09/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved +1 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.261927,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1310.935749,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1310.935749
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/09/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 41 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.365153,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte/10/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1344.722072,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1337.834655
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte/10/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte/10/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -1 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.174447,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1371.646108,
+    "bar": [
+     -3.4,
+     32.3,
+     "webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech --profiles lte)"
+    ],
+    "truth_ms": 1353.809323
+   }
+  ]
+ },
+ {
+  "profile": "lte",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte/10/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 42 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.363328,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/01/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1222.801745,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1176.20355
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/01/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/01/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved +24 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.346134,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1206.030747,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1201.382219
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/01/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 57 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.293909,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/02/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1346.490519,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1355.16655
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 2,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/02/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/02/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.484651,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1388.088902,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1288.523404
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 2,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/02/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 17 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.272713,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/03/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1290.343037,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1286.343037
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 3,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/03/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/03/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -1 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.29026,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1385.388477,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1381.388477
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 3,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/03/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 50 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.268076,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/04/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1377.600316,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1344.932485
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 4,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/04/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/04/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -6 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.346232,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1315.497284,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1317.995567
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 4,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/04/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 59 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.313952,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/05/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1392.155399,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1388.905399
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 5,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/05/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/05/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -9 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.26455,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1392.120923,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1388.870923
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 5,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/05/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 92 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.328239,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/06/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1403.766723,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1403.766723
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 6,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/06/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/06/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.442753,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1299.668822,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1306.6666
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 6,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/06/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 49 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.313379,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/07/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1376.721509,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1375.64932
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 7,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/07/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/07/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -5 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.320764,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1447.236452,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1450.234674
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 7,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/07/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 68 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.289431,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/08/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1313.245184,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1253.192063
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 8,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/08/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/08/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -6 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.340304,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1322.973769,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1339.972721
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 8,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/08/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 55 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.24427,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/09/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1339.871204,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1339.871204
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 9,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/09/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/09/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -11 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.290153,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1324.033851,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1324.033851
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 9,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/09/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 49 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.36823,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "lte-bad/10/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1308.717888,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1315.716236
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 10,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "lte-bad/10/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": []
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "lte-bad/10/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -10 ms, 1 SSRC"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 0.284795,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1310.827108,
+    "bar": [
+     -16.7,
+     52.5,
+     "webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech --profiles lte-bad)"
+    ],
+    "truth_ms": 1317.825978
+   }
+  ]
+ },
+ {
+  "profile": "lte-bad",
+  "repeat": 10,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "lte-bad/10/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK"
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv"
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 43 ms after the 2xx"
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": ""
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.246513,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null
+   }
+  ]
+ }
+]

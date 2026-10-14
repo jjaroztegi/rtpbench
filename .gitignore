@@ -6,3 +6,4 @@ dist/
 *.pcapng
 results/*
 !results/first/
+!results/carrier/
