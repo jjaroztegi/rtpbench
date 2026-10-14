@@ -12,8 +12,9 @@ from pathlib import Path
 @contextmanager
 def capture(path: Path, iface: str = "eth0", bpf: str = "udp") -> Iterator[None]:
     # Immediate mode: without it libpcap hands packets over in blocks of up to a second, and
-    # stopping tcpdump right after a BYE loses the end of the call.
-    cmd = ["tcpdump", "-i", iface, "-n", "-Z", "root", "--immediate-mode"]
+    # stopping tcpdump right after a BYE loses the end of the call. 32 MiB of kernel buffer
+    # (default 2): a busy host once starved a capture of four streams into a drop.
+    cmd = ["tcpdump", "-i", iface, "-n", "-Z", "root", "--immediate-mode", "-B", "32768"]
     cmd += ["--time-stamp-precision=nano", "-w", str(path), bpf]
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
     assert proc.stderr is not None

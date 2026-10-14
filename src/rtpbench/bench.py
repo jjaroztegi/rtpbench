@@ -105,7 +105,7 @@ class Stack:
             yield
             return
         pcap, err = f"/out/{rel}/carrier.pcap", f"/tmp/tap-{secrets.token_hex(3)}"
-        cmd = "tcpdump -i eth0 -n -U --immediate-mode --time-stamp-precision=nano"
+        cmd = "tcpdump -i eth0 -n -U --immediate-mode -B 32768 --time-stamp-precision=nano"
         pid = self.sh("carrier", f"{cmd} -w {pcap} udp >/dev/null 2>{err} & echo $!")
         _wait_for(Path(self.env["RTPBENCH_OUT"]) / rel / "carrier.pcap", 10)
         try:
