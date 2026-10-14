@@ -118,7 +118,7 @@ transferee sends it; by default it goes to the Refer-To host.
 | `ssrc-change` | after the greeting the caller's audio becomes a new RTP source (new SSRC, seq and timestamps, as when media is switched upstream; RFC 3550 8): the agent replies to a question asked after it within 10 s |
 | `reinvite` | after the greeting, a session refresh: re-INVITE with the same SDP (RFC 4028): 2xx `sendrecv`, the agent's media goes on undisturbed, and it replies to a question within 10 s |
 | `reinvite-nosdp` | after the greeting, a re-INVITE without SDP, as PBXs send to move or audit media (RFC 3261 14.1): the 2xx offers the call's codec (14.2: MUST overlap), the caller answers in the ACK, the agent's media goes on undisturbed, and it replies to a question within 10 s |
-| `hold-zero` | hold the RFC 2543 way: re-INVITE with `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4: an agent MUST be able to receive it, and then sends no RTP): 2xx, no agent RTP while held, RTP back within 1 s as the same stream |
+| `hold-zero` | hold the RFC 2543 way: re-INVITE with `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4: an agent MUST be able to receive it, and then sends no RTP): 2xx, no agent RTP while held, RTP back within 1 s as the same stream (without the carrier only) |
 | `codec-change` | after the greeting, a re-INVITE offers the other G.711 law alone and the caller switches to it on the 2xx: the answer has that law alone, the agent's RTP switches, and it replies to a question within 10 s (without the carrier only, as the codec cases) |
 
 What a carrier sends (with `--carrier` only; the carrier applies it, the call is otherwise the
@@ -170,6 +170,9 @@ carrier's own transit time per packet.
 The codec cases and `codec-change` run without the carrier only: when the agent answers with a law the caller
 did not offer, rtpengine gives the caller the offered law and transcodes between the two, so
 through it the case would test the carrier, not the agent.
+`hold-zero` runs without the carrier only too: rtpengine passes the `c=0.0.0.0` offer on
+with `a=sendonly` added, so through it the case tests a `sendonly` hold, which `hold` already
+covers.
 
 ## Results
 

@@ -1189,6 +1189,7 @@ CASES = {
         check_hold,
         Behaviour(),
         {"ignores-address": Behaviour(zero_hold=False)},
+        route="direct",  # rtpengine adds a=sendonly to a c=0.0.0.0 offer
     ),
     "codec-change": Case(
         codec_change,
