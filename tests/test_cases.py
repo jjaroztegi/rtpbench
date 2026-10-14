@@ -282,3 +282,22 @@ def test_refresh_media_must_go_on(stops_at: float | None, calm: bool) -> None:
     assert cases._refreshed(w, r, (s, refresh)) == s + 10**6
     media = next(c for c in r.checks if c.name == "media undisturbed by the refresh")
     assert media.ok is calm, media.detail
+
+
+def test_digit_whose_end_packets_were_all_lost() -> None:
+    """RFC 4733 2.5.2.2: the event ends once its packets stop; one digit, taken once."""
+    r = Responder(0, seq0=0, delays=[])
+    r.events = 101
+    ms = 1_000_000
+    for i, dur in enumerate((160, 320, 480, 640)):  # the three end packets never arrive
+        r.on_packet(
+            i * 20 * ms, rtp.Packet(101, i, 8000, 1, i == 0, struct.pack("!BBH", 5, 10, dur))
+        )
+    r.source(0, 100 * ms)  # 40 ms after the last packet: not yet
+    assert r.digits == []
+    r.source(1, 121 * ms)
+    assert r.digits == [{"digit": "5", "via": "rfc4733", "at_ns": 120 * ms}]
+    end = rtp.Packet(101, 9, 8000, 1, False, struct.pack("!BBH", 5, 0x8A, 800))
+    r.on_packet(130 * ms, end)  # a late end packet of the same event is not a second digit
+    r.source(2, 200 * ms)
+    assert len(r.digits) == 1

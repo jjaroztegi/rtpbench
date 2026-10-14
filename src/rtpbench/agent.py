@@ -37,6 +37,7 @@ SPEECH_DELAY_RANGE = (1.5, 2.5)
 
 Reply = tuple[str, list[int], list[tuple[int, int]]]  # name, PCM, labelled speech spans
 DIGITS = "0123456789*#ABCD"  # RFC 4733 events 0-15
+EVENT_END_NS = 3 * PTIME_NS  # no packet of an event this long: it ended (RFC 4733 2.5.2.2)
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,7 @@ class Responder:
         self.dtmf_ns: int | None = None  # reply this long after a digit
         self.digits: list[dict[str, Any]] = []
         self.event_ts: int | None = None  # RTP timestamp of the last event that ended
+        self.event_open: tuple[int, int, str] | None = None  # ts, last arrival, digit: no end yet
         self.ends: list[int] = []  # caller turn ends, when answering no turns
 
     def speak(self, target_ns: int, reply: int, kind: str) -> None:
@@ -130,9 +132,13 @@ class Responder:
 
     def on_packet(self, arrival: int, pkt: Packet) -> None:
         if pkt.pt == self.events and len(pkt.payload) >= 4:
-            if pkt.payload[1] & 0x80 and pkt.ts != self.event_ts:  # end bit, first copy
-                self.event_ts = pkt.ts
+            if pkt.ts == self.event_ts:  # an event already taken
+                return
+            if pkt.payload[1] & 0x80:  # end bit, first copy
+                self.event_ts, self.event_open = pkt.ts, None
                 self.digit(arrival, DIGITS[pkt.payload[0] % 16], "rfc4733")
+            else:
+                self.event_open = (pkt.ts, arrival, DIGITS[pkt.payload[0] % 16])
             return
         if pkt.pt != self.pt:
             return
@@ -181,6 +187,11 @@ class Responder:
             self.cut_ns = trigger + delay_ns
 
     def source(self, n: int, tick: int) -> bytes | Frame | None:
+        # an event whose end packets were all lost still happened: RFC 4733 2.5.2.2 ends it once
+        # packets stop (and extends a tone by no more than three packet interarrival times)
+        if (e := self.event_open) is not None and tick - e[1] > EVENT_END_NS:
+            self.event_ts, self.event_open = e[0], None
+            self.digit(e[1] + EVENT_END_NS, e[2], "rfc4733")
         with self.lock:
             out = self._audio(n - self.skipped, tick)
             if not self.sending:
