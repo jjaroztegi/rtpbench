@@ -41,6 +41,8 @@ services:
       CONFIG_FILE: /app/cfg/aivc.ini
       OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY}
       OPENAI_URL: ${OPENAI_URL:-wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1}
+      # upstream's default; empty for a model without reasoning (gpt-realtime-1.5), as its docs say
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT-low}
     # ready once OpenSIPS lists it as the subscriber for call events
     healthcheck:
       test:

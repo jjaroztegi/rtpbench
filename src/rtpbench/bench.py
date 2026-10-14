@@ -21,11 +21,36 @@ from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
 LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real agent
-# compose targets, targets/<name>/compose.yaml: the SIP user to dial, the variable naming the AI
-# engine's endpoint (only its domain and query go into the conditions), and its default
+# compose targets, targets/<name>/compose.yaml: the SIP user to dial, and the variables that set
+# its AI engine with their defaults (of a URL only its domain and query go into the conditions)
 TARGETS = {
-    "aivc": ("openai", "OPENAI_URL", "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1"),
+    "aivc": (
+        "openai",
+        {
+            "OPENAI_URL": "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1",
+            "OPENAI_REASONING_EFFORT": "low",
+        },
+    ),
+    "livekit": (
+        "agent",
+        {"AZURE_OPENAI_ENDPOINT": "", "AZURE_OPENAI_DEPLOYMENT": "gpt-realtime-2.1"},
+    ),
 }
+
+
+def _engine(settings: dict[str, str]) -> dict[str, str]:
+    """A target's engine settings as the conditions record them: no account names, no keys."""
+    out = {}
+    for var, default in settings.items():
+        value = os.environ.get(var, default)
+        if "://" in value:
+            url = urlsplit(value)
+            domain = ".".join((url.hostname or "").split(".")[-3:])
+            value = f"{domain}?{url.query}" if url.query else domain
+        out[var] = value
+    return out
+
+
 # netem arguments per direction, applied to both router egress interfaces; SIP is exempt.
 # delay, jitter, loss, mobile: synthetic stimuli for the calibrations (each impairment alone,
 # then together). lte, lte-bad: what a mobile caller's path does, from sources:
@@ -330,7 +355,7 @@ def target(
     the summary."""
     from rtpbench import cases as cs
 
-    user, engine_var, engine_default = TARGETS[name]
+    user, settings = TARGETS[name]
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
 
@@ -347,10 +372,9 @@ def target(
         caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
         router_ip = stack.sh("target", "getent hosts router").split()[0]
         stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
-        url = urlsplit(os.environ.get(engine_var) or engine_default)
-        engine = {"domain": ".".join((url.hostname or "").split(".")[-3:]), "query": url.query}
         conds = conditions(partial(stack.sh, "router"), seed)
-        conds |= {"profiles": profiles, "runs": runs, "target": name, "engine": engine}
+        conds |= {"profiles": profiles, "runs": runs, "target": name}
+        conds["engine"] = _engine(settings)
         conds["images"] = stack.compose("images")
         uri = f"sip:{user}@{target_ip}"
         proxy = stack.entry("operator")

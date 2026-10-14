@@ -1,0 +1,82 @@
+# LiveKit (server, SIP bridge, an Agents worker on the OpenAI Realtime model) as a target, merged
+# over ../../compose.yaml. As livekit/sip's docker-compose.yaml runs it (redis, livekit-server
+# --dev, sip; host networking there), but in the network namespace of `target` (agentnet, plus
+# egress to the AI engine), so everything is on 127.0.0.1 as upstream's is. rtpbench routes the
+# caller via the router, so SIP and RTP cross netem. Needs AZURE_OPENAI_ENDPOINT
+# (https://<resource>.openai.azure.com) and AZURE_OPENAI_API_KEY. Paths are relative to the
+# repository root, the first compose file's directory.
+services:
+  target:
+    image: ${RTPBENCH_IMAGE:?}
+    cap_add: [NET_ADMIN]
+    init: true
+    depends_on: [router]
+    networks: [agentnet, egress]
+    volumes: ["livekit-sip:/sip"]
+    # upstream's SIP config, except the address in the SDP: the one facing the caller (the
+    # router's side), not one found by STUN (use_external_ip: true there)
+    command:
+      - sh
+      - -c
+      - >-
+        python3 -c 'import socket as s; u = s.socket(2, 2);
+        u.connect((s.gethostbyname("router"), 9)); ip = u.getsockname()[0];
+        open("/sip/config.yaml", "w").write("api_key: devkey\napi_secret: secret\n"
+        "ws_url: ws://localhost:7880\nredis:\n  address: localhost:6379\nsip_port: 5060\n"
+        "rtp_port: 10000-20000\nnat_1_to_1_ip: " + ip + "\nlogging:\n  level: debug\n")'
+        && exec sleep infinity
+    healthcheck:
+      test: test -e /sip/config.yaml
+      interval: 1s
+      retries: 20
+
+  redis:
+    image: redis:8.2-alpine@sha256:b51665e66f00759be7c3152ad5ac3c66fb2f619c13ef62dea7cc1f9914524635
+    network_mode: service:target
+    depends_on: [target]
+
+  livekit:
+    image: livekit/livekit-server:v1.13.9@sha256:d0c04791bf63ca8dcea123571827d56ba9504bd57c8d5de60ee03b5408cc3154
+    network_mode: service:target
+    depends_on: [redis]
+    command: --dev --redis-host localhost:6379
+
+  sip:
+    image: livekit/sip:v1.19.0@sha256:4398c3794cfb0c62fd118ffa8fec42f386bf906106e656da011e0961223cb8b8
+    network_mode: service:target
+    depends_on:
+      target: { condition: service_healthy }
+      livekit: { condition: service_started }
+    volumes: ["livekit-sip:/sip:ro"]
+
+  agent-worker:
+    build:
+      context: ./targets/livekit
+      dockerfile_inline: |
+        FROM python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f
+        RUN pip install --no-cache-dir "livekit-agents[openai]==1.8.7"
+        WORKDIR /app
+        COPY agent.py .
+    image: rtpbench-livekit-agent:1.8.7
+    network_mode: service:target
+    depends_on: [livekit, sip]
+    environment:
+      LIVEKIT_URL: ws://localhost:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:?set AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:?set AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-realtime-2.1}
+      TRANSFER_TO: sip:operator@operator
+    command: sh -c 'python agent.py setup && exec python agent.py start'
+    # ready once the worker serves its health check (it has registered with the server)
+    healthcheck:
+      test: python -c 'import urllib.request as u; u.urlopen("http://127.0.0.1:8081")'
+      interval: 1s
+      retries: 60
+
+networks:
+  egress:
+
+volumes:
+  livekit-sip:
