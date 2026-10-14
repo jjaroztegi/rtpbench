@@ -40,6 +40,11 @@ services:
     volumes: ["${RTPBENCH_OUT:?}:/out"]
     command: sh -c 'ip route replace default via $$(getent hosts router | cut -d" " -f1) && exec sleep infinity'
 
+# The router forwards between these networks. Docker's default gateway mode drops packets
+# addressed to a container that arrive from another bridge; where bridged traffic goes through
+# iptables (br_netfilter) that includes every routed packet, so these networks opt out of it.
 networks:
   callnet:
+    driver_opts: { com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected }
   agentnet:
+    driver_opts: { com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected }

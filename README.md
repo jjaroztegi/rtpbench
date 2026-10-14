@@ -13,7 +13,7 @@ on clean and impaired paths, six of them what real trunks send, applied by a
 
 ## Calibrate
 
-Needs Linux (or WSL2), Docker with Compose, and [uv](https://docs.astral.sh/uv/).
+Needs Linux (or WSL2), Docker 28 or later with Compose, and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv run rtpbench calibrate            # 7 network profiles x 20 turns, about 10 minutes
