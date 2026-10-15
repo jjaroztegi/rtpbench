@@ -164,7 +164,8 @@ uv run --extra vad rtpbench target livekit --mock   # no AI engine, no key
 
 `--mock` puts a deterministic stand-in for the OpenAI Realtime API (GA protocol) where the
 target expects its engine ([`realtime.py`](src/rtpbench/realtime.py), [`mock/`](mock)), and
-points the target's engine variables at it; the targets' own code is unchanged. It hears the
+points the target's engine variables at it; the targets' own code is unchanged, and the target
+has no route out, so no paid engine can be reached. It hears the
 caller with the reference agent's energy gate, ends a turn after 1 s of silence, tells which of
 the caller's lines was said from its energy envelope, and 1.5 s after the turn's labelled end
 answers with a fixed clip (a long one to a long question) or, to the transfer line, with a call
