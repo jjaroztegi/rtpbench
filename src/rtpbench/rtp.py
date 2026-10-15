@@ -80,6 +80,7 @@ class Sender(threading.Thread):
         self.ts0 = 0  # added to every timestamp
         self.new: tuple[int, int, int] | None = None  # switch to (ssrc, seq, ts) at the next tick
         self.switched: int | None = None  # the tick it did
+        self.send_errors: list[tuple[int, str]] = []  # (tick, error) of packets the host refused
 
     def switch(self, ssrc: int, seq: int, ts: int) -> None:
         """From the next packet on, be a new source (RFC 3550: new SSRC, its own random seq and
@@ -100,9 +101,14 @@ class Sender(threading.Thread):
                     out = Frame(self.pt, out, n * FRAME, paused)
                 seq = (self.seq0 + sent) & 0xFFFF
                 ts = (out.ts + self.ts0) & 0xFFFFFFFF
-                self.sock.sendto(
-                    pack(out.pt, seq, ts, self.ssrc, out.payload, out.marker), self.addr
-                )
+                try:
+                    self.sock.sendto(
+                        pack(out.pt, seq, ts, self.ssrc, out.payload, out.marker), self.addr
+                    )
+                except OSError as e:
+                    # refused by the host (a conntrack clash when both ends start at once
+                    # gives EPERM): lost before the wire; its seq is spent, the stream goes on
+                    self.send_errors.append((n, f"{type(e).__name__}: {e}"))
                 sent += 1
             paused = out is None
             n += 1

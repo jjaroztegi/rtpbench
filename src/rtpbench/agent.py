@@ -615,6 +615,7 @@ def serve(
         "seed": seed,
         "turns": r.turns if r else [],
         "digits": r.digits if r else [],
+        "send_errors": call.sender.send_errors if call.sender else [],
     }
 
 

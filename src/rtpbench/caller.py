@@ -304,6 +304,7 @@ class Session:
             "call_id": self.dialog.call_id,
             "rtp_port": self.rtp.getsockname()[1],
             "transport": self.dialog.transport,
+            "send_errors": self.media[0].send_errors if self.media else [],
         }
 
 

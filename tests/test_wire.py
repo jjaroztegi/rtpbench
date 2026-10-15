@@ -188,3 +188,29 @@ def test_tcp_transport_frames_and_answers_on_the_same_connection() -> None:
     assert len(server.conns) == len(client.conns) == 1
     server.close()
     client.close()
+
+
+def test_sender_survives_a_refused_packet() -> None:
+    """A packet the host refuses (EPERM from a conntrack clash) is lost, not fatal: the next
+    ticks go out with the seq they would have had."""
+
+    class Refuses:
+        def __init__(self) -> None:
+            self.sent: list[bytes] = []
+
+        def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
+            if len(self.sent) + len(sender.send_errors) == 0:
+                raise PermissionError(1, "Operation not permitted")
+            self.sent.append(data)
+
+    sock = Refuses()
+
+    def source(n: int, _t: int) -> bytes:
+        if n == 3:
+            sender.stop.set()
+        return bytes(160)
+
+    sender = rtp.Sender(sock, ("x", 1), 0, source, CLOCK.now(), 100, 7)  # type: ignore[arg-type]
+    sender.run()
+    assert sender.send_errors == [(0, "PermissionError: [Errno 1] Operation not permitted")]
+    assert [p.seq for p in map(rtp.parse, sock.sent) if p] == [101, 102, 103]
