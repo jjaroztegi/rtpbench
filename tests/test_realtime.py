@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+import random
 import secrets
 import struct
 import threading
@@ -75,12 +76,29 @@ def test_lines_are_told_apart_and_answered() -> None:
             g711.PCMA, g711.encode(g711.PCMA, speech.read_wav(LINES / f"{name}.wav"))
         )
         got, how = lines.recognise(heard)
-        assert (got, how >= realtime.MATCH) == (name, True)
+        assert (got, how <= realtime.MATCH) == (name, True)
     assert lines.answer("transfer") == realtime.TOOL
     assert lines.answer("prompt-03") == realtime.LONG
     assert lines.answer("") == realtime.SHORT
     cough = speech.read_wav(speech.CORPUS / "cough-man-0.wav")
     assert lines.recognise(cough)[0] == ""
+
+
+def test_lines_are_told_apart_through_packet_loss() -> None:
+    """Bursts of lost 20 ms packets, as on lte-bad, either dropped (the rest moves up) or
+    concealed (the last packet again at half level)."""
+    lines, rng = realtime.Lines(), random.Random(7)
+    for name in ("transfer", "prompt-05", "turn-11", "turn-01"):
+        pcm = g711.decode(g711.PCMA, g711.encode(g711.PCMA, speech.read_wav(LINES / f"{name}.wav")))
+        for conceal in (False, True):
+            heard, bad, last = [], False, [0] * 160
+            for i in range(0, len(pcm), 160):
+                bad = rng.random() < (0.52 if bad else 0.032)
+                if not bad:
+                    heard += (last := pcm[i : i + 160])
+                elif conceal:
+                    heard += [s // 2 for s in last]
+            assert lines.recognise(heard)[0] == name
 
 
 async def _aivc(port: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

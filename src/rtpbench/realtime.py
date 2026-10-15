@@ -33,21 +33,25 @@ from rtpbench.voice import GATE
 
 PORT = 8000
 FRAME = 80  # 10 ms at 8 kHz
+PACKET = 160  # 20 ms
 HANGOVER_NS = 1_000_000_000  # silence that ends a turn (real speech pauses up to 0.8 s inside)
 DELAY_NS = 500_000_000  # from the end of a turn to the answer
 DELTA_MS = 100  # audio per delta
 LEAD_NS = 500_000_000  # how far ahead of real time the audio is sent
-MATCH = 0.75  # least envelope score that names a line
+MATCH = 1.75  # most distance (mean dB) that names a line: through lte-bad loss (6% of packets,
+# in bursts) a line came within 1.74 of its own in 448 of 448 turns, and no other sound in the
+# corpus within 1.99 of the transfer line or a prompt
 TOOL = "transfer_call"
 SHORT, LONG = "tts-ljspeech-s00", "tts-ljspeech-long"
 _GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 def envelope(pcm: list[int]) -> list[float]:
-    """10 ms log energy (dB) over 8 kHz samples."""
+    """20 ms log energy (dB) over 8 kHz samples: a packet's worth, so a lost packet blurs one
+    value instead of splitting two."""
     return [
-        10 * math.log10(sum(s * s for s in pcm[i : i + FRAME]) / FRAME + 1.0)
-        for i in range(0, len(pcm) - FRAME + 1, FRAME)
+        10 * math.log10(sum(s * s for s in pcm[i : i + PACKET]) / PACKET + 1.0)
+        for i in range(0, len(pcm) - PACKET + 1, PACKET)
     ]
 
 
@@ -61,23 +65,20 @@ def voiced(pcm: list[int]) -> list[int]:
     return pcm[v[0] : v[-1] + FRAME] if v else []
 
 
-def score(a: list[float], b: list[float], lag: int = 15) -> float:
-    """Best correlation of two envelopes over lags of up to 150 ms, scaled down by the share of
-    the longer one they do not overlap."""
-    best = -1.0
-    for k in range(-lag, lag + 1):
-        x, y = a[max(0, k) :], b[max(0, -k) :]
-        n = min(len(x), len(y))
-        if n < 20:
-            continue
-        x, y = x[:n], y[:n]
-        mx, my = sum(x) / n, sum(y) / n
-        sx = math.sqrt(sum((p - mx) ** 2 for p in x))
-        sy = math.sqrt(sum((q - my) ** 2 for q in y))
-        if sx and sy:
-            c = sum((p - mx) * (q - my) for p, q in zip(x, y, strict=True)) / (sx * sy)
-            best = max(best, c * n / max(len(a), len(b)))
-    return best
+def distance(a: list[float], b: list[float], band: int = 25) -> float:
+    """Mean dB apart along the closest time warp of two envelopes that stays within 500 ms of
+    the diagonal: packets dropped or concealed on the way stretch or shrink a line, which a
+    straight comparison takes for a different line. inf if the lengths differ by more."""
+    n, m = len(a), len(b)
+    if not n or not m or abs(n - m) > band:
+        return math.inf
+    prev = [0.0] + [math.inf] * m
+    for i in range(1, n + 1):
+        cur = [math.inf] * (m + 1)
+        for j in range(max(1, i - band), min(m, i + band) + 1):
+            cur[j] = abs(a[i - 1] - b[j - 1]) + min(prev[j], prev[j - 1], cur[j - 1])
+        prev = cur
+    return prev[m] / (n + m)
 
 
 class Lines:
@@ -92,10 +93,10 @@ class Lines:
             self.clips[name] = pcm[speech.label(pcm)[0][0] :]
 
     def recognise(self, pcm: list[int]) -> tuple[str, float]:
-        """The line said in `pcm` (8 kHz) and its score; "" if none scores MATCH."""
+        """The line said in `pcm` (8 kHz) and its distance; "" if none is within MATCH."""
         e = envelope(voiced(pcm))
-        best = max(((score(e, r), n) for n, r in self.refs.items()), default=(0.0, ""))
-        return (best[1] if best[0] >= MATCH else ""), best[0]
+        best = min(((distance(e, r), n) for n, r in self.refs.items()), default=(math.inf, ""))
+        return (best[1] if best[0] <= MATCH else ""), best[0]
 
     @staticmethod
     def answer(line: str) -> str:
@@ -318,7 +319,11 @@ class Session:
             }
         )
         end = self.speech_end()
-        heard = {"line": line, "score": round(how, 3), "speech_end_ns": end}
+        heard = {
+            "line": line,
+            "distance": round(how, 3) if how < math.inf else None,
+            "speech_end_ns": end,
+        }
         heard["gate_end_ns"] = self.last_voiced
         since = end + HANGOVER_NS  # so the engine always takes HANGOVER + DELAY from the end
         self.start(self.reply(self.lines.answer(line), "turn", {}, since, heard))
