@@ -89,14 +89,16 @@ def spans(a: int, b: int, steps: list[dict[str, Any]]) -> bool:
     return any(lo <= s["wall_ns"][1] and hi >= s["wall_ns"][0] for s in steps)
 
 
-def steps(out: Path) -> list[dict[str, Any]]:
-    """The steps a results directory's run logged (none if it predates the log)."""
+def steps(out: Path) -> list[dict[str, Any]] | None:
+    """The steps a results directory's run logged; None if it predates the log."""
     conds = out / "conditions.json"
-    return json.loads(conds.read_text()).get("clock_steps", []) if conds.exists() else []
+    return json.loads(conds.read_text()).get("clock_steps") if conds.exists() else None
 
 
-def note(steps: list[dict[str, Any]]) -> str:
+def note(steps: list[dict[str, Any]] | None) -> str:
     """One line on the wall-clock steps a run saw."""
+    if steps is None:
+        return "Wall-clock steps during the run: not recorded (the run predates the log).\n"
     if not steps:
         return "Wall-clock steps during the run: none.\n"
     sizes = ", ".join(f"{s['step_ms']:+.1f}" for s in steps)

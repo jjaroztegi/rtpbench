@@ -1460,12 +1460,13 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
     """Markdown summary per profile (repeats grouped), per-run records, and whether every
     reference behaviour got the verdict it should (good: pass, bad: fail) in every repeat."""
     steps = clock.steps(out)
+    known = steps or []
     records = []
     for run in runs:
         r = judge(out / run.run, run.profile)
         # what was timed across a wall-clock step reads short or long by it
         timed: list[Check | Timing] = [*r.checks, *r.timings]
-        stepped = sorted({x.name for x in timed if x.span and clock.spans(*x.span, steps)})
+        stepped = sorted({x.name for x in timed if x.span and clock.spans(*x.span, known)})
         records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": stepped})
     reference = bool(records) and records[0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]

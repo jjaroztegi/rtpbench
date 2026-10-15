@@ -153,4 +153,5 @@ def test_summaries_mark_what_ran_across_a_step() -> None:
     assert cases.failures(recs)[0].endswith("[1 across a clock step]")
     assert cases.errors(recs)[0].endswith("[1 across a clock step]")
     assert "none" in clock.note([])
+    assert "not recorded" in clock.note(None)
     assert "1 (-50.0 ms)" in clock.note([{"wall_ns": [0, 1], "step_ms": -50.0}])

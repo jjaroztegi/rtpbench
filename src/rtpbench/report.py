@@ -290,7 +290,7 @@ def render(out: Path, sections: list[tuple[str, str]] | None = None) -> str:
         '<p class="note">True value = measured &minus; error; the error lies within:</p><ul>',
         *(f"<li>[{b.lo:+.1f}, {b.hi:+.1f}] ms: {escape(b.source)}</li>" for b in sorted(bars)),
         "</ul>",
-        f'<p class="note">{escape(clock.note(conds.get("clock_steps", [])))}</p>',
+        f'<p class="note">{escape(clock.note(conds.get("clock_steps")))}</p>',
     ]
     for title, md in sections or []:
         parts += [f"<h2>{escape(title)}, {escape(target)}</h2>", _markdown(md)]
