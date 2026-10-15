@@ -1,6 +1,7 @@
 """`rtpbench calibrate`: reference agent behind a netem router, one call per profile and codec."""
 
 import hashlib
+import itertools
 import json
 import os
 import platform
@@ -146,7 +147,7 @@ class Stack:
             return
         pcap, err = f"/out/{rel}/carrier.pcap", f"/tmp/tap-{secrets.token_hex(3)}"
         cmd = "tcpdump -i eth0 -n -U --immediate-mode -B 32768 --time-stamp-precision=nano"
-        pid = self.sh("carrier", f"{cmd} -w {pcap} udp >/dev/null 2>{err} & echo $!")
+        pid = self.sh("carrier", f"{cmd} -w {pcap} udp or tcp >/dev/null 2>{err} & echo $!")
         _wait_for(Path(self.env["RTPBENCH_OUT"]) / rel / "carrier.pcap", 10)
         try:
             yield
@@ -168,8 +169,8 @@ class Stack:
             prio = f"root handle 1: prio bands 3 priomap {' '.join(['2'] * 16)}"
             self.sh("router", f"tc qdisc add dev {dev} {prio}")
             self.sh("router", f"tc qdisc add dev {dev} parent 1:3 handle 30: netem {args}")
-            for port in ("sport", "dport"):
-                match = f"u32 match ip protocol 17 0xff match ip {port} 5060 0xffff flowid 1:1"
+            for proto, port in itertools.product((17, 6), ("sport", "dport")):  # UDP, TCP
+                match = f"u32 match ip protocol {proto} 0xff match ip {port} 5060 0xffff flowid 1:1"
                 self.sh("router", f"tc filter add dev {dev} parent 1: protocol ip prio 1 {match}")
 
 

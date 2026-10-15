@@ -50,6 +50,8 @@ SIPFRAG = "message/sipfrag;version=2.0"
 SESSION_S = 90  # RFC 4028 minimum
 TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
 MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was disturbed
+LARGE = 1300  # bytes: a request larger than this MUST go over TCP (RFC 3261 18.1.1)
+PADDING = 820  # bytes of header that take an INVITE (~560) past LARGE, under one 1500 MTU
 PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 RETAKE_MAX_MS = 5000  # likewise an agent taking the call back after a failed transfer
@@ -469,6 +471,20 @@ def _carried(
     return s.meta(seed, s.remote_bye) | {"said": m.said}
 
 
+def large_invite(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """An INVITE over 1300 bytes (a trunk's extra headers) goes over TCP, as RFC 3261 18.1.1
+    says it MUST; if the agent refuses the connection, the caller retries over UDP, as 18.1.1
+    says it SHOULD. Then as `_carried`: greeting, question, reply."""
+    padding = {"headers": [("X-Padding", "0" * PADDING)]}
+    try:
+        log = _carried(lambda **o: dial(**o | padding | {"tcp": True}), seed, lines)
+        refused = ""
+    except OSError as e:  # connection refused (RST), or not even a SYN-ACK
+        refused = f"{type(e).__name__}: {e}"
+        log = _carried(lambda **o: dial(**o | padding), seed, lines)
+    return log | {"tcp_refused": refused}
+
+
 def compact_headers(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     return _carried(dial, seed, lines, "compact-headers")
 
@@ -595,16 +611,42 @@ def load(run: Path, profile: str = "clean") -> Wire:
     up: analyze.Timed = []
     down: analyze.Timed = []
     me, port = "", log.get("rtp_port")
-    for g in pcap.read(run / "caller.pcap"):
-        if _SIP.match(g.payload):
-            msg = sip.parse(g.payload)
-            if msg.get("call-id") != log.get("call_id"):
-                continue
-            me = me or g.src  # the caller sends the first message, its INVITE
-            msgs.append((g.t_ns, g.src == me, msg))
-        elif port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
+    grams = pcap.read(run / "caller.pcap")
+    for t, src, data in sorted([*_sip_over_tcp(grams), *_sip_over_udp(grams)]):
+        msg = sip.parse(data)
+        if msg.get("call-id") != log.get("call_id"):
+            continue
+        me = me or src  # the caller sends the first message, its INVITE
+        msgs.append((t, src == me, msg))
+    for g in grams:
+        if not g.tcp and port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
             (up if g.sport == port else down).append((g.t_ns, p))
     return Wire(log, agent, msgs, up, down, profile)
+
+
+def _sip_over_udp(grams: list[pcap.Datagram]) -> list[tuple[int, str, bytes]]:
+    return [(g.t_ns, g.src, g.payload) for g in grams if not g.tcp and _SIP.match(g.payload)]
+
+
+def _sip_over_tcp(grams: list[pcap.Datagram]) -> list[tuple[int, str, bytes]]:
+    """SIP messages in the TCP streams, framed by Content-Length (RFC 3261 18.3), each at the
+    capture time of the segment that brought its first byte."""
+    out = []
+    flows: dict[tuple[str, int, str, int], tuple[bytes, int]] = {}  # bytes not yet a message
+    for g in pcap.streams(grams):
+        flow = (g.src, g.sport, g.dst, g.dport)
+        buf, t = flows.get(flow, (b"", g.t_ns))
+        buf, t = buf + g.payload, t if buf.strip(b"\r\n") else g.t_ns
+        while True:
+            buf = buf.lstrip(b"\r\n")  # keep-alive CRLFs
+            head, sep, rest = buf.partition(b"\r\n\r\n")
+            length = int(sip.parse(head + sep).get("content-length") or 0) if sep else 0
+            if not sep or len(rest) < length or not _SIP.match(buf):
+                break
+            out.append((t, g.src, head + sep + rest[:length]))
+            buf, t = rest[length:], g.t_ns
+        flows[flow] = (buf, t)
+    return out
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:
@@ -1016,6 +1058,25 @@ def check_carried(w: Wire) -> Result:
     return _replies(w, r)
 
 
+def check_large_invite(w: Wire) -> Result:
+    """The INVITE, over 1300 bytes, went over TCP and was answered 2xx there (RFC 3261 18: every
+    element MUST take TCP); then the agent replies to a question as in `check_carried`."""
+    r = Result()
+    invite = w.find(lambda m: m.method == "INVITE", sent=True)
+    size = len(invite[1].render()) if invite else 0
+    r.checks.append(Check(f"INVITE over {LARGE} bytes", size > LARGE or None, f"{size} bytes"))
+    via = invite[1].get("via").split()[0] if invite else ""
+    if refused := w.log.get("tcp_refused"):
+        final = w.find(_final("INVITE"), sent=False)
+        detail = f"{refused}; over UDP then: {final[1].first if final else 'no answer'}"
+        r.checks.append(Check("INVITE over TCP answered 2xx", False, detail))
+    else:
+        ok = w.find(_is_2xx_invite, sent=False)
+        good = ok is not None and via == "SIP/2.0/TCP"
+        r.checks.append(Check("INVITE over TCP answered 2xx", good, via or "no INVITE"))
+    return _replies(w, r)
+
+
 def check_ssrc_change(w: Wire) -> Result:
     """As `check_carried`, the caller's audio having switched to a new RTP source first."""
     r = Result()
@@ -1211,6 +1272,13 @@ CASES = {
         check_ssrc_change,
         Behaviour(greet_s=0.5, reply_s=1.0),
         {"first-ssrc": Behaviour(greet_s=0.5, reply_s=1.0, any_ssrc=False)},
+    ),
+    "large-invite": Case(
+        large_invite,
+        check_large_invite,
+        Behaviour(greet_s=0.5, reply_s=1.0),
+        {"udp-only": Behaviour(greet_s=0.5, reply_s=1.0, tcp=False)},
+        route="direct",  # the carrier takes SIP over UDP only
     ),
     "reinvite": Case(
         reinvite,

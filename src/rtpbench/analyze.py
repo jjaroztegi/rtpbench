@@ -46,7 +46,7 @@ def load(path: Path) -> Capture:
     up: Timed = []
     down: Timed = []
     for g in grams:
-        if 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
+        if g.tcp or 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
             continue
         if p.pt in g711.NAMES:
             (up if g.src == invite.src else down).append((g.t_ns, p))
@@ -271,7 +271,7 @@ def transit(path: Path) -> dict[str, list[float]]:
     seen: dict[tuple[int, int, int], tuple[int, str]] = {}
     out: dict[str, list[float]] = {"up": [], "down": []}
     for g in grams:
-        if 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
+        if g.tcp or 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
             continue
         if (key := (p.ssrc, p.seq, p.ts)) in seen:
             t, src = seen.pop(key)

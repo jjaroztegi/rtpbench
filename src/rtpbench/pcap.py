@@ -1,4 +1,5 @@
-"""Classic pcap reader (as written by tcpdump -w): IPv4/UDP datagrams with ns timestamps."""
+"""Classic pcap reader (as written by tcpdump -w): IPv4 UDP datagrams and TCP segments with
+data, with ns timestamps."""
 
 import socket
 import struct
@@ -22,6 +23,8 @@ class Datagram:
     dst: str
     dport: int
     payload: bytes
+    tcp: bool = False
+    seq: int = 0  # TCP sequence number of the payload's first byte
 
 
 def _ip_offset(link: int, frame: bytes) -> int | None:
@@ -51,24 +54,48 @@ def read(path: Path) -> list[Datagram]:
         frame = data[pos + 16 : pos + 16 + incl]
         pos += 16 + incl
         ip = _ip_offset(link, frame)
-        if ip is None or len(frame) < ip + 28 or frame[ip + 9] != 17:
+        if ip is None or len(frame) < ip + 28 or frame[ip + 9] not in (6, 17):
             continue
         if struct.unpack_from("!H", frame, ip + 6)[0] & 0x3FFF:  # fragment
             continue
-        udp = ip + 4 * (frame[ip] & 0x0F)
-        if len(frame) < udp + 8:
-            continue
-        sport, dport, length = struct.unpack_from("!HHH", frame, udp)
-        if length < 8 or len(frame) < udp + length:  # cut short by the snaplen
-            continue
-        out.append(
-            Datagram(
-                sec * 1_000_000_000 + frac * scale,
-                socket.inet_ntoa(frame[ip + 12 : ip + 16]),
-                sport,
-                socket.inet_ntoa(frame[ip + 16 : ip + 20]),
-                dport,
-                frame[udp + 8 : udp + length],
-            )
+        t = sec * 1_000_000_000 + frac * scale
+        src, dst = (
+            socket.inet_ntoa(frame[ip + 12 : ip + 16]),
+            socket.inet_ntoa(frame[ip + 16 : ip + 20]),
         )
+        l4 = ip + 4 * (frame[ip] & 0x0F)
+        if frame[ip + 9] == 6:  # TCP: segments that carry data
+            end = ip + struct.unpack_from("!H", frame, ip + 2)[0]
+            if len(frame) < l4 + 20 or len(frame) < end:
+                continue
+            sport, dport, seq = struct.unpack_from("!HHI", frame, l4)
+            body = frame[l4 + 4 * (frame[l4 + 12] >> 4) : end]
+            if body:
+                out.append(Datagram(t, src, sport, dst, dport, body, True, seq))
+            continue
+        if len(frame) < l4 + 8:
+            continue
+        sport, dport, length = struct.unpack_from("!HHH", frame, l4)
+        if length < 8 or len(frame) < l4 + length:  # cut short by the snaplen
+            continue
+        out.append(Datagram(t, src, sport, dst, dport, frame[l4 + 8 : l4 + length]))
+    return out
+
+
+def streams(grams: list[Datagram]) -> list[Datagram]:
+    """The TCP segments of `grams` that add bytes to their flow's stream, in capture order,
+    each cut to the bytes it adds (a retransmission adds none)."""
+    out: list[Datagram] = []
+    nxt: dict[tuple[str, int, str, int], int] = {}  # next sequence number per flow
+    for g in grams:
+        if not g.tcp:
+            continue
+        flow = (g.src, g.sport, g.dst, g.dport)
+        seen = (nxt.get(flow, g.seq) - g.seq) & 0xFFFFFFFF
+        if seen >= 1 << 31:  # a gap: bytes lost before the capture saw them
+            seen = 0
+        if seen >= len(g.payload):
+            continue
+        nxt[flow] = (g.seq + len(g.payload)) & 0xFFFFFFFF
+        out.append(Datagram(g.t_ns, *flow, g.payload[seen:], True, g.seq + seen))
     return out

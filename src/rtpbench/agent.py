@@ -15,6 +15,7 @@ In a conformance case the agent answers no turns; it does what the case's `Behav
 import random
 import re
 import secrets
+import select
 import socket
 import threading
 import time
@@ -77,6 +78,7 @@ class Behaviour:
     zero_hold: bool = True  # an offer with c=0.0.0.0 holds (RFC 3264 8.4); else keep sending
     reoffer: bool = True  # offer in the 2xx to a re-INVITE without SDP; else a 2xx without SDP
     recodec: bool = True  # take a re-INVITE's other G.711 law; else answer the old one (stale)
+    tcp: bool = True  # listen on TCP too (RFC 3261 18: every element MUST); else UDP only
     busy: bool = False  # 486 Busy Here to the INVITE (the operator of a failed transfer)
 
 
@@ -271,11 +273,11 @@ def _local_ip(peer: tuple[str, int]) -> str:
 class Uas:
     """The reference agent's SIP side of one call: answers (after ringing, if the case says so),
     resends its final response to the INVITE until ACKed, and takes CANCEL and BYE as the case
-    says."""
+    says. `sock`: the transport the INVITE came on (a UDP socket or `sip.Tcp`)."""
 
     def __init__(
         self,
-        sock: socket.socket,
+        sock: socket.socket | sip.Tcp,
         rtp: socket.socket,
         case: Behaviour,
         responder: Callable[[int, int], Responder],
@@ -320,13 +322,16 @@ class Uas:
                     sip.T1,
                 )
 
-    def handle(self, msg: sip.Message, addr: tuple[str, int]) -> None:
+    def handle(
+        self, msg: sip.Message, addr: tuple[str, int], via: socket.socket | sip.Tcp | None = None
+    ) -> None:
+        """A message from `addr`, on `via` (the call's transport if None)."""
         inv = self.invite
         if msg.status:
             self._response(msg)
             return
         if inv is None and msg.method == "INVITE":
-            self.addr = addr
+            self.addr, self.sock = addr, via or self.sock
             self._invite(msg)
         elif inv is None or msg.get("call-id") != inv.get("call-id"):
             if msg.method not in ("ACK", "INVITE"):
@@ -466,7 +471,8 @@ class Uas:
 
     def _ok(self, req: sip.Message, direction: str) -> sip.Message:
         local = _local_ip(self.addr)
-        extra = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}>")]
+        param = ";transport=tcp" if isinstance(self.sock, sip.Tcp) else ""
+        extra = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}{param}>")]
         origin = (self.origin[0], self.origin[1])
         pts = list(g711.NAMES) if self.late and self.sender is None else [self.pt]
         body = sip.sdp(local, self.rtp.getsockname()[1], pts, direction, origin, self.dtmf)
@@ -580,6 +586,7 @@ def serve(
     hangover = SPEECH_HANGOVER_NS if real or case else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", sip_port))
+    tcp = sip.Tcp(sip_port) if (case or Behaviour()).tcp else None
     rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rtp.bind(("0.0.0.0", rtp_port))
     ready.touch()
@@ -588,14 +595,19 @@ def serve(
         return Responder(pt, seq0, delays, clips, hangover, plan)
 
     call = Uas(sock, rtp, case or Behaviour(), responder, greeting)
-    sock.settimeout(0.02)
+    sock.settimeout(0)
     while not call.done:
+        ready_socks = select.select([sock, *(tcp.sockets() if tcp else [])], [], [], 0.02)[0]
         try:
-            data, addr = sock.recvfrom(65535)
-        except TimeoutError:
+            if sock in ready_socks:
+                data, addr = sock.recvfrom(65535)
+                call.handle(sip.parse(data), addr, sock)
+            elif tcp and ready_socks:
+                tcp.settimeout(0)
+                data, addr = tcp.recvfrom()
+                call.handle(sip.parse(data), addr, tcp)
+        except TimeoutError, BlockingIOError:
             pass
-        else:
-            call.handle(sip.parse(data), addr)
         call.tick()
     call.stop()
     r = call.responder

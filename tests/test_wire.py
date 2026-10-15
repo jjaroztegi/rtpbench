@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from rtpbench import analyze, g711, pcap, rtp, sip
+from rtpbench import analyze, cases, g711, pcap, rtp, sip
 from rtpbench.clock import CLOCK
 
 
@@ -137,3 +137,54 @@ def test_sender_switch_starts_a_new_source() -> None:
         (502, 123776, False),
     ]
     assert sender.switched == k
+
+
+def _tcp_pcap(path: Path, segs: list[tuple[int, str, int, str, int, int, bytes]]) -> None:
+    """A nanosecond pcap of raw IPv4/TCP segments (time, src, sport, dst, dport, seq, data)."""
+    data = struct.pack("<IHHiIII", 0xA1B23C4D, 2, 4, 0, 0, 65535, 101)
+    for t, src, sport, dst, dport, seq, payload in segs:
+        tcp = struct.pack("!HHIIBBHHH", sport, dport, seq, 0, 5 << 4, 0x18, 65535, 0, 0) + payload
+        addrs = [bytes(map(int, a.split("."))) for a in (src, dst)]
+        ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(tcp), 0, 0, 64, 6, 0, *addrs)
+        data += struct.pack("<IIII", *divmod(t, 1_000_000_000), len(ip + tcp), len(ip + tcp))
+        data += ip + tcp
+    path.write_bytes(data)
+
+
+def test_sip_over_tcp_is_framed_from_the_stream(tmp_path: Path) -> None:
+    """Two messages split across segments, one segment retransmitted: each message once, at the
+    time of the segment that brought its first byte."""
+    invite = sip.Message("INVITE sip:a@b SIP/2.0", [("Call-ID", "x")], b"v=0\r\n" * 300).render()
+    trying = sip.Message("SIP/2.0 100 Trying", [("Call-ID", "x")]).render()
+    a, b = ("10.0.0.1", 40000), ("10.0.0.2", 5060)
+    _tcp_pcap(
+        tmp_path / "x.pcap",
+        [
+            (1_000, *a, *b, 7, invite[:1000]),
+            (2_000, *a, *b, 7, invite[:1000]),  # retransmitted
+            (3_000, *a, *b, 1007, invite[1000:]),
+            (4_000, *b, *a, 99, trying),
+        ],
+    )
+    got = cases._sip_over_tcp(pcap.read(tmp_path / "x.pcap"))
+    assert [(t, src, len(m)) for t, src, m in got] == [
+        (1_000, "10.0.0.1", len(invite)),
+        (4_000, "10.0.0.2", len(trying)),
+    ]
+
+
+def test_tcp_transport_frames_and_answers_on_the_same_connection() -> None:
+    server, client = sip.Tcp(), sip.Tcp()
+    server.settimeout(2)
+    client.settimeout(2)
+    addr = ("127.0.0.1", server.getsockname()[1])
+    big = sip.Message("INVITE sip:a@b SIP/2.0", [("Call-ID", "y")], b"x" * 3000).render()
+    client.sendto(big[:10], addr)  # a message may arrive in pieces
+    client.sendto(big[10:], addr)
+    data, peer = server.recvfrom()
+    assert data == big
+    server.sendto(b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n", peer)
+    assert client.recvfrom() == (b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n", addr)
+    assert len(server.conns) == len(client.conns) == 1
+    server.close()
+    client.close()

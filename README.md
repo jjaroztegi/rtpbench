@@ -60,7 +60,7 @@ stop time error per detector and timing method, and whether rtpbench told stops 
 
 ## Network profiles
 
-netem settings per direction, on the router, RTP only (SIP is never impaired). `delay`, `jitter`,
+netem settings per direction, on the router, RTP only (SIP, over UDP or TCP, is never impaired). `delay`, `jitter`,
 `loss` and `mobile` are synthetic stimuli for the calibrations. `lte` and `lte-bad` stand for a
 mobile caller's path, and every number in them has a source:
 
@@ -123,6 +123,7 @@ transferee sends it; by default it goes to the Refer-To host.
 | `reinvite-nosdp` | after the greeting, a re-INVITE without SDP, as PBXs send to move or audit media (RFC 3261 14.1): the 2xx offers the call's codec (14.2: MUST overlap), the caller answers in the ACK, the agent's media goes on undisturbed, and it replies to a question within 10 s |
 | `hold-zero` | hold the RFC 2543 way: re-INVITE with `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4: an agent MUST be able to receive it, and then sends no RTP): 2xx, no agent RTP while held, RTP back within 1 s as the same stream (without the carrier only) |
 | `codec-change` | after the greeting, a re-INVITE offers the other G.711 law alone and the caller switches to it on the 2xx: the answer has that law alone, the agent's RTP switches, and it replies to a question within 10 s (without the carrier only, as the codec cases) |
+| `large-invite` | an INVITE over 1300 bytes (a trunk's extra headers, padded to about 1400) goes over TCP, as RFC 3261 18.1.1 says it MUST: answered 2xx over TCP (RFC 3261 18: every element MUST take TCP), and the agent replies to a question within 10 s. If the connection is refused the caller retries over UDP (18.1.1: SHOULD), for the record (without the carrier only: it takes UDP only) |
 
 What a carrier sends (with `--carrier` only; the carrier applies it, the call is otherwise the
 same): the call is answered and the agent replies to a question within 10 s.

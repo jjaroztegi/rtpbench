@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 @contextmanager
-def capture(path: Path, iface: str = "eth0", bpf: str = "udp") -> Iterator[None]:
+def capture(path: Path, iface: str = "eth0", bpf: str = "udp or tcp") -> Iterator[None]:
     # Immediate mode: without it libpcap hands packets over in blocks of up to a second, and
     # stopping tcpdump right after a BYE loses the end of the call. 32 MiB of kernel buffer
     # (default 2): a busy host once starved a capture of four streams into a drop.

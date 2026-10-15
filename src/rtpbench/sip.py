@@ -1,9 +1,10 @@
-"""Minimal SIP over UDP: one audio call as UAC or UAS (RFC 3261 subset).
+"""Minimal SIP over UDP or TCP: one audio call as UAC or UAS (RFC 3261 subset).
 
 Messages stay plain header lists, so a caller can add, drop or reorder anything before sending.
 """
 
 import secrets
+import select
 import socket
 import time
 from dataclasses import dataclass, field
@@ -192,6 +193,80 @@ class SipError(Exception):
     pass
 
 
+class Tcp:
+    """SIP over TCP behind a UDP socket's interface (`sendto`, `recvfrom`, `settimeout`,
+    `getsockname`), so a dialog runs on either. Listens on `port`; `sendto` uses the connection
+    to or from that address, or opens one; messages are framed by Content-Length (RFC 3261
+    18.3). The peer of an accepted connection is its address, so answers go back on it."""
+
+    transport = "TCP"
+
+    def __init__(self, port: int = 0) -> None:
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.bind(("0.0.0.0", port))
+        self.server.listen(16)
+        self.conns: dict[tuple[str, int], socket.socket] = {}
+        self.buf: dict[tuple[str, int], bytes] = {}
+        self.timeout: float | None = None
+
+    def getsockname(self) -> tuple[str, int]:
+        name: tuple[str, int] = self.server.getsockname()
+        return name
+
+    def settimeout(self, timeout: float | None) -> None:
+        self.timeout = timeout
+
+    def sockets(self) -> list[socket.socket]:
+        return [self.server, *self.conns.values()]
+
+    def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
+        """Send on the connection with `addr`; ConnectionRefusedError if none can be opened."""
+        if addr not in self.conns:
+            conn = socket.create_connection(addr, timeout=5)
+            conn.settimeout(None)
+            self.conns[addr], self.buf[addr] = conn, b""
+        self.conns[addr].sendall(data)
+
+    def _message(self) -> tuple[bytes, tuple[str, int]] | None:
+        """A complete message already read, if any."""
+        for addr, buf in self.buf.items():
+            head, sep, rest = buf.lstrip(b"\r\n").partition(b"\r\n\r\n")
+            if not sep:
+                continue
+            length = int(parse(head + sep).get("content-length") or 0)
+            if len(rest) >= length:
+                self.buf[addr] = rest[length:]
+                return head + sep + rest[:length], addr
+        return None
+
+    def recvfrom(self, _bufsize: int = 0) -> tuple[bytes, tuple[str, int]]:
+        """The next message and who sent it; TimeoutError after the timeout."""
+        deadline = None if self.timeout is None else time.monotonic() + self.timeout
+        while (got := self._message()) is None:
+            left = None if deadline is None else max(0.0, deadline - time.monotonic())
+            ready, _, _ = select.select(self.sockets(), [], [], left)
+            if not ready:
+                raise TimeoutError
+            for s in ready:
+                if s is self.server:
+                    conn, addr = s.accept()
+                    self.conns[addr], self.buf[addr] = conn, b""
+                    continue
+                addr = next(a for a, c in self.conns.items() if c is s)
+                data = s.recv(65535)
+                if data:
+                    self.buf[addr] += data
+                else:  # closed by the peer
+                    s.close()
+                    del self.conns[addr]
+        return got
+
+    def close(self) -> None:
+        for s in self.sockets():
+            s.close()
+
+
 @dataclass
 class _Tx:
     msg: Message
@@ -206,7 +281,7 @@ class Dialog:
 
     def __init__(
         self,
-        sock: socket.socket,
+        sock: socket.socket | Tcp,
         peer: tuple[str, int],
         local_ip: str,
         local: str,
@@ -217,20 +292,29 @@ class Dialog:
     ) -> None:
         self.sock, self.peer, self.local_ip = sock, peer, local_ip
         self.local, self.remote, self.call_id, self.target = local, remote, call_id, target
-        self.contact = f"<sip:{user}@{local_ip}:{sock.getsockname()[1]}>"
+        self.transport: str = getattr(sock, "transport", "UDP")
+        param = ";transport=tcp" if self.transport == "TCP" else ""
+        self.contact = f"<sip:{user}@{local_ip}:{sock.getsockname()[1]}{param}>"
         self.cseq = 0
         self.routes: list[str] = []
         self.pending: dict[tuple[str, str], _Tx] = {}  # (branch, method)
 
     @classmethod
-    def uac(cls, sock: socket.socket, peer: tuple[str, int], uri: str, local_ip: str) -> Dialog:
+    def uac(
+        cls, sock: socket.socket | Tcp, peer: tuple[str, int], uri: str, local_ip: str
+    ) -> Dialog:
         local = f"<sip:rtpbench@{local_ip}>;tag={secrets.token_hex(4)}"
         call_id = f"{secrets.token_hex(8)}@{local_ip}"
         return cls(sock, peer, local_ip, local, f"<{uri}>", call_id, uri)
 
     @classmethod
     def uas(
-        cls, sock: socket.socket, peer: tuple[str, int], invite: Message, local_ip: str, to_tag: str
+        cls,
+        sock: socket.socket | Tcp,
+        peer: tuple[str, int],
+        invite: Message,
+        local_ip: str,
+        to_tag: str,
     ) -> Dialog:
         d = cls(
             sock,
@@ -257,7 +341,7 @@ class Dialog:
             self.cseq += 1
         port = self.sock.getsockname()[1]
         branch = "z9hG4bK" + secrets.token_hex(6)
-        hdrs = [("Via", f"SIP/2.0/UDP {self.local_ip}:{port};branch={branch};rport")]
+        hdrs = [("Via", f"SIP/2.0/{self.transport} {self.local_ip}:{port};branch={branch};rport")]
         hdrs += [("Route", r) for r in self.routes]
         hdrs += [
             ("Max-Forwards", "70"),
@@ -274,11 +358,13 @@ class Dialog:
         return Message(f"{method} {self.target} SIP/2.0", hdrs, body)
 
     def send(self, msg: Message) -> None:
-        """Send; a request other than ACK is retransmitted until its final response."""
+        """Send; a request other than ACK is retransmitted until its final response (over UDP;
+        TCP is reliable, RFC 3261 17.1.1.2)."""
         self.sock.sendto(msg.render(), self.peer)
         if msg.method and msg.method != "ACK":
             now = time.monotonic()
-            self.pending[msg.branch, msg.method] = _Tx(msg, now + T1, T1, now + 64 * T1)
+            first = now + T1 if self.transport == "UDP" else now + 64 * T1
+            self.pending[msg.branch, msg.method] = _Tx(msg, first, T1, now + 64 * T1)
 
     def retransmit(self) -> float:
         """Resend what is due; seconds until the next resend (at most 0.1)."""
