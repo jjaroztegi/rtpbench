@@ -1,0 +1,559 @@
+"""Mock engine: a deterministic stand-in for the OpenAI Realtime API (GA protocol).
+
+A WebSocket server (stdlib only) that speaks the protocol both public targets use: G.711 in
+and out (AI Voice Connector CE, by OPENAI_URL) or 24 kHz PCM16 (LiveKit's `with_azure`, by its
+endpoint). It hears the caller with the reference agent's energy gate: a turn starts at the
+first voiced 10 ms frame and ends after HANGOVER_NS of audio without one. At the end of a turn
+it tells which of the caller's lines (corpus/lines/en) was said from its energy envelope and,
+HANGOVER_NS + DELAY_NS after the turn's last labelled sample arrived (labelled as the caller's
+lines are), answers: the transfer line
+with a call to the transfer tool, a long question with a long clip, anything else with a short
+one (always the same clips). A turn that starts while it answers cancels the answer, as server
+VAD does. Audio goes out in 100 ms deltas, kept LEAD_NS ahead of real time.
+
+Every answer is logged (`/out/realtime.jsonl`) with when the caller's speech ended as heard
+here and when the first audio went out, on the clock captures stamp: a target's turn latency
+then splits into its uplink, this engine's known share and its downlink (`decompose`).
+"""
+
+import asyncio
+import base64
+import hashlib
+import json
+import math
+import secrets
+import struct
+from array import array
+from pathlib import Path
+from typing import Any
+
+from rtpbench import g711, speech
+from rtpbench.clock import CLOCK
+from rtpbench.voice import GATE
+
+PORT = 8000
+FRAME = 80  # 10 ms at 8 kHz
+HANGOVER_NS = 1_000_000_000  # silence that ends a turn (real speech pauses up to 0.8 s inside)
+DELAY_NS = 500_000_000  # from the end of a turn to the answer
+DELTA_MS = 100  # audio per delta
+LEAD_NS = 500_000_000  # how far ahead of real time the audio is sent
+MATCH = 0.75  # least envelope score that names a line
+TOOL = "transfer_call"
+SHORT, LONG = "tts-ljspeech-s00", "tts-ljspeech-long"
+_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+def envelope(pcm: list[int]) -> list[float]:
+    """10 ms log energy (dB) over 8 kHz samples."""
+    return [
+        10 * math.log10(sum(s * s for s in pcm[i : i + FRAME]) / FRAME + 1.0)
+        for i in range(0, len(pcm) - FRAME + 1, FRAME)
+    ]
+
+
+def voiced(pcm: list[int]) -> list[int]:
+    """From the first to the last 10 ms frame the gate calls voiced."""
+    v = [
+        i
+        for i in range(0, len(pcm) - FRAME + 1, FRAME)
+        if max(map(abs, pcm[i : i + FRAME])) >= GATE
+    ]
+    return pcm[v[0] : v[-1] + FRAME] if v else []
+
+
+def score(a: list[float], b: list[float], lag: int = 15) -> float:
+    """Best correlation of two envelopes over lags of up to 150 ms, scaled down by the share of
+    the longer one they do not overlap."""
+    best = -1.0
+    for k in range(-lag, lag + 1):
+        x, y = a[max(0, k) :], b[max(0, -k) :]
+        n = min(len(x), len(y))
+        if n < 20:
+            continue
+        x, y = x[:n], y[:n]
+        mx, my = sum(x) / n, sum(y) / n
+        sx = math.sqrt(sum((p - mx) ** 2 for p in x))
+        sy = math.sqrt(sum((q - my) ** 2 for q in y))
+        if sx and sy:
+            c = sum((p - mx) * (q - my) for p, q in zip(x, y, strict=True)) / (sx * sy)
+            best = max(best, c * n / max(len(a), len(b)))
+    return best
+
+
+class Lines:
+    """The caller's lines, and what to answer each with."""
+
+    def __init__(self) -> None:
+        paths = sorted((speech.CORPUS / "lines" / "en").glob("*.wav"))
+        self.refs = {p.stem: envelope(voiced(speech.read_wav(p))) for p in paths}
+        self.clips = {}
+        for name in (SHORT, LONG):  # from the labelled onset, so sample 0 is speech
+            pcm = speech.read_wav(speech.CORPUS / f"{name}.wav")
+            self.clips[name] = pcm[speech.label(pcm)[0][0] :]
+
+    def recognise(self, pcm: list[int]) -> tuple[str, float]:
+        """The line said in `pcm` (8 kHz) and its score; "" if none scores MATCH."""
+        e = envelope(voiced(pcm))
+        best = max(((score(e, r), n) for n, r in self.refs.items()), default=(0.0, ""))
+        return (best[1] if best[0] >= MATCH else ""), best[0]
+
+    @staticmethod
+    def answer(line: str) -> str:
+        """The clip for a line, or TOOL."""
+        if line == "transfer":
+            return TOOL
+        return LONG if line.startswith("prompt") else SHORT
+
+
+# --- WebSocket (RFC 6455, server side: text frames out, masked frames in) ---
+
+
+async def _handshake(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> str:
+    head = (await reader.readuntil(b"\r\n\r\n")).decode(errors="replace").split("\r\n")
+    headers = {k.strip().lower(): v.strip() for k, _, v in (h.partition(":") for h in head[1:])}
+    key = headers["sec-websocket-key"].encode()
+    accept = base64.b64encode(hashlib.sha1(key + _GUID).digest()).decode()
+    writer.write(
+        (
+            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
+        ).encode()
+    )
+    await writer.drain()
+    return head[0]
+
+
+async def _frame(reader: asyncio.StreamReader) -> tuple[int, bytes]:
+    """One message: opcode and payload (continuation frames joined)."""
+    data, first = b"", None
+    while True:
+        b0, b1 = await reader.readexactly(2)
+        n = b1 & 0x7F
+        if n == 126:
+            n = struct.unpack("!H", await reader.readexactly(2))[0]
+        elif n == 127:
+            n = struct.unpack("!Q", await reader.readexactly(8))[0]
+        mask = await reader.readexactly(4) if b1 & 0x80 else b""
+        chunk = await reader.readexactly(n)
+        if mask:
+            chunk = bytes(c ^ mask[i % 4] for i, c in enumerate(chunk))
+        if b0 & 0x0F >= 8:  # a control frame may sit between fragments
+            return b0 & 0x0F, chunk
+        first = b0 & 0x0F if first is None else first
+        data += chunk
+        if b0 & 0x80:
+            return first, data
+
+
+def _pack(opcode: int, data: bytes) -> bytes:
+    n = len(data)
+    if n < 126:
+        head = struct.pack("!BB", 0x80 | opcode, n)
+    elif n < 1 << 16:
+        head = struct.pack("!BBH", 0x80 | opcode, 126, n)
+    else:
+        head = struct.pack("!BBQ", 0x80 | opcode, 127, n)
+    return head + data
+
+
+# --- the engine ---
+
+
+def _id(prefix: str) -> str:
+    return f"{prefix}_{secrets.token_hex(8)}"
+
+
+class Session:
+    """One WebSocket connection: a conversation."""
+
+    def __init__(self, writer: asyncio.StreamWriter, lines: Lines, log: Path) -> None:
+        self.writer, self.lines, self.log = writer, lines, log
+        self.id = _id("sess")
+        self.session: dict[str, Any] = {"type": "realtime", "object": "realtime.session"}
+        self.pt: int | None = None  # G.711 law, or None for 24 kHz PCM16
+        self.heard: list[int] = []  # the current turn, 8 kHz
+        self.heard_at: list[int] = []  # clock time of each of its 10 ms frames' sample 0
+        self.speaking = False
+        self.last_voiced = 0  # clock time of the turn's last voiced sample
+        self.quiet = 0  # samples since it
+        self.started = 0  # clock time the turn started
+        self.answering: asyncio.Task[None] | None = None
+        self.responding = False  # an answer has been created and is not done
+        self.user_item = ""
+        self.last_item = ""
+        self.tools: list[str] = []
+
+    # outgoing
+
+    async def send(self, event: dict[str, Any]) -> None:
+        event = {"event_id": _id("event")} | event
+        self.writer.write(_pack(1, json.dumps(event).encode()))
+        await self.writer.drain()
+
+    def note(self, record: dict[str, Any]) -> None:
+        with self.log.open("a") as f:
+            f.write(json.dumps({"session": self.id} | record) + "\n")
+
+    # incoming
+
+    async def handle(self, event: dict[str, Any]) -> None:
+        kind = event.get("type")
+        if kind == "session.update":
+            self.configure(event.get("session", {}))
+            await self.send({"type": "session.updated", "session": self.session})
+        elif kind == "input_audio_buffer.append":
+            await self.hear(base64.b64decode(event["audio"]), CLOCK.now())
+        elif kind == "response.create":
+            asked, now = event.get("response", {}), CLOCK.now()
+            self.start(self.reply(self.lines.answer(""), "create", asked, now, {"asked_ns": now}))
+        elif kind == "response.cancel":
+            await self.cancel()
+        elif kind == "conversation.item.create":
+            item = event.get("item", {}) | {"id": event.get("item", {}).get("id") or _id("item")}
+            await self.added(item)
+        elif kind == "conversation.item.truncate":
+            await self.send(
+                {
+                    "type": "conversation.item.truncated",
+                    "item_id": event.get("item_id"),
+                    "content_index": event.get("content_index", 0),
+                    "audio_end_ms": event.get("audio_end_ms", 0),
+                }
+            )
+        elif kind in ("input_audio_buffer.clear", "input_audio_buffer.commit"):
+            if kind.endswith("clear"):
+                self.heard, self.speaking = [], False
+            await self.send(
+                {"type": kind.replace("clear", "cleared").replace("commit", "committed")}
+            )
+
+    def configure(self, update: dict[str, Any]) -> None:
+        self.session |= update
+        fmt = update.get("audio", {}).get("input", {}).get("format", {}).get("type", "")
+        if fmt:
+            self.pt = {"audio/pcmu": g711.PCMU, "audio/pcma": g711.PCMA}.get(fmt)
+        if "tools" in update:
+            self.tools = [t.get("name", "") for t in update["tools"]]
+        self.note({"event": "session", "format": fmt or None, "tools": self.tools})
+
+    async def added(self, item: dict[str, Any]) -> None:
+        await self.send(
+            {"type": "conversation.item.added", "previous_item_id": self.last_item or None}
+            | {"item": item}
+        )
+        await self.send({"type": "conversation.item.done", "item": item})
+        self.last_item = item["id"]
+
+    def decode(self, audio: bytes) -> list[int]:
+        """8 kHz samples of what was appended."""
+        if self.pt is not None:
+            return g711.decode(self.pt, audio)
+        pcm = array("h", audio[: len(audio) // 2 * 2])
+        return [round((pcm[i] + pcm[i + 1] + pcm[i + 2]) / 3) for i in range(0, len(pcm) - 2, 3)]
+
+    def encode(self, pcm: list[int]) -> bytes:
+        """8 kHz samples as this session sends audio."""
+        if self.pt is not None:
+            return g711.encode(self.pt, pcm)
+        up = array("h")
+        for a, b in zip(pcm, [*pcm[1:], pcm[-1]], strict=True):
+            up.extend((a, round(a + (b - a) / 3), round(a + 2 * (b - a) / 3)))
+        return up.tobytes()
+
+    async def hear(self, audio: bytes, arrival: int) -> None:
+        """Audio that arrived at `arrival`: turns start and end, by the audio itself (a turn ends
+        after HANGOVER_NS of silent audio, however fast it came). Sample k of a chunk sits at
+        arrival + k/8000 s, the convention the captures' analysis uses for a packet."""
+        pcm = self.decode(audio)
+        for i in range(0, len(pcm), FRAME):
+            frame = pcm[i : i + FRAME]
+            t0 = arrival + i * 125_000  # the frame's sample 0
+            loud = [k for k, s in enumerate(frame) if abs(s) >= GATE]
+            if loud:
+                if not self.speaking:
+                    await self.turn_starts(t0 + loud[0] * 125_000)
+                self.last_voiced = t0 + loud[-1] * 125_000
+                self.quiet = len(frame) - 1 - loud[-1]
+            elif self.speaking:
+                self.quiet += len(frame)
+            if self.speaking:
+                self.heard += frame
+                self.heard_at.append(t0)
+                if self.quiet * 125_000 >= HANGOVER_NS:
+                    await self.turn_ends()
+
+    async def turn_starts(self, at: int) -> None:
+        self.speaking, self.heard, self.heard_at, self.started = True, [], [], at
+        self.user_item = _id("item")
+        barged = self.responding
+        await self.send(
+            {"type": "input_audio_buffer.speech_started", "item_id": self.user_item}
+            | {"audio_start_ms": 0}
+        )
+        if barged:
+            self.note({"event": "barge", "speech_start_ns": at, "cancel_ns": CLOCK.now()})
+        await self.cancel()  # an answer playing, or still to come
+
+    async def turn_ends(self) -> None:
+        self.speaking = False
+        line, how = self.lines.recognise(self.heard)
+        await self.send(
+            {"type": "input_audio_buffer.speech_stopped", "item_id": self.user_item}
+            | {"audio_end_ms": 0}
+        )
+        await self.send(
+            {"type": "input_audio_buffer.committed", "item_id": self.user_item}
+            | {"previous_item_id": self.last_item or None}
+        )
+        content = [{"type": "input_audio", "transcript": line or None}]
+        await self.added(
+            {"id": self.user_item, "type": "message", "role": "user"} | {"content": content}
+        )
+        await self.send(
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "item_id": self.user_item,
+                "content_index": 0,
+                "transcript": line or "(not one of the caller's lines)",
+            }
+        )
+        end = self.speech_end()
+        heard = {"line": line, "score": round(how, 3), "speech_end_ns": end}
+        heard["gate_end_ns"] = self.last_voiced
+        since = end + HANGOVER_NS  # so the engine always takes HANGOVER + DELAY from the end
+        self.start(self.reply(self.lines.answer(line), "turn", {}, since, heard))
+
+    def speech_end(self) -> int:
+        """When the turn's last labelled sample (`speech.label`, as the caller's lines are
+        labelled) arrived; the gate's last voiced sample if the turn will not label."""
+        try:
+            k = speech.label(self.heard)[-1][1] - 1
+        except ValueError:
+            return self.last_voiced
+        return self.heard_at[k // FRAME] + k % FRAME * 125_000
+
+    def start(self, answer: Any) -> None:
+        if self.answering is not None and not self.answering.done():
+            self.answering.cancel()
+        self.answering = asyncio.ensure_future(answer)
+
+    async def cancel(self) -> None:
+        if self.answering is not None and not self.answering.done():
+            self.answering.cancel()
+            await asyncio.gather(self.answering, return_exceptions=True)
+
+    async def reply(
+        self,
+        what: str,
+        trigger: str,
+        asked: dict[str, Any],
+        since: int,
+        heard: dict[str, Any] | None = None,
+    ) -> None:
+        """Answer DELAY_NS after `since`: a clip, or a call to TOOL (if the target has it)."""
+        await asyncio.sleep(max(0, since + DELAY_NS - CLOCK.now()) / 1e9)
+        if what == TOOL and TOOL not in self.tools:
+            what = SHORT
+        rid, item_id = _id("resp"), _id("item")
+        response: dict[str, Any] = {
+            "id": rid,
+            "object": "realtime.response",
+            "status": "in_progress",
+            "output": [],
+            "metadata": asked.get("metadata"),
+            "audio": {
+                "output": {"format": self.session.get("audio", {}).get("output", {}).get("format")}
+            },
+        }
+        await self.send({"type": "response.created", "response": response})
+        self.responding = True
+        record = {"event": "answer", "trigger": trigger, "answer": what} | (heard or {})
+        status, item = "completed", {}
+        try:
+            if what == TOOL:
+                item = await self.call_tool(rid, item_id)
+            else:
+                item = await self.speak(rid, item_id, what, record)
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        finally:
+            self.responding = False
+            self.note(record | {"status": status, "end_ns": CLOCK.now()})
+            done = response | {"status": status, "output": [item] if item else []}
+            done["usage"] = {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0}
+            await asyncio.shield(self.send({"type": "response.done", "response": done}))
+
+    async def call_tool(self, rid: str, item_id: str) -> dict[str, Any]:
+        call_id = _id("call")
+        item = {"id": item_id, "object": "realtime.item", "type": "function_call"}
+        item |= {"status": "in_progress", "name": TOOL, "call_id": call_id, "arguments": ""}
+        where = {"response_id": rid, "output_index": 0}
+        await self.send({"type": "response.output_item.added", "item": item} | where)
+        await self.added(item)
+        args = {"item_id": item_id, "call_id": call_id} | where
+        await self.send({"type": "response.function_call_arguments.delta", "delta": "{}"} | args)
+        await self.send(
+            {"type": "response.function_call_arguments.done", "name": TOOL, "arguments": "{}"}
+            | args
+        )
+        item |= {"status": "completed", "arguments": "{}"}
+        await self.send({"type": "response.output_item.done", "item": item} | where)
+        return item
+
+    async def speak(
+        self, rid: str, item_id: str, clip: str, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        item: dict[str, Any] = {"id": item_id, "object": "realtime.item", "type": "message"}
+        item |= {"role": "assistant", "status": "in_progress", "content": []}
+        where = {"response_id": rid, "item_id": item_id, "output_index": 0, "content_index": 0}
+        await self.send(
+            {"type": "response.output_item.added", "item": item, "response_id": rid}
+            | {"output_index": 0}
+        )
+        await self.added(item)
+        part = {"type": "audio", "transcript": ""}
+        await self.send({"type": "response.content_part.added", "part": part} | where)
+        pcm, step = self.lines.clips[clip], 8 * DELTA_MS
+        t0 = CLOCK.now()
+        record |= {"clip": clip, "first_audio_ns": t0}
+        for k, i in enumerate(range(0, len(pcm), step)):
+            await asyncio.sleep(max(0, t0 + k * DELTA_MS * 1_000_000 - LEAD_NS - CLOCK.now()) / 1e9)
+            delta = base64.b64encode(self.encode(pcm[i : i + step])).decode()
+            await self.send({"type": "response.output_audio.delta", "delta": delta} | where)
+        await self.send({"type": "response.output_audio.done"} | where)
+        await self.send(
+            {"type": "response.output_audio_transcript.done", "transcript": clip} | where
+        )
+        part = {"type": "audio", "transcript": clip}
+        await self.send({"type": "response.content_part.done", "part": part} | where)
+        item |= {"status": "completed", "content": [{"type": "output_audio", "transcript": clip}]}
+        await self.send(
+            {"type": "response.output_item.done", "item": item, "response_id": rid}
+            | {"output_index": 0}
+        )
+        return item
+
+
+def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
+    """Serve sessions until killed; log to out/realtime.jsonl; touch `ready` once listening."""
+    lines = Lines()
+    out.mkdir(parents=True, exist_ok=True)
+    log = out / "realtime.jsonl"
+
+    async def connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        try:
+            request = await _handshake(reader, writer)
+        except asyncio.IncompleteReadError, KeyError, ConnectionError:
+            writer.close()
+            return
+        s = Session(writer, lines, log)
+        s.note({"event": "connect", "request": request.split(" ")[1], "at_ns": CLOCK.now()})
+        await s.send({"type": "session.created", "session": s.session | {"id": s.id}})
+        try:
+            while True:
+                opcode, data = await _frame(reader)
+                if opcode == 8:
+                    break
+                if opcode == 9:
+                    writer.write(_pack(10, data))
+                elif opcode == 1:
+                    await s.handle(json.loads(data))
+        except asyncio.IncompleteReadError, ConnectionError:
+            pass
+        finally:
+            await s.cancel()
+            s.note({"event": "close", "at_ns": CLOCK.now()})
+            writer.close()
+
+    async def main() -> None:
+        server = await asyncio.start_server(connection, "0.0.0.0", port)
+        if ready:
+            await asyncio.to_thread(ready.touch)
+        async with server:
+            await server.serve_forever()
+
+    asyncio.run(main())
+
+
+def conditions() -> dict[str, Any]:
+    """The mock engine as a run's conditions record it."""
+    return {
+        "mock": "rtpbench.realtime",
+        "hangover_ms": HANGOVER_NS / 1e6,
+        "delay_ms": DELAY_NS / 1e6,
+        "lead_ms": LEAD_NS / 1e6,
+        "clips": [SHORT, LONG],
+    }
+
+
+def _cells(parts: list[tuple[float, ...]]) -> list[str]:
+    """p50 [p5, p95] of each column."""
+    from rtpbench import analyze
+
+    out = []
+    for k in range(len(parts[0])):
+        v = [p[k] for p in parts]
+        q = [analyze._pct(v, x) for x in (0.5, 0.05, 0.95)]
+        out.append(f"{q[0]:.0f} [{q[1]:.0f}, {q[2]:.0f}]")
+    return out
+
+
+def decompose(out: Path) -> str:
+    """Turn latency and greeting time against the mock engine, split where it heard and
+    answered, per profile. Turns (the latency calls): uplink (caller's labelled end on the wire to
+    the end of speech as heard here), engine (to the first audio sent; HANGOVER_NS + DELAY_NS by
+    design) and downlink (to the agent's first speech on the wire, webrtcvad). Greeting (the
+    `greeting` case calls): 200 OK to the target's request for a greeting, the engine's DELAY_NS,
+    first audio to the agent's speech on the wire."""
+    from rtpbench import analyze, cases, speechcal
+
+    records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
+    answers = [r for r in records if r.get("event") == "answer" and "first_audio_ns" in r]
+    heard = sorted(
+        (r["speech_end_ns"], r["first_audio_ns"]) for r in answers if "speech_end_ns" in r
+    )
+    asked = sorted((r["asked_ns"], r["first_audio_ns"]) for r in answers if "asked_ns" in r)
+    turns: dict[str, list[tuple[float, ...]]] = {}
+    for path in sorted(out.glob("*/*/latency/caller.json")):
+        for t in speechcal.turns(path.parent, ("webrtcvad",)):
+            if t["webrtcvad_ms"] is None:
+                continue
+            end = t["end_ns"]
+            onset = end + round(t["webrtcvad_ms"] * 1e6)
+            # the end as heard here: after the caller's on the wire, give or take label noise
+            if got := [(e, a) for e, a in heard if end - 500_000_000 <= e < onset and a < onset]:
+                e, a = got[-1]
+                parts = (t["webrtcvad_ms"], (e - end) / 1e6, (a - e) / 1e6, (onset - a) / 1e6)
+                turns.setdefault(path.parts[-4], []).append(parts)
+    greetings: dict[str, list[tuple[float, ...]]] = {}
+    for path in sorted(out.glob("*/*/greeting/caller.json")):
+        w = cases.load(path.parent)
+        ok = w.find(cases._is_2xx_invite, sent=False)
+        onset = w.speech_after(ok[0]) if ok else None
+        if ok and onset and (got := [(q, a) for q, a in asked if ok[0] - 5e9 < q and a < onset]):
+            q, a = got[-1]
+            parts = ((onset - ok[0]) / 1e6, (q - ok[0]) / 1e6, (a - q) / 1e6, (onset - a) / 1e6)
+            greetings.setdefault(path.parts[-4], []).append(parts)
+    text = ""
+    if turns:
+        head = ["profile", "turns", "wire latency", "uplink", "engine", "downlink"]
+        rows = [[p, str(len(v)), *_cells(v)] for p, v in turns.items()]
+        text += (
+            "Turn latency on the mock engine, split where it heard the end of the caller's speech "
+            "and sent its first audio (one clock with the captures), ms, p50 [p5, p95]: uplink and "
+            f"downlink are the target's; the engine waits {HANGOVER_NS / 1e6:.0f} ms of silence "
+            f"and answers {DELAY_NS / 1e6:.0f} ms later by design. Uplink carries the caller's "
+            "label error (±17 ms), downlink the onset error bar of the profile and codec.\n\n"
+            + analyze._table(head, rows)
+        )
+    if greetings:
+        head = ["profile", "calls", "200 OK to speech", "to the request", "engine", "downlink"]
+        rows = [[p, str(len(v)), *_cells(v)] for p, v in greetings.items()]
+        text += (
+            "\nGreeting on the mock engine, ms, p50 [p5, p95]: from the 200 OK on the wire to the "
+            "target's request for a greeting (negative: asked before answering), the engine's "
+            f"{DELAY_NS / 1e6:.0f} ms, and from its first audio to the agent's speech on the wire "
+            "(webrtcvad onset bar).\n\n" + analyze._table(head, rows)
+        )
+    return text

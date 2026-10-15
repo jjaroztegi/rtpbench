@@ -155,6 +155,24 @@ of each); `report.html` the case timelines; `target.log` the target's own logs.
 | [`aivc`](targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit, OpenSIPS 3.6 (images pinned by digest), openai flavor as upstream's example sets it, plus a transfer target (`transfer_to`, the operator). Needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (e.g. Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`); `OPENAI_REASONING_EFFORT=` (empty) for a model without reasoning, such as gpt-realtime-1.5, as upstream's docs say |
 | [`livekit`](targets/livekit) | [LiveKit](https://github.com/livekit/livekit) server and [SIP bridge](https://github.com/livekit/sip) (images pinned by digest) as livekit/sip's compose runs them, and a [LiveKit Agents](https://github.com/livekit/agents) worker on the OpenAI Realtime model through Azure OpenAI (`with_azure`, as LiveKit's Azure docs set it), given AIVC CE's instructions, welcome message, voice and tool descriptions, and a cold transfer to the operator. Needs `AZURE_OPENAI_ENDPOINT` (`https://<resource>.openai.azure.com`), `AZURE_OPENAI_API_KEY`; `AZURE_OPENAI_DEPLOYMENT` names the deployment (default `gpt-realtime-2.1`) |
 
+### Mock engine
+
+```sh
+uv run --extra vad rtpbench target livekit --mock   # no AI engine, no key
+```
+
+`--mock` puts a deterministic stand-in for the OpenAI Realtime API (GA protocol) where the
+target expects its engine ([`realtime.py`](src/rtpbench/realtime.py), [`mock/`](mock)), and
+points the target's engine variables at it; the targets' own code is unchanged. It hears the
+caller with the reference agent's energy gate, ends a turn after 1 s of silence, tells which of
+the caller's lines was said from its energy envelope, and 1.5 s after the turn's labelled end
+answers with a fixed clip (a long one to a long question) or, to the transfer line, with a call
+to the transfer tool. Speech while it answers cancels the answer. It logs when it heard the end
+of each turn and when it sent the first audio, on the captures' clock, so `summary.md` splits
+turn latency and greeting time into the target's uplink, the engine's fixed share and the
+target's downlink. What it cannot stand in for is the model: what it understands, when it
+decides to transfer or stop for a backchannel.
+
 ## Carrier
 
 ```sh

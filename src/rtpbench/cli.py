@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", type=Path, help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
+    p.add_argument("--mock", action="store_true", help="the mock engine instead of the AI engine")
 
     p = sub.add_parser("case", help="run one case's caller side (inside a container)")
     p.add_argument("name")
@@ -57,6 +58,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--proxy", help="send a transfer's INVITE here (default: the Refer-To host)")
 
     p = sub.add_parser("operator", help="run the transfer target (inside a container)")
+    p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
+
+    p = sub.add_parser("realtime", help="run the mock engine (inside a container)")
+    p.add_argument("--out", type=Path, required=True)
     p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
     p = sub.add_parser("report", help="judge a cases directory again; rewrite its report")
@@ -143,12 +148,18 @@ def main(argv: list[str] | None = None) -> None:
             else [*cases.names(args.carrier), "latency", "barge-in"]
         )
         profiles = args.profiles.split(",")
-        print(target(out, args.name, names, profiles, args.runs, args.seed, args.carrier))
+        print(
+            target(out, args.name, names, profiles, args.runs, args.seed, args.carrier, args.mock)
+        )
         print(f"results in {out}")
     elif args.cmd == "operator":
         from rtpbench.agent import operator
 
         operator(args.ready)
+    elif args.cmd == "realtime":
+        from rtpbench import realtime
+
+        realtime.serve(args.out, ready=args.ready)
     elif args.cmd == "report":
         from rtpbench.bench import judge
 

@@ -1,0 +1,14 @@
+# The mock engine (src/rtpbench/realtime.py) where a target expects its AI engine, merged over
+# ../compose.yaml and a target's compose file: `rtpbench target NAME --mock` points the target's
+# engine variables at it. On the targets' egress network; it logs to RTPBENCH_OUT/realtime.jsonl.
+services:
+  realtime:
+    image: ${RTPBENCH_IMAGE:?}
+    init: true
+    networks: [egress]
+    volumes: ["${RTPBENCH_OUT:?}:/out"]
+    command: python -m rtpbench realtime --out /out
+    healthcheck:
+      test: test -e /tmp/ready
+      interval: 1s
+      retries: 30

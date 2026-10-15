@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from rtpbench import analyze, bargein, clock, speech, speechcal
+from rtpbench import analyze, bargein, clock, realtime, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +35,15 @@ TARGETS = {
         "agent",
         {"AZURE_OPENAI_ENDPOINT": "", "AZURE_OPENAI_DEPLOYMENT": "gpt-realtime-2.1"},
     ),
+}
+# the same variables pointing at the mock engine (mock/compose.yaml), which takes any key
+MOCK = {
+    "aivc": {"OPENAI_URL": "ws://realtime:8000/v1/realtime?model=mock", "OPENAI_API_KEY": "mock"},
+    "livekit": {
+        "AZURE_OPENAI_ENDPOINT": "http://realtime:8000",
+        "AZURE_OPENAI_API_KEY": "mock",
+        "AZURE_OPENAI_DEPLOYMENT": "mock",
+    },
 }
 
 
@@ -83,16 +92,21 @@ def _image_tag() -> str:
 
 
 class Stack:
-    """caller | router | agent, plus a target's services when given, and the carrier in front of
-    the host `carrier` names (paths in their compose files are relative to the repository
-    root)."""
+    """caller | router | agent, plus a target's services when given (on the mock engine with
+    `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
+    are relative to the repository root)."""
 
-    def __init__(self, out: Path, target: str | None = None, carrier: str | None = None) -> None:
+    def __init__(
+        self, out: Path, target: str | None = None, carrier: str | None = None, mock: bool = False
+    ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
         self.files = [ROOT / "compose.yaml"]
         if target:
             self.files.append(ROOT / "targets" / target / "compose.yaml")
+        if target and mock:
+            self.files.append(ROOT / "mock" / "compose.yaml")
+            self.env |= MOCK[target]
         if carrier:
             self.files.append(ROOT / "carrier" / "compose.yaml")
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
@@ -369,11 +383,12 @@ def target(
     runs: int,
     seed: int,
     carrier: bool = False,
+    mock: bool = False,
 ) -> str:
     """The cases, a turn-latency call and a barge-in call (those of them in `names`) against
-    the compose target `name`, placed from the caller container through the netem router (and,
-    with `carrier`, the carrier), `runs` times per profile (repeat k uses seed + k - 1); returns
-    the summary."""
+    the compose target `name` (on the mock engine with `mock`), placed from the caller container
+    through the netem router (and, with `carrier`, the carrier), `runs` times per profile
+    (repeat k uses seed + k - 1); returns the summary."""
     from rtpbench import cases as cs
 
     user, settings = TARGETS[name]
@@ -388,7 +403,7 @@ def target(
 
     done: list[cs.Run] = []
     with clock.watch() as steps:
-        stack = Stack(out, name, "target" if carrier else None)
+        stack = Stack(out, name, "target" if carrier else None, mock)
         try:
             stack.up()
             caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
@@ -396,7 +411,7 @@ def target(
             stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
             conds = conditions(partial(stack.sh, "router"), seed)
             conds |= {"profiles": profiles, "runs": runs, "target": name}
-            conds["engine"] = _engine(settings)
+            conds["engine"] = realtime.conditions() if mock else _engine(settings)
             conds["images"] = stack.compose("images")
             uri = f"sip:{user}@{target_ip}"
             proxy = stack.entry("operator")
@@ -461,6 +476,9 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         if calls:
             sections.append((title, pooled(calls, clock.steps(out))))
             summary += f"\n## {title}\n\n" + sections[-1][1]
+    if (out / "realtime.jsonl").exists() and (parts := realtime.decompose(out)):
+        sections.append(("Turn latency by part", parts))
+        summary += "\n## Turn latency by part\n\n" + parts
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
     (out / "report.html").write_text(report.render(out, sections))
