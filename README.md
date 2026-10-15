@@ -24,7 +24,10 @@ Three containers: `caller | router | agent`. The caller places a real SIP call a
 scripted synthetic turns. The reference agent answers each turn after a random delay it chooses
 and logs, placed to the sample. The router applies `tc netem` (to RTP only) for the profiles in
 [`bench.py`](src/rtpbench/bench.py). Both endpoints run `tcpdump`; every timestamp comes from a
-capture, and all containers share one kernel clock.
+capture, and all containers share one kernel clock. Captures stamp the wall clock, which time
+sync may step; senders schedule on the monotonic clock, so a step makes no gap in the audio, and
+each run logs the steps it saw (`clock_steps` in `conditions.json`). Summaries and reports mark
+what was timed across one ([`clock.py`](src/rtpbench/clock.py)).
 
 The run writes `results/<timestamp>/` with the pcaps, per-turn records (`*/turns.jsonl`), the
 conditions (`conditions.json`) and `summary.md`: the error of each measurement method against

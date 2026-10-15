@@ -84,7 +84,11 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
             continue
         later = said_t[i + 1] if i + 1 < len(said) else None
         nxt = later[0] if later else None
-        rec: dict[str, Any] = {"turn": i, "caller_clip": caller_log["turns"][i].get("clip")}
+        rec: dict[str, Any] = {
+            "turn": i,
+            "caller_clip": caller_log["turns"][i].get("clip"),
+            "end_ns": ct[1],  # capture time of the caller's labelled end, the latency's start
+        }
         if agent_log and at:
             rec |= {"agent_clip": agent_log["turns"][i]["clip"], "truth_ms": (at[0] - ct[1]) / 1e6}
         for d, (fu, fd) in found.items():
@@ -179,20 +183,32 @@ def summarize(runs: dict[str, Path], clips: dict[str, list[int]] | None = None) 
     return out
 
 
-def pooled(runs: dict[str, list[Path]], detector: str = "webrtcvad") -> str:
+def pooled(
+    runs: dict[str, list[Path]],
+    steps: list[dict[str, Any]] | None = None,
+    detector: str = "webrtcvad",
+) -> str:
     """Turn latency per profile against a real agent, over every turn of every run: the
     caller's labelled end to the agent's first onset by `detector`, the spread of the per-run
-    medians, and the detector's error bar for the profile and codec."""
-    from rtpbench import cases
+    medians, the detector's error bar for the profile and codec, and how many turns ran across
+    one of the wall-clock `steps`."""
+    from rtpbench import cases, clock
 
     rows = []
     for profile, dirs in runs.items():
-        per_run, said, bars = [], 0, set()
+        per_run, said, bars, stepped = [], 0, set(), 0
         for run in dirs:
             recs = turns(run, (detector,))
             (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
             said += len(recs)
-            per_run.append([r[f"{detector}_ms"] for r in recs if r[f"{detector}_ms"] is not None])
+            got = [r for r in recs if r[f"{detector}_ms"] is not None]
+            per_run.append([r[f"{detector}_ms"] for r in got])
+            stepped += sum(
+                clock.spans(
+                    r["end_ns"], r["end_ns"] + round(r[f"{detector}_ms"] * 1e6), steps or []
+                )
+                for r in got
+            )
             pt = json.loads((run / "caller.json").read_text())["pt"]
             bars.add(cases.bar(cases.ONSET, profile, pt))
         v = [x for xs in per_run for x in xs]
@@ -200,8 +216,11 @@ def pooled(runs: dict[str, list[Path]], detector: str = "webrtcvad") -> str:
         cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
         spread = f"{min(meds):.0f} .. {max(meds):.0f}" if meds else "-"
         error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b)
-        rows.append([profile, str(len(dirs)), f"{len(v)}/{said}", *cells, spread, error])
-    head = ["profile", "runs", "answered", "p5", "p50", "p95", "run medians", "onset error bar"]
+        rows.append(
+            [profile, str(len(dirs)), f"{len(v)}/{said}", *cells, spread, str(stepped), error]
+        )
+    head = ["profile", "runs", "answered", "p5", "p50", "p95", "run medians"]
+    head += ["across a clock step", "onset error bar"]
     return (
         f"Turn latency, ms: caller's labelled end to the agent's first speech ({detector}), every "
         "turn of every run. True value = measured - error, error within the onset bar; where the "

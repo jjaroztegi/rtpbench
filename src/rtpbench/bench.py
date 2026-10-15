@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from rtpbench import analyze, bargein, speech, speechcal
+from rtpbench import analyze, bargein, clock, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -173,6 +173,7 @@ def _host(cmd: str) -> str:
 
 def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
     """Versions and host; `sh` runs a command where the capture runs (a container or here)."""
+    governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": _host("git describe --always --dirty"),
@@ -182,9 +183,21 @@ def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
         "python": sh("python3 -V"),
         "tcpdump": sh("tcpdump --version 2>&1 | head -1"),
         "host": platform.platform(),
+        "cpu_governor": governor.read_text().strip() if governor.exists() else "",
+        "load_start": _load(),
         "seed": seed,
         "netem_per_direction": PROFILES,
     }
+
+
+def _load() -> list[float]:
+    """The host's load averages over 1, 5 and 15 minutes."""
+    return [float(x) for x in Path("/proc/loadavg").read_text().split()[:3]]
+
+
+def _finish(conds: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """What the run saw while it ran: wall-clock steps (`clock.watch`) and the load at its end."""
+    return conds | {"clock_steps": steps, "load_end": _load()}
 
 
 def calibrate(
@@ -232,26 +245,28 @@ def calibrate(
         if carrier:
             conds["images"] = stack.compose("images")
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
-        for profile, codec in runs:
-            name = names[profile, codec]
-            run = out / name
-            run.mkdir(exist_ok=True)
-            stack.netem(PROFILES[profile], [caller_ip, agent_ip])
-            args = ["--out", f"/out/{name}", "--seed", str(seed)]
-            agent = ["python", "-m", "rtpbench", "agent", *args, *agent_args]
-            stack.compose("exec", "-d", "agent", *agent)
-            _wait_for(run / "ready", 120)
-            print(f"{name}: calling ({turns} turns)", flush=True)
-            call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
-            if codec:
-                call += ["--codec", codec]
-            if real:
-                call += ["--speech", "--gap", f"{gap:.1f}"]
-            if barge:
-                call += ["--barge-in"]
-            with stack.tap(name):
-                stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
-                _wait_for(run / "agent.json", 30)
+        with clock.watch() as steps:
+            for profile, codec in runs:
+                name = names[profile, codec]
+                run = out / name
+                run.mkdir(exist_ok=True)
+                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                args = ["--out", f"/out/{name}", "--seed", str(seed)]
+                agent = ["python", "-m", "rtpbench", "agent", *args, *agent_args]
+                stack.compose("exec", "-d", "agent", *agent)
+                _wait_for(run / "ready", 120)
+                print(f"{name}: calling ({turns} turns)", flush=True)
+                call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
+                if codec:
+                    call += ["--codec", codec]
+                if real:
+                    call += ["--speech", "--gap", f"{gap:.1f}"]
+                if barge:
+                    call += ["--barge-in"]
+                with stack.tap(name):
+                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+                    _wait_for(run / "agent.json", 30)
+        (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
@@ -261,6 +276,7 @@ def calibrate(
         summary = bargein.summarize(dirs)
     else:
         summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
+    summary += "\n" + clock.note(clock.steps(out))
     (out / "summary.md").write_text(summary)
     return summary
 
@@ -287,55 +303,60 @@ def cases(
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     done: list[cs.Run] = []
-    if uri:
-        conds = conditions(_host, seed) | {"target": uri, "iface": iface, "runs": runs}
-        conds["python"] = platform.python_version()
-        for k in range(1, runs + 1):
-            for name in names:
-                rel = f"host/{k:02d}/{name}"
-                (out / rel).mkdir(parents=True, exist_ok=True)
-                print(f"{rel}: calling {uri}", flush=True)
-                with capture(out / rel / "caller.pcap", iface):
-                    log = cs.run(name, uri, seed + k - 1, lines)
-                (out / rel / "caller.json").write_text(json.dumps(log, indent=1))
-                done.append(cs.Run("host", k, name, None, rel))
-        if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
-            subprocess.run(["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True)
-    else:
-        stack = Stack(out, carrier="agent" if carrier else None)
-        try:
-            stack.up()
-            caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
-            proxy = stack.entry("operator")  # the transferee's next hop for a transfer
-            conds = conditions(partial(stack.sh, "router"), seed)
-            conds |= {"profiles": profiles, "runs": runs}
-            if carrier:
-                conds["images"] = stack.compose("images")
-            for profile in profiles:
-                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
-                for k in range(1, runs + 1):
-                    for name in names:
-                        for behaviour in cs.CASES[name].behaviours():
-                            rel = f"{profile}/{k:02d}/{name}-{behaviour}"
-                            (out / rel).mkdir(parents=True, exist_ok=True)
-                            args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
-                            agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
-                            stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
-                            _wait_for(out / rel / "ready", 120)
-                            print(f"{rel}: calling", flush=True)
-                            call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
-                            call += args
-                            with stack.tap(rel):
+    with clock.watch() as steps:
+        if uri:
+            conds = conditions(_host, seed) | {"target": uri, "iface": iface, "runs": runs}
+            conds["python"] = platform.python_version()
+            for k in range(1, runs + 1):
+                for name in names:
+                    rel = f"host/{k:02d}/{name}"
+                    (out / rel).mkdir(parents=True, exist_ok=True)
+                    print(f"{rel}: calling {uri}", flush=True)
+                    with capture(out / rel / "caller.pcap", iface):
+                        log = cs.run(name, uri, seed + k - 1, lines)
+                    (out / rel / "caller.json").write_text(json.dumps(log, indent=1))
+                    done.append(cs.Run("host", k, name, None, rel))
+            if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
+                subprocess.run(
+                    ["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True
+                )
+        else:
+            stack = Stack(out, carrier="agent" if carrier else None)
+            try:
+                stack.up()
+                caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
+                proxy = stack.entry("operator")  # the transferee's next hop for a transfer
+                conds = conditions(partial(stack.sh, "router"), seed)
+                conds |= {"profiles": profiles, "runs": runs}
+                if carrier:
+                    conds["images"] = stack.compose("images")
+                for profile in profiles:
+                    stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                    for k in range(1, runs + 1):
+                        for name in names:
+                            for behaviour in cs.CASES[name].behaviours():
+                                rel = f"{profile}/{k:02d}/{name}-{behaviour}"
+                                (out / rel).mkdir(parents=True, exist_ok=True)
+                                args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
+                                agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
                                 stack.compose(
-                                    "exec", "-T", "caller", "python", "-m", "rtpbench", *call
+                                    "exec", "-d", "agent", "python", "-m", "rtpbench", *agent
                                 )
-                                _wait_for(out / rel / "agent.json", 30)
-                            done.append(cs.Run(profile, k, name, behaviour, rel))
-        finally:
-            if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
-                stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
-            stack.down()
-    (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+                                _wait_for(out / rel / "ready", 120)
+                                print(f"{rel}: calling", flush=True)
+                                call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
+                                call += args
+                                with stack.tap(rel):
+                                    stack.compose(
+                                        "exec", "-T", "caller", "python", "-m", "rtpbench", *call
+                                    )
+                                    _wait_for(out / rel / "agent.json", 30)
+                                done.append(cs.Run(profile, k, name, behaviour, rel))
+            finally:
+                if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+                    stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
+                stack.down()
+    (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     summary, ok = judge(out, done)
     return summary, ok or uri is not None
 
@@ -366,50 +387,54 @@ def target(
         return inside(*sorted(LINES.glob(pattern)))
 
     done: list[cs.Run] = []
-    stack = Stack(out, name, "target" if carrier else None)
-    try:
-        stack.up()
-        caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
-        router_ip = stack.sh("target", "getent hosts router").split()[0]
-        stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
-        conds = conditions(partial(stack.sh, "router"), seed)
-        conds |= {"profiles": profiles, "runs": runs, "target": name}
-        conds["engine"] = _engine(settings)
-        conds["images"] = stack.compose("images")
-        uri = f"sip:{user}@{target_ip}"
-        proxy = stack.entry("operator")
-        turns = lines("turn-*.wav")
-        latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
-        barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
-        calls = {
-            **{c: ["case", c, uri, "--proxy", proxy, "--lines", *inside(LINES)] for c in cs.CASES},
-            "latency": ["call", uri, *latency],
-            "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
-        }
-        calls = {tag: call for tag, call in calls.items() if tag in names}
-        for profile in profiles:
-            stack.netem(PROFILES[profile], [caller_ip, target_ip])
-            for k in range(1, runs + 1):
-                for tag, call in calls.items():
-                    rel = f"{profile}/{k:02d}/{tag}"
-                    print(f"{rel}: calling {uri}", flush=True)
-                    args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
-                    (out / rel).mkdir(parents=True, exist_ok=True)
-                    with stack.tap(rel):
-                        stack.compose(
-                            "exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args
-                        )
-                done += [
-                    cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}")
-                    for c in names
-                    if c in cs.CASES
-                ]
-        (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
-    finally:
-        if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
-            stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
-        stack.down()
-    (out / "conditions.json").write_text(json.dumps(conds, indent=1))
+    with clock.watch() as steps:
+        stack = Stack(out, name, "target" if carrier else None)
+        try:
+            stack.up()
+            caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
+            router_ip = stack.sh("target", "getent hosts router").split()[0]
+            stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
+            conds = conditions(partial(stack.sh, "router"), seed)
+            conds |= {"profiles": profiles, "runs": runs, "target": name}
+            conds["engine"] = _engine(settings)
+            conds["images"] = stack.compose("images")
+            uri = f"sip:{user}@{target_ip}"
+            proxy = stack.entry("operator")
+            turns = lines("turn-*.wav")
+            latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
+            barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
+            calls = {
+                **{
+                    c: ["case", c, uri, "--proxy", proxy, "--lines", *inside(LINES)]
+                    for c in cs.CASES
+                },
+                "latency": ["call", uri, *latency],
+                "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
+            }
+            calls = {tag: call for tag, call in calls.items() if tag in names}
+            for profile in profiles:
+                stack.netem(PROFILES[profile], [caller_ip, target_ip])
+                for k in range(1, runs + 1):
+                    for tag, call in calls.items():
+                        rel = f"{profile}/{k:02d}/{tag}"
+                        print(f"{rel}: calling {uri}", flush=True)
+                        args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
+                        (out / rel).mkdir(parents=True, exist_ok=True)
+                        with stack.tap(rel):
+                            stack.compose(
+                                "exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args
+                            )
+                    done += [
+                        cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}")
+                        for c in names
+                        if c in cs.CASES
+                    ]
+            (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
+        finally:
+            if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+                stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
+            stack.down()
+    (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     return judge(out, done)[0]
 
 
@@ -434,7 +459,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
             calls.setdefault(path.parts[-4], []).append(path.parent)
         if calls:
-            sections.append((title, pooled(calls)))
+            sections.append((title, pooled(calls, clock.steps(out))))
             summary += f"\n## {title}\n\n" + sections[-1][1]
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)

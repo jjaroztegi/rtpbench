@@ -87,6 +87,10 @@ def turns(run: Path) -> list[dict[str, Any]]:
         if not c.get("speech"):
             continue  # the agent never replied, so there was nothing to cut into
         rec: dict[str, Any] = {"turn": i, "kind": c["kind"], "clip": c["clip"], "measured_ms": {}}
+        if start := speechcal._truth(
+            up, [(up.index(seq0, a), up.index(seq0, b)) for a, b in c["speech"]]
+        ):
+            rec["onset_ns"] = start[0]  # capture time of the interjection's onset, the stop's start
         for key, (st, s) in segs.items():  # from the first labelled sample that arrived
             said = speechcal._truth(
                 st, [(st.index(seq0, a), st.index(seq0, b)) for a, b in c["speech"]]
@@ -162,11 +166,12 @@ def _stopped(rec: dict[str, Any], key: str) -> bool:
     return v is not None and v < STOP_WINDOW_NS / 1e6
 
 
-def pooled(runs: dict[str, list[Path]]) -> str:
+def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = None) -> str:
     """Barge-in per profile and interjection against a real agent, over every turn of every
-    run: how often the agent stopped (and the range of that rate over runs), and its stop time
-    by the gate on the wire, with the gate's error bar for the profile and codec."""
-    from rtpbench import cases
+    run: how often the agent stopped (and the range of that rate over runs), its stop time by
+    the gate on the wire, with the gate's error bar for the profile and codec, and how many of
+    those ran across one of the wall-clock `steps`."""
+    from rtpbench import cases, clock
 
     key = "wire/gate"
     rows = []
@@ -187,8 +192,18 @@ def pooled(runs: dict[str, list[Path]]) -> str:
             spread = f"{min(rates):.0%} .. {max(rates):.0%}" if rates else "-"
             v = [r["measured_ms"][key] for t in stopped for r in t]
             cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
-            rows.append([profile, kind, str(len(dirs)), f"{k}/{n}", spread, *cells, error])
+            across = sum(
+                clock.spans(
+                    r["onset_ns"], r["onset_ns"] + round(r["measured_ms"][key] * 1e6), steps or []
+                )
+                for t in stopped
+                for r in t
+                if "onset_ns" in r
+            )
+            row = [profile, kind, str(len(dirs)), f"{k}/{n}", spread, *cells, str(across)]
+            rows.append([*row, error])
     head = ["profile", "interjection", "runs", "stopped", "run rates", "p5", "p50", "p95"]
+    head += ["across a clock step"]
     return (
         "Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop "
         "time (ms, gate, wire) when it did, every turn of every run. True value = measured - "

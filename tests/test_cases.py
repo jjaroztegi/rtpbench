@@ -13,6 +13,7 @@ from rtpbench import cases, g711, rtp, sip
 from rtpbench.agent import BUSY, OPERATOR, Responder, operator
 from rtpbench.caller import Session
 from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
+from rtpbench.clock import CLOCK
 
 
 @pytest.fixture
@@ -137,7 +138,7 @@ def test_sender_pause_keeps_seq_and_clock(pair: tuple[socket.socket, socket.sock
     send = rtp.Sender(
         a, b.getsockname(), 8, lambda n, _t: None if n in paused else bytes(160), 0, 65534, 9
     )
-    send.start_ns = time.time_ns()
+    send.start_ns = CLOCK.now()
     send.start()
     got = [rtp.parse(b.recvfrom(2048)[0]) for _ in range(6)]
     send.stop.set()

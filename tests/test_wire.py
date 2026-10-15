@@ -1,11 +1,11 @@
 import socket
 import struct
-import time
 from pathlib import Path
 
 import pytest
 
 from rtpbench import analyze, g711, pcap, rtp, sip
+from rtpbench.clock import CLOCK
 
 
 @pytest.mark.parametrize("pt", [g711.PCMU, g711.PCMA])
@@ -119,7 +119,7 @@ def test_sender_switch_starts_a_new_source() -> None:
     rx, tx = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in range(2))
     rx.bind(("127.0.0.1", 0))
     rx.settimeout(1)
-    sender = rtp.Sender(tx, rx.getsockname(), 0, lambda n, t: b"\xff" * 160, time.time_ns(), 10, 7)
+    sender = rtp.Sender(tx, rx.getsockname(), 0, lambda n, t: b"\xff" * 160, CLOCK.now(), 10, 7)
     sender.start()
     got = [rtp.parse(rx.recv(2048)) for _ in range(3)]
     sender.switch(99, 500, 123456)

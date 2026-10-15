@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from rtpbench import bargein, g711, sip, speech
+from rtpbench.clock import CLOCK
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, RATE, voice
 
@@ -249,7 +250,7 @@ class Session:
         return resp
 
     def start(self, source: Source, sink: Callable[[int, Packet], None]) -> None:
-        start = time.time_ns() + PTIME_NS
+        start = CLOCK.now() + PTIME_NS
         self.media = (
             Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc),
             Receiver(self.rtp, sink),
@@ -288,7 +289,7 @@ class Session:
     ) -> bool:
         """Media until `until(now_ns)`, then hang up. True if the far end hung up first."""
         self.start(source, sink)
-        self.wait(lambda: self.remote_bye or until(time.time_ns()), float("inf"))
+        self.wait(lambda: self.remote_bye or until(CLOCK.now()), float("inf"))
         self.hangup()
         return self.remote_bye
 
@@ -332,7 +333,7 @@ def call(
             clip, speech_spans = labels[i % len(labels)]
             rec |= {"clip": clip, "speech": [[a + start, b + start] for a, b in speech_spans]}
         last.append(rec)
-    hangup_ns = time.time_ns() + PTIME_NS + len(frames) * PTIME_NS
+    hangup_ns = CLOCK.now() + PTIME_NS + len(frames) * PTIME_NS
     remote_bye = s.run(
         lambda n, _t: frames[n] if n < len(frames) else silence,
         lambda _a, _p: None,

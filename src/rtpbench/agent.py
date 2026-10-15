@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from rtpbench import bargein, g711, sip, speech
+from rtpbench.clock import CLOCK
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, voice
 
@@ -365,14 +366,14 @@ class Uas:
                 self._hang_up()
             elif final and not ok and self.case.retake_s is not None and (r := self.responder):
                 retake = round(self.case.retake_s * 1e9)
-                r.speak(time.time_ns() + retake, (self.greeting + 1) % len(r.replies), "retake")
+                r.speak(CLOCK.now() + retake, (self.greeting + 1) % len(r.replies), "retake")
         elif msg.method == "INFO" and "dtmf-relay" in msg.get("content-type").lower():
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             body = dict(
                 line.partition("=")[::2] for line in msg.body.decode(errors="replace").split()
             )
             if self.responder and (signal := body.get("Signal", "").strip()):
-                self.responder.digit(time.time_ns(), signal, "info")
+                self.responder.digit(CLOCK.now(), signal, "info")
         else:
             self._send(sip.response(msg, 200, "OK", self.to_tag))
 
@@ -443,14 +444,14 @@ class Uas:
         r = self.responder
         assert r is not None
         ssrc = secrets.randbelow(1 << 32)
-        start = time.time_ns() + PTIME_NS
+        start = CLOCK.now() + PTIME_NS
         addr = (remote.ip, remote.port)
         self.sender = Sender(self.rtp, addr, self.pt, r.source, start, self.seq0, ssrc)
         self.threads = [self.sender, Receiver(self.rtp, self._hear)]
         for t in self.threads:
             t.start()
         if self.case.greet_s is not None:
-            r.speak(time.time_ns() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
+            r.speak(CLOCK.now() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
         self.meta = {"pt": self.pt, "ssrc": ssrc, "seq0": self.seq0}
 
     def _hear(self, arrival: int, pkt: Packet) -> None:
@@ -530,7 +531,7 @@ class Uas:
         r = self.responder
         if r is None or not r.ends or seconds is None:
             return False
-        return time.time_ns() >= r.ends[0] + seconds * 1e9
+        return CLOCK.now() >= r.ends[0] + seconds * 1e9
 
     def _transfer(self) -> None:
         """Blind transfer (RFC 5589): REFER the caller to an operator."""

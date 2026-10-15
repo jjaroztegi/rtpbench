@@ -23,9 +23,10 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from rtpbench import analyze, detect, g711, pcap, rtp, sip, speech, speechcal
+from rtpbench import analyze, clock, detect, g711, pcap, rtp, sip, speech, speechcal
 from rtpbench.agent import BUSY, DIGITS, Behaviour
 from rtpbench.caller import Media, Session, speech_utterances
+from rtpbench.clock import CLOCK
 
 CODECS = (g711.PCMU, g711.PCMA)
 QUIET_NS = 1_500_000_000  # agent silence that ends what it was saying
@@ -111,6 +112,7 @@ class Timing:
     ms: float
     bar: Bar
     truth_ms: float | None = None  # known when the reference agent logged it
+    span: tuple[int, int] | None = None  # capture times it runs between
 
     def error(self) -> str:
         """measured - truth, flagged when outside the error bar."""
@@ -128,6 +130,7 @@ class Check:
     name: str
     ok: bool | None  # None: the case could not get far enough to tell
     detail: str = ""
+    span: tuple[int, int] | None = None  # capture times a time limit it judges runs between
 
 
 @dataclass
@@ -201,7 +204,7 @@ class Script(Media):
 
     def quiet(self, ns: int = QUIET_NS) -> bool:
         with self.lock:
-            return time.time_ns() - self.agent_last >= ns
+            return CLOCK.now() - self.agent_last >= ns
 
 
 Dial = Callable[..., Session]
@@ -219,7 +222,7 @@ def greeting(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
-    t0 = time.time_ns()
+    t0 = CLOCK.now()
     if s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S):
         s.wait(lambda: s.remote_bye or m.quiet(), 30)
     s.hangup()
@@ -228,7 +231,7 @@ def greeting(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 def _greeting(s: Session, m: Script) -> int | None:
     """When the agent started its greeting, if it greets within GREETING_WAIT_S."""
-    t0 = time.time_ns()
+    t0 = CLOCK.now()
     s.wait(lambda: s.remote_bye or m.speech_after(t0) is not None, GREETING_WAIT_S)
     return m.speech_after(t0)
 
@@ -244,7 +247,7 @@ def _reply(s: Session, m: Script, seed: int, lines: Lines) -> int | None:
     """Ask a question; when the agent started its reply."""
     m.say(*_line(lines, "prompt", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
-    t1 = time.time_ns()
+    t1 = CLOCK.now()
     s.wait(lambda: s.remote_bye or m.speech_after(t1) is not None, REPLY_WAIT_S)
     return m.speech_after(t1)
 
@@ -260,7 +263,7 @@ def bye(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
     def into(onset: int) -> bool:
         def audible() -> bool:
-            return time.time_ns() >= onset + BYE_AFTER_NS and not m.quiet(analyze.AGENT_GAP_NS)
+            return CLOCK.now() >= onset + BYE_AFTER_NS and not m.quiet(analyze.AGENT_GAP_NS)
 
         return s.wait(lambda: s.remote_bye or audible(), BYE_AFTER_NS / 1e9 + BYE_AUDIBLE_S)
 
@@ -322,7 +325,7 @@ def _dtmf(dial: Dial, seed: int, lines: Lines, info: bool) -> dict[str, Any]:
     m = Script(s.pt, s.dtmf)
     s.start(m.source, m.on_packet)
     _settle(s, m)
-    t = time.time_ns()
+    t = CLOCK.now()
     if info:
         signal = f"Signal=5\r\nDuration={KEY_MS}\r\n".encode()
         s.request("INFO", signal, content_type="application/dtmf-relay")
@@ -621,8 +624,11 @@ def check_greeting(w: Wire) -> Result:
     ms = (onset - ok[0]) / 1e6
     truth = w.truth("greeting")
     truth_ms = None if truth is None else (truth[0] - ok[0]) / 1e6
-    r.timings.append(Timing("200 OK to agent speech", ms, w.onset(), truth_ms))
-    r.checks.append(Check(f"agent speaks within {GREETING_MAX_MS} ms", ms <= GREETING_MAX_MS))
+    span = (ok[0], onset)
+    r.timings.append(Timing("200 OK to agent speech", ms, w.onset(), truth_ms, span))
+    r.checks.append(
+        Check(f"agent speaks within {GREETING_MAX_MS} ms", ms <= GREETING_MAX_MS, span=span)
+    )
     return r
 
 
@@ -644,11 +650,15 @@ def check_bye(w: Wire) -> Result:
         Check("BYE answered 2xx", ok is not None and ok[1].status < 300, ok[1].first if ok else "")
     )
     if ok:
-        r.timings.append(Timing("BYE to its response", (ok[0] - t) / 1e6, WIRE))
+        r.timings.append(Timing("BYE to its response", (ok[0] - t) / 1e6, WIRE, span=(t, ok[0])))
     if w.down:
-        ms = (w.down[-1][0] - t) / 1e6
-        r.timings.append(Timing("BYE to the agent's last RTP", ms, WIRE))
-        r.checks.append(Check(f"agent RTP stops within {MEDIA_GRACE_MS} ms", ms <= MEDIA_GRACE_MS))
+        span = (t, w.down[-1][0])
+        ms = (span[1] - t) / 1e6
+        r.timings.append(Timing("BYE to the agent's last RTP", ms, WIRE, span=span))
+        stops = Check(
+            f"agent RTP stops within {MEDIA_GRACE_MS} ms", ms <= MEDIA_GRACE_MS, span=span
+        )
+        r.checks.append(stops)
     return r
 
 
@@ -679,10 +689,16 @@ def check_cancel(w: Wire) -> Result:
     else:
         r.checks.append(Check("INVITE ended 487", final[1].status == 487, final[1].first))
         r.timings.append(
-            Timing("CANCEL to the INVITE's final response", (final[0] - t) / 1e6, WIRE)
+            Timing(
+                "CANCEL to the INVITE's final response",
+                (final[0] - t) / 1e6,
+                WIRE,
+                span=(t, final[0]),
+            )
         )
     late = [u for u, _ in w.down if u > t + MEDIA_GRACE_MS * 1_000_000]
-    r.checks.append(Check("no agent RTP after the CANCEL", not late, f"{len(late)} packets"))
+    span = (t, w.down[-1][0]) if w.down else None
+    r.checks.append(Check("no agent RTP after the CANCEL", not late, f"{len(late)} packets", span))
     return r
 
 
@@ -731,13 +747,18 @@ def check_hold(w: Wire) -> Result:
             r.checks.append(Check(f"{what}: 2xx", ok, resp[1].first if resp else "no response"))
             if resp is None or not ok:
                 return r
-            r.timings.append(Timing(f"{what}: re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+            r.timings.append(
+                Timing(f"{what}: re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE, span=(t, resp[0]))
+            )
             got = sip.parse_sdp(resp[1].body).direction
             r.checks.append(Check(f"{what}: answer {' or '.join(want)}", got in want, got))
             answers.append(resp[0])
         grace = MEDIA_GRACE_MS * 1_000_000
         during = [u for u, _ in w.down if answers[0] + grace < u < t_back]
-        r.checks.append(Check(f"{offer} hold: no agent RTP", not during, f"{len(during)} packets"))
+        quiet = (answers[0], t_back)
+        r.checks.append(
+            Check(f"{offer} hold: no agent RTP", not during, f"{len(during)} packets", quiet)
+        )
         if during:
             continue  # it never paused, so there is no resume to time
         before = [(u, p) for u, p in w.down if u < t_back]
@@ -747,17 +768,18 @@ def check_hold(w: Wire) -> Result:
             continue
         # by sequence, not arrival: the edges of the pause may arrive reordered
         p0, p1 = analyze.by_seq(before)[-1][1], analyze.by_seq(after)[0][1]
+        back_span = (answers[1], after[0][0])
         ms = (after[0][0] - answers[1]) / 1e6
-        r.timings.append(Timing(f"resume from {offer}: 2xx to agent RTP", ms, WIRE))
-        r.checks.append(
-            Check(f"resume from {offer}: agent RTP within {RESUME_MS} ms", ms <= RESUME_MS)
-        )
+        r.timings.append(Timing(f"resume from {offer}: 2xx to agent RTP", ms, WIRE, span=back_span))
+        within = f"resume from {offer}: agent RTP within {RESUME_MS} ms"
+        r.checks.append(Check(within, ms <= RESUME_MS, span=back_span))
         drift = _floor(before[-FLOOR_PACKETS:], p0.ts) - _floor(after[:FLOOR_PACKETS], p0.ts)
-        r.timings.append(Timing(f"resume from {offer}: RTP clock drift", drift, WIRE))
+        floors = (before[-FLOOR_PACKETS:][0][0], after[:FLOOR_PACKETS][-1][0])
+        r.timings.append(Timing(f"resume from {offer}: RTP clock drift", drift, WIRE, span=floors))
         lost = (p1.seq - p0.seq - 1) & 0xFFFF  # packets missing at the resume
         same = p1.ssrc == p0.ssrc and lost <= SEQ_LOST_MAX and abs(drift) <= CLOCK_MS
         detail = f"ssrc {p0.ssrc:#x}->{p1.ssrc:#x}, seq {p0.seq}->{p1.seq}, clock {drift:+.0f} ms"
-        r.checks.append(Check(f"resume from {offer}: same RTP stream", same, detail))
+        r.checks.append(Check(f"resume from {offer}: same RTP stream", same, detail, floors))
     return r
 
 
@@ -768,12 +790,14 @@ def _reaction(w: Wire, r: Result, t: int) -> Result:
         Check(
             f"agent reacts within {DTMF_MAX_MS} ms",
             onset is not None and onset - t <= DTMF_MAX_MS * 1e6,
+            span=(t, t + DTMF_MAX_MS * 1_000_000 if onset is None else onset),
         )
     )
     if onset is not None:
         truth = w.truth("dtmf")
         truth_ms = None if truth is None else (truth[0] - t) / 1e6
-        r.timings.append(Timing("digit to agent speech", (onset - t) / 1e6, w.onset(), truth_ms))
+        ms = (onset - t) / 1e6
+        r.timings.append(Timing("digit to agent speech", ms, w.onset(), truth_ms, (t, onset)))
     return r
 
 
@@ -808,7 +832,8 @@ def check_dtmf_info(w: Wire) -> Result:
         )
     )
     if resp:
-        r.timings.append(Timing("INFO to its response", (resp[0] - info[0]) / 1e6, WIRE))
+        ms = (resp[0] - info[0]) / 1e6
+        r.timings.append(Timing("INFO to its response", ms, WIRE, span=(info[0], resp[0])))
     return _reaction(w, r, info[0])
 
 
@@ -820,9 +845,12 @@ def check_refer(w: Wire) -> Result:
         return r
     bye = w.find(lambda m: m.method == "BYE", sent=False)
     in_time = bye is not None and bye[0] - last <= BYE_WAIT_S * 1e9
-    r.checks.append(Check(f"agent hangs up within {BYE_WAIT_S:.0f} s", in_time))
+    span = (last, last + round(BYE_WAIT_S * 1e9) if bye is None else bye[0])
+    r.checks.append(Check(f"agent hangs up within {BYE_WAIT_S:.0f} s", in_time, span=span))
     if bye:
-        r.timings.append(Timing("final NOTIFY to agent BYE", (bye[0] - last) / 1e6, WIRE))
+        r.timings.append(
+            Timing("final NOTIFY to agent BYE", (bye[0] - last) / 1e6, WIRE, span=span)
+        )
     return r
 
 
@@ -836,15 +864,17 @@ def check_refer_fail(w: Wire) -> Result:
     bye = w.find(lambda m: m.method == "BYE", sent=False)
     keeps = bye is None or bye[0] - last > BYE_WAIT_S * 1e9
     detail = "" if bye is None else f"BYE {(bye[0] - last) / 1e6:.0f} ms after it"
-    r.checks.append(Check(f"agent keeps the call for {BYE_WAIT_S:.0f} s", keeps, detail))
+    span = (last, last + round(BYE_WAIT_S * 1e9) if bye is None else bye[0])
+    r.checks.append(Check(f"agent keeps the call for {BYE_WAIT_S:.0f} s", keeps, detail, span))
     onset = w.speech_after(last)
     spoke = onset is not None and onset - last <= RETAKE_MAX_MS * 1e6
-    r.checks.append(Check(f"agent speaks within {RETAKE_MAX_MS} ms", spoke and keeps))
+    span = (last, last + RETAKE_MAX_MS * 1_000_000 if onset is None else onset)
+    r.checks.append(Check(f"agent speaks within {RETAKE_MAX_MS} ms", spoke and keeps, span=span))
     if onset is not None and (bye is None or onset < bye[0]):
         truth = w.truth("retake")
         truth_ms = None if truth is None else (truth[0] - last) / 1e6
         ms = (onset - last) / 1e6
-        r.timings.append(Timing("failure NOTIFY to agent speech", ms, w.onset(), truth_ms))
+        r.timings.append(Timing("failure NOTIFY to agent speech", ms, w.onset(), truth_ms, span))
     return r
 
 
@@ -857,7 +887,10 @@ def _transfer(w: Wire, r: Result) -> int | None:
         return None
     said = w.said()
     if said:
-        r.timings.append(Timing("end of the request to REFER", (ref[0] - said[1]) / 1e6, LABEL_END))
+        ms = (ref[0] - said[1]) / 1e6
+        r.timings.append(
+            Timing("end of the request to REFER", ms, LABEL_END, span=(said[1], ref[0]))
+        )
     target = sip.uri_of(ref[1].get("refer-to"))
     r.checks.append(
         Check("Refer-To is a SIP or tel URI", target.startswith(("sip:", "sips:", "tel:")), target)
@@ -924,11 +957,14 @@ def check_timer(w: Wire) -> Result:
     bye = w.find(lambda m: m.method == "BYE", sent=False)
     after = None if bye is None else (bye[0] - resp_t) / 1e9
     in_window = after is not None and interval / 2 < after <= interval
+    span = (resp_t, resp_t + interval * 1_000_000_000 if bye is None else bye[0])
     r.checks.append(
-        Check(f"agent ends the session in ({interval / 2:.0f}, {interval}] s", in_window)
+        Check(f"agent ends the session in ({interval / 2:.0f}, {interval}] s", in_window, span=span)
     )
     if bye:
-        r.timings.append(Timing("refresh 2xx to agent BYE", (bye[0] - resp_t) / 1e6, WIRE))
+        r.timings.append(
+            Timing("refresh 2xx to agent BYE", (bye[0] - resp_t) / 1e6, WIRE, span=span)
+        )
     return r
 
 
@@ -941,7 +977,9 @@ def _refreshed(w: Wire, r: Result, sent: tuple[int, sip.Message]) -> int | None:
     r.checks.append(Check("refresh answered 2xx", good, resp[1].first if resp else "no response"))
     if not resp or not good:
         return None
-    r.timings.append(Timing("refresh re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE))
+    r.timings.append(
+        Timing("refresh re-INVITE to 2xx", (resp[0] - t) / 1e6, WIRE, span=(t, resp[0]))
+    )
     got = sip.parse_sdp(resp[1].body).direction
     r.checks.append(Check("refresh answer sendrecv", got == "sendrecv", got))
     # on the sender's clock, so that network jitter and loss do not read as a disturbance: time
@@ -966,7 +1004,7 @@ def _refreshed(w: Wire, r: Result, sent: tuple[int, sip.Message]) -> int | None:
         stop = (post[-1][0] if post else resp[0]) - resp[0]
         detail = f"agent RTP stops {stop / 1e6:.0f} ms after the 2xx"
     calm = ssrcs == 1 and goes_on and skipped <= MEDIA_GAP_MS and abs(shift) <= MEDIA_GAP_MS
-    r.checks.append(Check("media undisturbed by the refresh", calm, detail))
+    r.checks.append(Check("media undisturbed by the refresh", calm, detail, (round(t - 1e9), end)))
     return resp[0]
 
 
@@ -1045,12 +1083,14 @@ def _replies(w: Wire, r: Result) -> Result:
         return r
     onset = w.speech_after(said[1])
     in_time = onset is not None and onset - said[1] <= REPLY_MAX_MS * 1e6
-    r.checks.append(Check(f"agent replies within {REPLY_MAX_MS} ms", in_time))
+    span = (said[1], said[1] + REPLY_MAX_MS * 1_000_000 if onset is None else onset)
+    r.checks.append(Check(f"agent replies within {REPLY_MAX_MS} ms", in_time, span=span))
     if onset is not None:
         truth = w.truth("reply")
         truth_ms = None if truth is None else (truth[0] - said[1]) / 1e6
         ms = (onset - said[1]) / 1e6
-        r.timings.append(Timing("end of the question to agent speech", ms, w.onset(), truth_ms))
+        timing = Timing("end of the question to agent speech", ms, w.onset(), truth_ms, span)
+        r.timings.append(timing)
     return r
 
 
@@ -1277,6 +1317,12 @@ def _spread(v: list[float], fmt: str) -> str:
     return f"{format(statistics.median(v), fmt)} [{format(min(v), fmt)}, {format(max(v), fmt)}]"
 
 
+def _stepped(recs: list[dict[str, Any]], name: str) -> str:
+    """How many of the runs measured `name` across a wall-clock step, as a note."""
+    k = sum(name in r.get("stepped", ()) for r in recs)
+    return f" [{k} across a clock step]" if k else ""
+
+
 def timings(recs: list[dict[str, Any]]) -> list[tuple[str, str]]:
     """Each timing's name and value over the repeats, with its error bar: true value within
     value - hi .. value - lo."""
@@ -1288,7 +1334,9 @@ def timings(recs: list[dict[str, Any]]) -> list[tuple[str, str]]:
     return [
         (
             name,
-            f"{_spread(v, '.1f')} ms ({-b.hi:+.1f}/{-b.lo:+.1f})" + (f" n={len(v)}" if n else ""),
+            f"{_spread(v, '.1f')} ms ({-b.hi:+.1f}/{-b.lo:+.1f})"
+            + (f" n={len(v)}" if n else "")
+            + _stepped(recs, name),
         )
         for name, (v, b) in by.items()
     ]
@@ -1304,10 +1352,17 @@ def failures(recs: list[dict[str, Any]]) -> list[str]:
             if not c["ok"]:
                 count[c["name"]] += 1
                 detail.setdefault(c["name"], c["detail"])
+
+    def stepped(c: str) -> str:  # of the runs where `c` failed
+        return _stepped(
+            [r for r in recs if any(x["name"] == c and not x["ok"] for x in r["checks"])], c
+        )
+
     if len(recs) == 1:
-        return [f"{c} ({detail[c]})" if detail[c] else c for c in count]
+        return [(f"{c} ({detail[c]})" if detail[c] else c) + stepped(c) for c in count]
     return [
-        f"{c} ({k}/{len(recs)}{': ' + detail[c] if detail[c] else ''})" for c, k in count.items()
+        f"{c} ({k}/{len(recs)}{': ' + detail[c] if detail[c] else ''})" + stepped(c)
+        for c, k in count.items()
     ]
 
 
@@ -1321,10 +1376,10 @@ def errors(recs: list[dict[str, Any]]) -> list[str]:
                 e, b = t["ms"] - t["truth_ms"], Bar(*t["bar"])
                 by.setdefault(t["name"], []).append((e, b.lo <= e <= b.hi))
     out = []
-    for es in by.values():
+    for name, es in by.items():
         outside = sum(not ok for _, ok in es)
         note = f" ({outside}/{len(es)} outside the bar)" if outside else ""
-        out.append(_spread([e for e, _ in es], "+.1f") + note)
+        out.append(_spread([e for e, _ in es], "+.1f") + note + _stepped(recs, name))
     return out
 
 
@@ -1336,10 +1391,14 @@ def proven(records: list[dict[str, Any]]) -> bool:
 def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bool]:
     """Markdown summary per profile (repeats grouped), per-run records, and whether every
     reference behaviour got the verdict it should (good: pass, bad: fail) in every repeat."""
+    steps = clock.steps(out)
     records = []
     for run in runs:
         r = judge(out / run.run, run.profile)
-        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r))
+        # what was timed across a wall-clock step reads short or long by it
+        timed: list[Check | Timing] = [*r.checks, *r.timings]
+        stepped = sorted({x.name for x in timed if x.span and clock.spans(*x.span, steps)})
+        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": stepped})
     reference = bool(records) and records[0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]
     head += ["result", "timings, ms (error bar)", "failed checks"]
@@ -1360,4 +1419,5 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
     bars = {b for r in records for t in r["timings"] for b in [Bar(*t["bar"])]}
     text += "\nError bars: true value = measured - error, error within\n\n"
     text += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))
+    text += "\n" + clock.note(steps)
     return text, records, proven(records)

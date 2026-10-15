@@ -6,7 +6,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from rtpbench import analyze, cases, sip, speechcal
+from rtpbench import analyze, cases, clock, sip, speechcal
 
 W, LEFT, RIGHT = 1000, 118, 16  # SVG width, label column, right margin
 LANE, AXIS = 26, 28
@@ -290,6 +290,7 @@ def render(out: Path, sections: list[tuple[str, str]] | None = None) -> str:
         '<p class="note">True value = measured &minus; error; the error lies within:</p><ul>',
         *(f"<li>[{b.lo:+.1f}, {b.hi:+.1f}] ms: {escape(b.source)}</li>" for b in sorted(bars)),
         "</ul>",
+        f'<p class="note">{escape(clock.note(conds.get("clock_steps", [])))}</p>',
     ]
     for title, md in sections or []:
         parts += [f"<h2>{escape(title)}, {escape(target)}</h2>", _markdown(md)]

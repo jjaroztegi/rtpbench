@@ -3,9 +3,10 @@
 import socket
 import struct
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from rtpbench.clock import CLOCK, Clock
 
 FRAME = 160  # samples per 20 ms packet at 8 kHz
 PTIME_NS = 20_000_000
@@ -43,14 +44,6 @@ def parse(data: bytes) -> Packet | None:
     return Packet(b1 & 0x7F, seq, ts, ssrc, bool(b1 & 0x80), data[start:end])
 
 
-def sleep_until(t_ns: int) -> None:
-    """Sleep to an absolute CLOCK_REALTIME instant; spin the last millisecond for precision."""
-    while (left := t_ns - time.time_ns()) > 1_000_000:
-        time.sleep((left - 1_000_000) / 1e9)
-    while time.time_ns() < t_ns:
-        pass
-
-
 @dataclass(frozen=True, slots=True)
 class Frame:
     """A packet whose payload type, timestamp or marker the source sets itself."""
@@ -62,7 +55,7 @@ class Frame:
 
 
 class Sender(threading.Thread):
-    """Sends one packet per 20 ms tick on an absolute schedule from `start_ns`.
+    """Sends one packet per 20 ms tick on an absolute schedule from `start_ns` on `clock`.
 
     `source(n, tick_ns)` returns tick n's payload (timestamp n * 160, marker on the first packet
     after a pause), a full `Frame`, or None to send nothing. Seq counts packets sent (RFC 3550),
@@ -78,9 +71,10 @@ class Sender(threading.Thread):
         start_ns: int,
         seq0: int,
         ssrc: int,
+        clock: Clock = CLOCK,
     ) -> None:
         super().__init__(daemon=True)
-        self.sock, self.addr, self.pt, self.source = sock, addr, pt, source
+        self.sock, self.addr, self.pt, self.source, self.clock = sock, addr, pt, source, clock
         self.start_ns, self.seq0, self.ssrc = start_ns, seq0, ssrc
         self.stop = threading.Event()
         self.ts0 = 0  # added to every timestamp
@@ -97,7 +91,7 @@ class Sender(threading.Thread):
         while not self.stop.is_set():
             tick = self.start_ns + n * PTIME_NS
             out = self.source(n, tick)
-            sleep_until(tick)
+            self.clock.sleep_until(tick)
             if self.new is not None:
                 (self.ssrc, self.seq0, ts), self.new = self.new, None
                 self.ts0, sent, paused, self.switched = ts - n * FRAME, 0, True, n
@@ -115,13 +109,16 @@ class Sender(threading.Thread):
 
 
 class Receiver(threading.Thread):
-    """Calls `sink(arrival_ns, packet)` for each RTP packet, stamped by the kernel on arrival."""
+    """Calls `sink(arrival_ns, packet)` for each RTP packet, stamped by the kernel on arrival
+    (CLOCK_REALTIME) and put on `clock`."""
 
-    def __init__(self, sock: socket.socket, sink: Callable[[int, Packet], None]) -> None:
+    def __init__(
+        self, sock: socket.socket, sink: Callable[[int, Packet], None], clock: Clock = CLOCK
+    ) -> None:
         super().__init__(daemon=True)
         sock.setsockopt(socket.SOL_SOCKET, SO_TIMESTAMPNS, 1)
         sock.settimeout(0.2)
-        self.sock, self.sink = sock, sink
+        self.sock, self.sink, self.clock = sock, sink, clock
         self.stop = threading.Event()
 
     def run(self) -> None:
@@ -132,10 +129,10 @@ class Receiver(threading.Thread):
                 continue
             except OSError:
                 return
-            arrival = time.time_ns()
+            arrival = self.clock.now()
             for level, kind, raw in anc:
                 if level == socket.SOL_SOCKET and kind == SO_TIMESTAMPNS:
                     sec, nsec = struct.unpack("qq", raw[:16])
-                    arrival = sec * 1_000_000_000 + nsec
+                    arrival = self.clock.steady(sec * 1_000_000_000 + nsec)
             if (pkt := parse(data)) is not None:
                 self.sink(arrival, pkt)
