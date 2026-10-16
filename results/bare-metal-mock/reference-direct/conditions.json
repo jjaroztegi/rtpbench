@@ -1,0 +1,86 @@
+{
+ "date": "2026-10-16T00:56:47+00:00",
+ "commit": "3ab5fe7",
+ "kernel": "6.8.0-147-generic",
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "clock_steps": [],
+ "processes": [
+  {
+   "commit": "3ab5fe7",
+   "date": "2026-10-16T00:56:47+00:00",
+   "profiles": [
+    "clean"
+   ],
+   "load_start": [
+    2.13,
+    1.42,
+    1.41
+   ],
+   "load_end": [
+    5.05,
+    6.05,
+    6.01
+   ],
+   "cpu_governor": "performance",
+   "dir": "reference-direct-clean"
+  },
+  {
+   "commit": "3ab5fe7",
+   "date": "2026-10-16T00:57:31+00:00",
+   "profiles": [
+    "lte"
+   ],
+   "load_start": [
+    3.74,
+    1.93,
+    1.58
+   ],
+   "load_end": [
+    5.06,
+    6.06,
+    6.01
+   ],
+   "cpu_governor": "performance",
+   "dir": "reference-direct-lte"
+  },
+  {
+   "commit": "3ab5fe7",
+   "date": "2026-10-16T00:57:09+00:00",
+   "profiles": [
+    "lte-bad"
+   ],
+   "load_start": [
+    2.95,
+    1.67,
+    1.49
+   ],
+   "load_end": [
+    5.15,
+    6.1,
+    6.03
+   ],
+   "cpu_governor": "performance",
+   "dir": "reference-direct-lte-bad"
+  }
+ ]
+}
