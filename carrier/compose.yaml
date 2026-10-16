@@ -28,11 +28,17 @@ services:
     command: >-
       rtpengine --foreground --log-stderr --table=-1 --interface=eth0
       --listen-ng=127.0.0.1:2223 --port-min=30000 --port-max=30999
+    healthcheck:  # its control socket (127.0.0.1:2223) bound; OpenSIPS disables a relay that
+      # does not answer its first ping, for a minute, and calls then bypass it
+      test: grep -q ' 0100007F:08AF 00000000:0000 07 ' /proc/net/udp
+      interval: 1s
+      retries: 20
 
   carrier-sip:
     image: opensips/opensips:3.6@sha256:81a7fa3c7bdbceaadb7cb869ff7ac3f34efb2d95cd7fecb3b689d7b6b1eb0672
     network_mode: service:carrier
-    depends_on: [carrier-media]
+    depends_on:
+      carrier-media: {condition: service_healthy}
     volumes: ["./carrier/opensips.cfg:/etc/opensips/opensips.cfg:ro"]
     environment:
       CARRIER_NEXT: ${RTPBENCH_CARRIER_NEXT:?}
