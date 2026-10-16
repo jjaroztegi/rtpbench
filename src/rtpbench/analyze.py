@@ -288,8 +288,12 @@ def summarize(runs: dict[str, Path]) -> str:
     for name, run in runs.items():
         if (run / "carrier.pcap").exists():
             for way, ms in transit(run / "carrier.pcap").items():
-                cells = [f"{_pct(ms, q):.3f}" for q in (0.5, 0.95)] + [f"{max(ms):.3f}"]
-                relay.append([name, way, str(len(ms)), *(cells if ms else ["-"] * 3)])
+                cells = (
+                    [f"{_pct(ms, q):.3f}" for q in (0.5, 0.95)] + [f"{max(ms):.3f}"]
+                    if ms
+                    else ["-"] * 3
+                )
+                relay.append([name, way, str(len(ms)), *cells])
         recs = turns(run)
         (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
         for m in METHODS:
