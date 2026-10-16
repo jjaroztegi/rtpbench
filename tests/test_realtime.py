@@ -75,27 +75,27 @@ def test_lines_are_told_apart_and_answered() -> None:
         heard = g711.decode(
             g711.PCMA, g711.encode(g711.PCMA, speech.read_wav(LINES / f"{name}.wav"))
         )
-        got, how = lines.recognise(heard)
-        assert (got, how <= realtime.MATCH) == (name, True)
+        assert lines.recognise(heard)[0] == name
     assert lines.answer("transfer") == realtime.TOOL
     assert lines.answer("prompt-03") == realtime.LONG
     assert lines.answer("") == realtime.SHORT
     cough = speech.read_wav(speech.CORPUS / "cough-man-0.wav")
-    assert lines.recognise(cough)[0] == ""
+    assert lines.answer(lines.recognise(cough)[0]) == realtime.SHORT
 
 
 def test_lines_are_told_apart_through_packet_loss() -> None:
     """Bursts of lost 20 ms packets, as on lte-bad, either dropped (the rest moves up) or
-    concealed (the last packet again at half level)."""
+    concealed (the last packet again at half level), at another level than the line's own."""
     lines, rng = realtime.Lines(), random.Random(7)
     for name in ("transfer", "prompt-05", "turn-11", "turn-01"):
         pcm = g711.decode(g711.PCMA, g711.encode(g711.PCMA, speech.read_wav(LINES / f"{name}.wav")))
-        for conceal in (False, True):
+        for conceal, gain in ((False, 0.5), (True, 2.0)):
+            level = [max(-32768, min(32767, round(s * gain))) for s in pcm]
             heard, bad, last = [], False, [0] * 160
-            for i in range(0, len(pcm), 160):
+            for i in range(0, len(level), 160):
                 bad = rng.random() < (0.52 if bad else 0.032)
                 if not bad:
-                    heard += (last := pcm[i : i + 160])
+                    heard += (last := level[i : i + 160])
                 elif conceal:
                     heard += [s // 2 for s in last]
             assert lines.recognise(heard)[0] == name

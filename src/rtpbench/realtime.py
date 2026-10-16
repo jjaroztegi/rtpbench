@@ -38,9 +38,7 @@ HANGOVER_NS = 1_000_000_000  # silence that ends a turn (real speech pauses up t
 DELAY_NS = 500_000_000  # from the end of a turn to the answer
 DELTA_MS = 100  # audio per delta
 LEAD_NS = 500_000_000  # how far ahead of real time the audio is sent
-MATCH = 1.75  # most distance (mean dB) that names a line: through lte-bad loss (6% of packets,
-# in bursts) a line came within 1.74 of its own in 448 of 448 turns, and no other sound in the
-# corpus within 1.99 of the transfer line or a prompt
+SPAN_DB = 40  # a line runs from its first to its last 20 ms within this of its loudest
 TOOL = "transfer_call"
 SHORT, LONG = "tts-ljspeech-s00", "tts-ljspeech-long"
 _GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -55,21 +53,26 @@ def envelope(pcm: list[int]) -> list[float]:
     ]
 
 
-def voiced(pcm: list[int]) -> list[int]:
-    """From the first to the last 10 ms frame the gate calls voiced."""
-    v = [
-        i
-        for i in range(0, len(pcm) - FRAME + 1, FRAME)
-        if max(map(abs, pcm[i : i + FRAME])) >= GATE
-    ]
-    return pcm[v[0] : v[-1] + FRAME] if v else []
+def shape(pcm: list[int]) -> list[float]:
+    """The envelope from the first to the last value within SPAN_DB of its loudest, less its mean:
+    the same for a line at any level (one connector passes G.711 through, another resamples and
+    re-encodes it on the way)."""
+    e = envelope(pcm)
+    if not e:
+        return []
+    on = [i for i, x in enumerate(e) if x >= max(e) - SPAN_DB]
+    e = e[on[0] : on[-1] + 1]
+    mean = sum(e) / len(e)
+    return [x - mean for x in e]
 
 
-def distance(a: list[float], b: list[float], band: int = 25) -> float:
-    """Mean dB apart along the closest time warp of two envelopes that stays within 500 ms of
-    the diagonal: packets dropped or concealed on the way stretch or shrink a line, which a
-    straight comparison takes for a different line. inf if the lengths differ by more."""
+def distance(a: list[float], b: list[float]) -> float:
+    """Mean dB apart along the closest time warp of two envelopes that strays from the diagonal by
+    500 ms or a fifth of the longer, whichever is more: packets dropped or concealed on the way
+    stretch or shrink a line, which a straight comparison takes for a different line. inf if the
+    lengths differ by more."""
     n, m = len(a), len(b)
+    band = max(25, max(n, m) // 5)
     if not n or not m or abs(n - m) > band:
         return math.inf
     prev = [0.0] + [math.inf] * m
@@ -86,17 +89,20 @@ class Lines:
 
     def __init__(self) -> None:
         paths = sorted((speech.CORPUS / "lines" / "en").glob("*.wav"))
-        self.refs = {p.stem: envelope(voiced(speech.read_wav(p))) for p in paths}
+        self.refs = {p.stem: shape(speech.read_wav(p)) for p in paths}
         self.clips = {}
         for name in (SHORT, LONG):  # from the labelled onset, so sample 0 is speech
             pcm = speech.read_wav(speech.CORPUS / f"{name}.wav")
             self.clips[name] = pcm[speech.label(pcm)[0][0] :]
 
     def recognise(self, pcm: list[int]) -> tuple[str, float]:
-        """The line said in `pcm` (8 kHz) and its distance; "" if none is within MATCH."""
-        e = envelope(voiced(pcm))
+        """The line nearest to `pcm` (8 kHz) and its distance; "" if no line is near its length.
+        No distance limit: a target's path can move a line by as much as a different line differs
+        (LiveKit's by 1.7 dB, where the nearest other line was 2.8), and the caller says only its
+        lines, or short interjections that come out as short turns."""
+        e = shape(pcm)
         best = min(((distance(e, r), n) for n, r in self.refs.items()), default=(math.inf, ""))
-        return (best[1] if best[0] <= MATCH else ""), best[0]
+        return (best[1] if best[0] < math.inf else ""), best[0]
 
     @staticmethod
     def answer(line: str) -> str:
