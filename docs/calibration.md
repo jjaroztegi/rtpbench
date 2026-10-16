@@ -1,0 +1,70 @@
+# Calibration
+
+A calibration measures how far each of rtpbench's measurements is from the truth, on your host,
+under each network profile. The cases take their error bars from it.
+
+```sh
+uv run rtpbench calibrate                               # 7 profiles x 20 turns, about 10 minutes
+uv run rtpbench calibrate --profiles clean --turns 5
+uv run --extra vad rtpbench calibrate --speech          # real speech, PCMU and PCMA, ~40 minutes
+uv run --extra vad rtpbench calibrate --barge-in        # interruptions, ~35 minutes
+```
+
+## How the truth is known
+
+The caller and a reference agent ([`agent.py`](../src/rtpbench/agent.py)) run in containers on
+either side of a `tc netem` router. The agent answers each turn after a random delay it chooses
+and logs to the sample. Both ends capture with `tcpdump`, and every container shares one kernel
+clock. Wire timing is therefore exact against the agent's log, and the calibration's real job
+is the other error: how far speech detection moves an onset or a stop.
+
+For the speech calibration, the clips in [`corpus/`](../corpus/README.md) carry speech boundaries
+labelled on the clean audio. For barge-in, the caller and agent share a script of who cuts in
+and whether the agent stops ([`bargein.py`](../src/rtpbench/bargein.py)).
+
+## Error bars
+
+A bar of (−24/+88) means the true value lies between 24 ms below and 88 ms above the measured
+one: the p5..p95 range of the detector's error for that profile and codec. One set of bars
+serves every host: a second run on the same host moved the edges by up to 33 ms, as much as a
+change of host did, because each p5/p95 edge rests on about two of 43 turns. The
+`lte-bad` edges are the loosest: 17-18% of the reference agent's onsets fall outside them, where
+about 10% would be expected.
+
+The PCMA onset bar's early edge (p5 about −88 ms, against −4 on PCMU) is webrtcvad, not the
+codec alone. On A-law, a detector that has heard earlier speech fires on the low-level lead-in
+before a labelled onset: room tone and TTS noise floor, below the label's −35 dB threshold.
+A fresh detector per clip does not do it, and nor does a lead-in replaced by digital silence.
+A-law has no zero level (silence decodes to ±8), mu-law has one. An A-law agent's onsets can
+read up to about 90 ms early.
+
+## Clock steps
+
+Captures stamp the wall clock, which time sync can step. Senders schedule on the monotonic clock
+([`clock.py`](../src/rtpbench/clock.py)), so a step leaves no gap in the audio. Each run logs the
+steps it saw (`clock_steps` in `conditions.json`), and summaries mark any interval timed across
+one, because it reads off by the step. Virtual machines are prone to this: one guest's clock
+stepped back 25-80 ms about every 30 s under load.
+
+## Running stacks in parallel
+
+Each run brings up its own containers and network, so several can run at once. On an 8-core
+host, 12 reference stacks at once kept wire timing exact, no packet more than 10 ms late and no
+capture drop ([table](../results/bare-metal-mock#timing-on-this-host)). Target stacks weigh more:
+calibrate at the concurrency you intend to publish at, and watch the load.
+
+## Network profiles
+
+netem settings per direction, on the router, applied to RTP only: SIP, over UDP or TCP, is never
+impaired. `delay`, `jitter`, `loss` and `mobile` are synthetic stimuli for the calibrations
+([`bench.py`](../src/rtpbench/bench.py)). `lte` and `lte-bad` stand for a mobile caller's path,
+and every number in them has a source:
+
+| profile | netem | source |
+| --- | --- | --- |
+| `lte` | `delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit` | 1% loss, the VoLTE (QCI 1) target per radio link ([3GPP TR 26.989](https://www.3gpp.org/ftp/Specs/archive/26_series/26.989/) 5.1.1.6.1), in bursts of 2 packets (3GPP VoLTE delay/error profiles 7-10, [EVS-7c S4-141392](https://www.3gpp.org/ftp/tsg_sa/WG4_CODEC/EVS_Permanent_Documents/) Annex D); jitter sd 3 ms (commercial LTE in mobility, [Elnashar et al.](https://arxiv.org/abs/1810.02968), fig. 6); 40 ms one way (LTE uplink p99, [Nielsen et al.](https://arxiv.org/abs/1909.03875), fig. 4) |
+| `lte-bad` | `delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit` | 3GPP delay/error profile 8, VoLTE logs in challenging radio conditions (EVS-7c Annex D): 6.2% loss in runs of 2.1 packets; delay above the floor mean 45 ms, sd 26, p95 90. netem delivers mean 48, sd 23, p95 88 (5000 packets) |
+
+`rate` is there to keep packets in order, as a radio bearer delivers them. Independent netem
+jitter of sd 26 ms reorders 30% of packets; the profile 8 trace reorders 3%. netem cannot
+reproduce the trace's packet-to-packet delay correlation: 0.95 in the trace, 0.43 here.

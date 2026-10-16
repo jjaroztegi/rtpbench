@@ -27,3 +27,13 @@ uv run mypy
 
 - Conventional commits in plain language: `feat(timing): measure turn latency from RTP`.
 - One problem per PR. Body: the problem in a sentence or two, the change, and how it was verified.
+
+## Documentation
+
+- `README.md`: what rtpbench is, what it found, how to start. `docs/`: how to use it and what is
+  unintuitive about it. `results/<name>/README.md`: one published run, with its commands,
+  conditions and findings.
+- Before adding a paragraph, ask what a reader would get wrong without it: a finding, a source,
+  a constraint, a trap. Do not restate what the code or `--help` shows; link the source.
+- Public files never name hosts, addresses, credentials or private notes.
+- When something changes, rewrite the affected text instead of appending another account.
