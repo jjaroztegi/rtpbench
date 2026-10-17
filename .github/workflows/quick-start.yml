@@ -1,29 +1,14 @@
 name: Quick start
 
 # The README's first two commands, from a clean checkout on a GitHub runner (about 14 minutes).
-# Pull requests run it only when they change what those commands run.
+# Pull requests run only the fast checks; run it on a branch by hand when it matters.
 on:
   push:
     branches: [main]
-  pull_request:
-    paths:
-      - src/**
-      - corpus/**
-      - compose.yaml
-      - Dockerfile
-      - .dockerignore
-      - pyproject.toml
-      - uv.lock
-      - .python-version
-      - .github/workflows/quick-start.yml
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: quick-start-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quick-start:
