@@ -95,6 +95,10 @@ def main(argv: list[str] | None = None) -> None:
         p.add_argument("--iface", default="eth0")
 
     args = parser.parse_args(argv)
+    if args.cmd in ("calibrate", "cases", "target"):
+        from rtpbench.progress import Progress
+
+        progress = Progress()
     if args.cmd == "calibrate":
         from rtpbench.bench import PROFILES, calibrate
 
@@ -102,8 +106,8 @@ def main(argv: list[str] | None = None) -> None:
         special = args.speech or args.barge_in
         profiles = args.profiles or ("clean,mobile" if special else ",".join(PROFILES))
         codecs = args.codecs or ("pcmu,pcma" if args.speech else "pcma" if args.barge_in else "")
-        print(
-            calibrate(
+        with progress:
+            summary = calibrate(
                 out,
                 profiles.split(","),
                 args.turns,
@@ -113,8 +117,9 @@ def main(argv: list[str] | None = None) -> None:
                 args.replies,
                 args.barge_in,
                 args.carrier,
+                progress=progress,
             )
-        )
+        print(summary)
         print(f"results in {out}")
     elif args.cmd == "cases":
         from rtpbench import cases
@@ -122,17 +127,19 @@ def main(argv: list[str] | None = None) -> None:
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else cases.names(args.carrier)
-        summary, proven = run_cases(
-            out,
-            args.uri,
-            names,
-            args.profiles.split(","),
-            args.runs,
-            args.seed,
-            args.iface,
-            args.lines,
-            args.carrier,
-        )
+        with progress:
+            summary, proven = run_cases(
+                out,
+                args.uri,
+                names,
+                args.profiles.split(","),
+                args.runs,
+                args.seed,
+                args.iface,
+                args.lines,
+                args.carrier,
+                progress=progress,
+            )
         print(summary)
         print(f"results in {out}")
         if not proven:
@@ -148,9 +155,19 @@ def main(argv: list[str] | None = None) -> None:
             else [*cases.names(args.carrier), "latency", "barge-in"]
         )
         profiles = args.profiles.split(",")
-        print(
-            target(out, args.name, names, profiles, args.runs, args.seed, args.carrier, args.mock)
-        )
+        with progress:
+            summary = target(
+                out,
+                args.name,
+                names,
+                profiles,
+                args.runs,
+                args.seed,
+                args.carrier,
+                args.mock,
+                progress=progress,
+            )
+        print(summary)
         print(f"results in {out}")
     elif args.cmd == "operator":
         from rtpbench.agent import operator

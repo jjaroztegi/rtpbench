@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 from rtpbench import analyze, bargein, clock, realtime, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
+from rtpbench.progress import Progress
 
 ROOT = Path(__file__).resolve().parents[2]
 LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real agent
@@ -113,19 +114,40 @@ class Stack:
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
         self.carrier = carrier is not None
 
-    def compose(self, *args: str, check: bool = True) -> str:
+    def compose(
+        self, *args: str, check: bool = True, lines: Callable[[str], None] | None = None
+    ) -> str:
+        """Its output; with `lines`, its output and errors together, each line also passed to
+        `lines` as it is printed."""
         files = [a for f in self.files for a in ("-f", str(f))]
         cmd = ["docker", "compose", "-p", self.project, *files, *args]
-        res = subprocess.run(cmd, env=self.env, capture_output=True, text=True)
-        if check and res.returncode:
-            raise RuntimeError(f"{' '.join(args)} failed:\n{res.stderr}")
-        return res.stdout.strip()
+        if lines is None:
+            res = subprocess.run(cmd, env=self.env, capture_output=True, text=True)
+            code, out, err = res.returncode, res.stdout, res.stderr
+        else:
+            out = ""
+            with subprocess.Popen(
+                cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            ) as proc:
+                for line in proc.stdout or ():
+                    lines(line)
+                    out += line
+            code, err = proc.returncode, out
+        if check and code:
+            raise RuntimeError(f"{' '.join(args)} failed:\n{err}")
+        return out.strip()
 
     def sh(self, service: str, cmd: str, check: bool = True) -> str:
         return self.compose("exec", "-T", service, "sh", "-c", cmd, check=check)
 
-    def up(self) -> None:
+    def caller(self, *args: str, lines: Callable[[str], None] | None = None) -> str:
+        """`rtpbench args` in the caller container."""
+        return self.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *args, lines=lines)
+
+    def up(self, phase: Callable[[str], None]) -> None:
+        phase("building images")
         self.compose("build", "-q")
+        phase("starting the stack")
         self.compose("up", "-d", "--wait")
 
     def down(self) -> None:
@@ -225,6 +247,8 @@ def calibrate(
     replies: Path | None = None,
     barge: bool = False,
     carrier: bool = False,
+    *,
+    progress: Progress,
 ) -> str:
     """Timing calibration; with `real` the speech-detection one (the agent replies with corpus
     clips, or the WAVs in `replies`); with `barge` the barge-in one; with `carrier` through the
@@ -249,9 +273,10 @@ def calibrate(
     turns = turns or (60 if barge else 20)
     runs = [(p, c) for p in profiles for c in codecs or [""]]
     names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
+    progress.plan(len(runs))
     stack = Stack(out, carrier="agent" if carrier else None)
     try:
-        stack.up()
+        stack.up(progress.phase)
         caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
         conds = conditions(partial(stack.sh, "router"), seed) | {"turns_per_profile": turns}
         conds |= {"codecs": codecs, "speech": real, "barge": barge}
@@ -265,12 +290,12 @@ def calibrate(
                 name = names[profile, codec]
                 run = out / name
                 run.mkdir(exist_ok=True)
+                progress.unit(name)
                 stack.netem(PROFILES[profile], [caller_ip, agent_ip])
                 args = ["--out", f"/out/{name}", "--seed", str(seed)]
                 agent = ["python", "-m", "rtpbench", "agent", *args, *agent_args]
                 stack.compose("exec", "-d", "agent", *agent)
                 _wait_for(run / "ready", 120)
-                print(f"{name}: calling ({turns} turns)", flush=True)
                 call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
                 if codec:
                     call += ["--codec", codec]
@@ -279,13 +304,15 @@ def calibrate(
                 if barge:
                     call += ["--barge-in"]
                 with stack.tap(name):
-                    stack.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *call)
+                    stack.caller(*call, lines=progress.turn)
                     _wait_for(run / "agent.json", 30)
+                progress.done()
         (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     finally:
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
+    progress.phase("analysing")
     dirs = {names[r]: [out / names[r]] for r in runs}
     if barge:
         summary = bargein.summarize(dirs)
@@ -306,6 +333,8 @@ def cases(
     iface: str,
     lines: Path | None = None,
     carrier: bool = False,
+    *,
+    progress: Progress,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent (each behaviour of each case, in Docker
     behind the netem router and, with `carrier`, the carrier, `runs` times per profile), or
@@ -318,6 +347,8 @@ def cases(
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     done: list[cs.Run] = []
+    each = len(names) if uri else len(profiles) * sum(len(cs.CASES[n].behaviours()) for n in names)
+    progress.plan(each * runs)
     with clock.watch() as steps:
         if uri:
             conds = conditions(_host, seed) | {"target": uri, "iface": iface, "runs": runs}
@@ -326,11 +357,12 @@ def cases(
                 for name in names:
                     rel = f"host/{k:02d}/{name}"
                     (out / rel).mkdir(parents=True, exist_ok=True)
-                    print(f"{rel}: calling {uri}", flush=True)
+                    progress.unit(name + _repeat(k, runs))
                     with capture(out / rel / "caller.pcap", iface):
                         log = cs.run(name, uri, seed + k - 1, lines)
                     (out / rel / "caller.json").write_text(json.dumps(log, indent=1))
                     done.append(cs.Run("host", k, name, None, rel))
+                    _verdict(progress, out / rel, "host", None)
             if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
                 subprocess.run(
                     ["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True
@@ -338,7 +370,7 @@ def cases(
         else:
             stack = Stack(out, carrier="agent" if carrier else None)
             try:
-                stack.up()
+                stack.up(progress.phase)
                 caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
                 proxy = stack.entry("operator")  # the transferee's next hop for a transfer
                 conds = conditions(partial(stack.sh, "router"), seed)
@@ -352,28 +384,54 @@ def cases(
                             for behaviour in cs.CASES[name].behaviours():
                                 rel = f"{profile}/{k:02d}/{name}-{behaviour}"
                                 (out / rel).mkdir(parents=True, exist_ok=True)
+                                tag = f"{profile} {name}/{behaviour}{_repeat(k, runs)}"
+                                progress.unit(tag)
                                 args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
                                 agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
                                 stack.compose(
                                     "exec", "-d", "agent", "python", "-m", "rtpbench", *agent
                                 )
                                 _wait_for(out / rel / "ready", 120)
-                                print(f"{rel}: calling", flush=True)
                                 call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
                                 call += args
                                 with stack.tap(rel):
-                                    stack.compose(
-                                        "exec", "-T", "caller", "python", "-m", "rtpbench", *call
-                                    )
+                                    stack.caller(*call)
                                     _wait_for(out / rel / "agent.json", 30)
                                 done.append(cs.Run(profile, k, name, behaviour, rel))
+                                _verdict(progress, out / rel, profile, behaviour)
             finally:
                 if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
                     stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
                 stack.down()
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
+    progress.phase("judging")
     summary, ok = judge(out, done)
     return summary, ok or uri is not None
+
+
+def _repeat(k: int, runs: int) -> str:
+    return f" (repeat {k} of {runs})" if runs > 1 else ""
+
+
+def _verdict(progress: Progress, run: Path, profile: str, behaviour: str | None) -> None:
+    """End the case's unit with its verdict, judged now so a wrong one shows as it happens (the
+    summary reuses it)."""
+    from rtpbench import cases as cs
+
+    try:
+        r = cs.judge(run, profile)
+    except Exception as e:  # the summary judges it again, and raises
+        progress.done(f"not judged: {e}", False)
+        return
+    failed = ", ".join(c.name for c in r.checks if not c.ok)
+    want = cs.expected(behaviour)
+    if want is None:  # a real target: report what failed
+        ok = {"pass": True, "fail": False}.get(r.verdict)
+        progress.done(r.verdict + (f" ({failed})" if failed else ""), ok)
+    elif r.verdict == want:
+        progress.done(f"{r.verdict} as expected", True)
+    else:
+        progress.done(f"{r.verdict}, expected {want}" + (f" ({failed})" if failed else ""), False)
 
 
 def target(
@@ -385,6 +443,8 @@ def target(
     seed: int,
     carrier: bool = False,
     mock: bool = False,
+    *,
+    progress: Progress,
 ) -> str:
     """The cases, a turn-latency call and a barge-in call (those of them in `names`) against
     the compose target `name` (on the mock engine with `mock`), placed from the caller container
@@ -406,7 +466,7 @@ def target(
     with clock.watch() as steps:
         stack = Stack(out, name, "target" if carrier else None, mock)
         try:
-            stack.up()
+            stack.up(progress.phase)
             caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
             router_ip = stack.sh("target", "getent hosts router").split()[0]
             stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
@@ -428,18 +488,21 @@ def target(
                 "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
             }
             calls = {tag: call for tag, call in calls.items() if tag in names}
+            progress.plan(len(profiles) * runs * len(calls))
             for profile in profiles:
                 stack.netem(PROFILES[profile], [caller_ip, target_ip])
                 for k in range(1, runs + 1):
                     for tag, call in calls.items():
                         rel = f"{profile}/{k:02d}/{tag}"
-                        print(f"{rel}: calling {uri}", flush=True)
+                        progress.unit(f"{profile} {tag}{_repeat(k, runs)}")
                         args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
                         (out / rel).mkdir(parents=True, exist_ok=True)
                         with stack.tap(rel):
-                            stack.compose(
-                                "exec", "-T", "caller", "python", "-m", "rtpbench", *call, *args
-                            )
+                            stack.caller(*call, *args, lines=progress.turn)
+                        if tag in cs.CASES:
+                            _verdict(progress, out / rel, profile, None)
+                        else:
+                            progress.done()
                     done += [
                         cs.Run(profile, k, c, None, f"{profile}/{k:02d}/{c}")
                         for c in names
@@ -451,6 +514,7 @@ def target(
                 stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
             stack.down()
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
+    progress.phase("judging")
     return judge(out, done)[0]
 
 

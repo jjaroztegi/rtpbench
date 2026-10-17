@@ -6,7 +6,9 @@ readme = "README.md"
 license = "Apache-2.0"
 authors = [{ name = "Juanjo Aroztegi", email = "juanjo@aroztegi.com" }]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "rich>=15",
+]
 
 [project.optional-dependencies]
 vad = ["onnxruntime>=1.31", "webrtcvad-wheels>=2.0.14"]

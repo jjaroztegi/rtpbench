@@ -1,6 +1,7 @@
 """Caller: speaks fixed turns (synthetic or from WAV files) over a real SIP call, or, for
 barge-in, reacts to the agent: prompt, wait for the reply, cut in, wait for quiet."""
 
+import bisect
 import random
 import secrets
 import socket
@@ -340,13 +341,32 @@ def call(
             clip, speech_spans = labels[i % len(labels)]
             rec |= {"clip": clip, "speech": [[a + start, b + start] for a, b in speech_spans]}
         last.append(rec)
-    hangup_ns = CLOCK.now() + PTIME_NS + len(frames) * PTIME_NS
+    tick0 = CLOCK.now() + PTIME_NS  # as `Session.start` schedules it
+    hangup_ns = tick0 + len(frames) * PTIME_NS
+    starts = [tick0 + start * SAMPLE_NS for start, _ in spans]
+    announce = Turns(len(spans))
+
+    def until(now: int) -> bool:
+        announce(bisect.bisect_right(starts, now))
+        return now >= hangup_ns
+
     remote_bye = s.run(
-        lambda n, _t: frames[n] if n < len(frames) else silence,
-        lambda _a, _p: None,
-        lambda now: now >= hangup_ns,
+        lambda n, _t: frames[n] if n < len(frames) else silence, lambda _a, _p: None, until
     )
     return s.meta(seed, remote_bye) | {"turns": last}
+
+
+class Turns:
+    """Prints "turn k/n" as turn k starts, for the host's progress. Called from the SIP loop
+    that waits for the call to end, so off the threads that send and receive RTP."""
+
+    def __init__(self, n: int) -> None:
+        self.n, self.k = n, 0
+
+    def __call__(self, k: int) -> None:
+        if k > self.k:
+            self.k = k
+            print(f"turn {k}/{self.n}", flush=True)
 
 
 class Media:
@@ -518,5 +538,11 @@ def converse(
     s = Session(uri, codecs)
     s.answer()
     conv = Conversation(s.pt, lines, round(lead * 1e9))
-    remote_bye = s.run(conv.source, conv.on_packet, lambda _now: conv.done)
+    announce = Turns(turns)
+
+    def until(_now: int) -> bool:
+        announce(len(conv.turns))
+        return conv.done
+
+    remote_bye = s.run(conv.source, conv.on_packet, until)
     return s.meta(seed, remote_bye) | {"turns": conv.turns}

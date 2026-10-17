@@ -10,6 +10,7 @@ events are capture times (`rtpbench calibrate`: wire timing within 0.41 ms on a 
 agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per codec).
 """
 
+import functools
 import itertools
 import json
 import re
@@ -1351,6 +1352,7 @@ def run(
         return {"case": name, "error": str(e)} | log
 
 
+@functools.cache  # a run is judged as it ends, for the progress, and again for the summary
 def judge(run: Path, profile: str = "clean") -> Result:
     """The case's verdict from a run directory."""
     w = load(run, profile)
