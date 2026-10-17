@@ -1,0 +1,52 @@
+name: Quick start
+
+# The README's first two commands, from a clean checkout on a GitHub runner (about 14 minutes).
+# Pull requests run it only when they change what those commands run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - src/**
+      - corpus/**
+      - compose.yaml
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - uv.lock
+      - .python-version
+      - .github/workflows/quick-start.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-start-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quick-start:
+    name: Quick start
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+
+      - run: uv run rtpbench calibrate --profiles clean --turns 5 --out results/calibrate
+      - run: uv run --extra vad rtpbench cases --out results/cases
+
+      - run: cat results/calibrate/summary.md results/cases/summary.md >> "$GITHUB_STEP_SUMMARY"
+        if: always()
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: quick-start
+          path: results
