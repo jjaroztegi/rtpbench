@@ -338,3 +338,10 @@ def test_offer_in_a_reinvite_2xx_is_answered(pair: tuple[socket.socket, socket.s
     assert s._answer(sip.Message("SIP/2.0 200 OK")) == b""
     held = sip.parse_sdp(sip.sdp("127.0.0.1", 4000, [0], "", conn="0.0.0.0"))
     assert (held.ip, held.direction) == ("0.0.0.0", "sendrecv")  # no attribute: sendrecv
+
+
+def test_a_streams_first_speech_takes_the_first_onset_bar() -> None:
+    w = Wire({"pt": g711.PCMA}, None, [], [], [], profile="lte")
+    w.__dict__["speech"] = [(100, 200), (500, 600)]  # detected agent speech, capture times
+    assert w.onset(100) == cases.ONSET_FIRST["lte", g711.PCMA]
+    assert w.onset(500) == cases.ONSET["lte", g711.PCMA]

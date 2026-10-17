@@ -18,6 +18,7 @@ the caller pcap. The agent pcap splits truth - delay into agent scheduling error
 import json
 import math
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -281,21 +282,28 @@ def transit(path: Path) -> dict[str, list[float]]:
     return out
 
 
-def summarize(runs: dict[str, Path]) -> str:
+def summarize(runs: dict[str, list[Path]]) -> str:
     """Latency per method; with an agent log, error per method and what truth - delay is made of;
-    with a carrier capture, the carrier's own transit time."""
+    with a carrier capture, the carrier's own transit time. The runs under one name (one per
+    seed) pool into one row."""
     latency, errors, budget, relay = [], [], [], []
-    for name, run in runs.items():
-        if (run / "carrier.pcap").exists():
-            for way, ms in transit(run / "carrier.pcap").items():
-                cells = (
-                    [f"{_pct(ms, q):.3f}" for q in (0.5, 0.95)] + [f"{max(ms):.3f}"]
-                    if ms
-                    else ["-"] * 3
-                )
-                relay.append([name, way, str(len(ms)), *cells])
-        recs = turns(run)
-        (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+    for name, dirs in runs.items():
+        ways: dict[str, list[float]] = {}
+        recs = []
+        for run in dirs:
+            if (run / "carrier.pcap").exists():
+                for way, ms in transit(run / "carrier.pcap").items():
+                    ways.setdefault(way, []).extend(ms)
+            part = turns(run)
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in part))
+            recs += part
+        for way, ms in ways.items():
+            cells = (
+                [f"{_pct(ms, q):.3f}" for q in (0.5, 0.95)] + [f"{max(ms):.3f}"]
+                if ms
+                else ["-"] * 3
+            )
+            relay.append([name, way, str(len(ms)), *cells])
         for m in METHODS:
             v = [r[m + "_ms"] for r in recs if r[m + "_ms"] is not None]
             cells = (
@@ -310,8 +318,10 @@ def summarize(runs: dict[str, Path]) -> str:
             vs_delay = _stats([r[m + "_ms"] - r["delay_ms"] for r in got])
             vs_truth = _stats([r[m + "_ms"] - r["truth_ms"] for r in got])
             errors.append([name, m, f"{len(got)}/{len(recs)}", *vs_delay, *vs_truth])
-        up = stream_stats(load(run / "agent.pcap").up)
-        down = stream_stats(load(run / "caller.pcap").down)
+        up, down = Counter[str](), Counter[str]()
+        for run in dirs:
+            up.update(stream_stats(load(run / "agent.pcap").up))
+            down.update(stream_stats(load(run / "caller.pcap").down))
         budget.append(
             [
                 name,

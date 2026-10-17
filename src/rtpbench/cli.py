@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("out", type=Path)
 
     p = sub.add_parser("analyze", help="summarise run directories already captured")
-    p.add_argument("runs", type=Path, nargs="+")
+    p.add_argument("runs", type=Path, nargs="+", help="those with the same name (seeds) pool")
 
     for name in ("agent", "call"):
         p = sub.add_parser(name, help=f"run the {name} side (inside a container)")
@@ -172,7 +172,10 @@ def main(argv: list[str] | None = None) -> None:
         summarize = speechcal.summarize if "speech" in first[0] else analyze.summarize
         if "prompt" in first[0]:
             summarize = bargein.summarize
-        print(summarize({run.name: run for run in args.runs}))
+        runs: dict[str, list[Path]] = {}
+        for run in args.runs:
+            runs.setdefault(run.name, []).append(run)
+        print(summarize(runs))
     else:
         from rtpbench.capture import capture
 

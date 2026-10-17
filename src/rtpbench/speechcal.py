@@ -20,6 +20,7 @@ from typing import Any
 from rtpbench import analyze, detect, speech
 
 WIDEN = 2400  # samples
+ALIGN = 1280  # samples, a whole number of every detector's frames: they keep the stream's grid
 Span = tuple[int, int]
 
 
@@ -47,6 +48,18 @@ def _edges(
     if not near:
         return None, None
     return st.time(near[0][0], True), st.time(near[-1][1] - 1, False)
+
+
+def _first(
+    down: analyze.Stream, detector: str, agent_log: dict[str, Any], i: int, reply: list[Span]
+) -> int | None:
+    """Time of the first speech `detector` finds in reply `i` when it starts listening in the
+    agent's silence just before it: as on a stream's first speech, with nothing heard before."""
+    k0 = down.index(agent_log["seq0"], agent_log["turns"][i]["start"]) // ALIGN * ALIGN
+    starts = (
+        down.time(k0 + a, True) for a, _ in detect.DETECT[detector](down.pcm[k0 : reply[-1][1]])
+    )
+    return next((t for t in starts if t), None)
 
 
 def _ms(a: int | None, b: int | None) -> float | None:
@@ -100,8 +113,9 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
                 f"{d}_caller_onset_ms": _ms(c_on, ct[0]),
                 f"{d}_caller_offset_ms": _ms(c_off, ct[1]),
             }
-            if at:
+            if at and agent_log:
                 rec[f"{d}_offset_ms"] = _ms(_edges(down, fd, replies[i])[1], at[1])
+                rec[f"{d}_first_ms"] = _ms(_first(down, d, agent_log, i, replies[i]), ct[1])
         out.append(rec)
     return out
 
@@ -134,23 +148,35 @@ def sensitivity(clips: dict[str, list[int]]) -> str:
     return analyze._table([*head, "onset max", "offset max"], rows)
 
 
-def summarize(runs: dict[str, Path], clips: dict[str, list[int]] | None = None) -> str:
+def summarize(runs: dict[str, list[Path]], clips: dict[str, list[int]] | None = None) -> str:
     """With a reference agent: detection error per detector. Against a real agent: turn
-    latency per detector, whose error the calibration gives."""
+    latency per detector, whose error the calibration gives. The runs under one name (one per
+    seed) pool into one row."""
     stat = ["mean", "p5", "p50", "p95", "max abs"]
-    tables: dict[str, list[list[str]]] = {k: [] for k in ("latency", "offset", "caller", "raw")}
+    tables: dict[str, list[list[str]]] = {
+        k: [] for k in ("latency", "first", "offset", "caller", "raw")
+    }
 
     def values(recs: list[dict[str, Any]], key: str) -> list[float]:
         return [r[key] for r in recs if r.get(key) is not None]
 
-    for name, run in runs.items():
-        recs = turns(run)
-        (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+    for name, dirs in runs.items():
+        recs = []
+        for run in dirs:
+            part = turns(run)
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in part))
+            recs += part
         for d in detect.DETECTORS:
             if any("truth_ms" in r for r in recs):
                 err = [r[f"{d}_ms"] - r["truth_ms"] for r in recs if r[f"{d}_ms"] is not None]
+                first = [
+                    r[f"{d}_first_ms"] - r["truth_ms"]
+                    for r in recs
+                    if r.get(f"{d}_first_ms") is not None
+                ]
                 off = values(recs, f"{d}_offset_ms")
                 tables["latency"].append([name, d, f"{len(err)}/{len(recs)}", *_signed(err)])
+                tables["first"].append([name, d, f"{len(first)}/{len(recs)}", *_signed(first)])
                 tables["offset"].append([name, d, f"{len(off)}/{len(recs)}", *_signed(off)])
             raw = values(recs, f"{d}_ms")
             cells = [f"{analyze._pct(raw, q):.1f}" for q in (0.05, 0.5, 0.95)] if raw else ["-"] * 3
@@ -170,6 +196,9 @@ def summarize(runs: dict[str, Path], clips: dict[str, list[int]] | None = None) 
         out += (
             "\nAgent reply onset: blind turn latency - truth, ms\n\n"
             + analyze._table(["run", "detector", "n", *stat], tables["latency"])
+            + "\nAgent reply onset as a stream's first speech (detector started on the reply):"
+            + " blind turn latency - truth, ms\n\n"
+            + analyze._table(["run", "detector", "n", *stat], tables["first"])
             + "\nAgent reply offset: detected - labelled, ms\n\n"
             + analyze._table(["run", "detector", "n", *stat], tables["offset"])
         )

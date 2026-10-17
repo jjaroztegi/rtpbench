@@ -1,6 +1,11 @@
+import json
 import math
+from pathlib import Path
+from typing import Any
 
-from rtpbench import g711
+import pytest
+
+from rtpbench import cli, detect, g711, speechcal
 from rtpbench.agent import Responder
 from rtpbench.analyze import stream
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet
@@ -57,3 +62,23 @@ def test_agent_places_a_clips_labelled_onset_at_the_delay() -> None:
     assert turn["speech"] == [[turn["start"] + 777, turn["start"] + 2777]]
     assert turn["start"] + 777 == onset.start()
     assert (turn["onset_seq"] - 100) * FRAME + turn["onset_off"] == onset.start()
+
+
+def test_runs_of_the_same_name_pool_into_one_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    errors = {"s1": [1.0, 2.0], "s2": [3.0]}  # webrtcvad onset - truth, per seed's run
+    for seed in errors:
+        run = tmp_path / seed / "lte-bad-pcmu"
+        run.mkdir(parents=True)
+        (run / "caller.json").write_text(json.dumps({"turns": [{"speech": []}]}))
+
+    def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict[str, Any]]:
+        return [
+            {"truth_ms": 0.0} | {f"{d}_ms": e for d in detectors} for e in errors[run.parent.name]
+        ]
+
+    monkeypatch.setattr(speechcal, "turns", turns)
+    cli.main(["analyze", *(str(tmp_path / s / "lte-bad-pcmu") for s in errors)])
+    row = next(x for x in capsys.readouterr().out.splitlines() if "| webrtcvad | 3/3 |" in x)
+    assert row.startswith("| lte-bad-pcmu |")

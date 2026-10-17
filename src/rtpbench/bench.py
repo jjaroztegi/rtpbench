@@ -286,7 +286,7 @@ def calibrate(
         if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
             stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
         stack.down()
-    dirs = {names[r]: out / names[r] for r in runs}
+    dirs = {names[r]: [out / names[r]] for r in runs}
     if barge:
         summary = bargein.summarize(dirs)
     else:

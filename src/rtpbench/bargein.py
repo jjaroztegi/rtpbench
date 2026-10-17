@@ -116,15 +116,19 @@ def turns(run: Path) -> list[dict[str, Any]]:
     return out
 
 
-def summarize(runs: dict[str, Path]) -> str:
+def summarize(runs: dict[str, list[Path]]) -> str:
     """Measured stop rate and stop time per interjection kind; with a reference agent's log
-    also the error against truth and the stopped-or-not confusion."""
+    also the error against truth and the stopped-or-not confusion. The runs under one name (one
+    per seed) pool into one row."""
     stat = ["mean", "p5", "p50", "p95", "max abs"]
     measured, errors, confusion = [], [], []
     key = f"wire/{METHOD_DETECTOR}"
-    for name, run in runs.items():
-        recs = turns(run)
-        (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+    for name, dirs in runs.items():
+        recs = []
+        for run in dirs:
+            part = turns(run)
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in part))
+            recs += part
         for d in detect.DETECTORS:
             for kind in KINDS:
                 sel = [r for r in recs if r["kind"] == kind]

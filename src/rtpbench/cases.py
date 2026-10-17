@@ -71,34 +71,46 @@ LABEL_END = Bar(
     -17.0, 17.0, "caller's labelled end; ±5 dB of label threshold, median (calibrate --speech)"
 )
 WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibrate)")
-# speech detection error per netem profile and codec, from the calibrations under that profile;
-# a profile without its own calibration (or a target outside the router) takes the clean bar
+# speech detection error per netem profile and codec, from the calibrations under that profile
+# (seeds 1-5 pooled, 215 replies each); a profile without its own calibration (or a target
+# outside the router) takes the clean bar. ONSET once the detector has heard speech in the
+# stream (on A-law it then fires on the lead-in before a reply); ONSET_FIRST for a stream's
+# first speech, a greeting say, which it reads later and without that early tail.
+_SPEECH = "(calibrate --speech, seeds 1-5)"
 ONSET = {
-    (profile, pt): Bar(lo, hi, f"webrtcvad onset, p5..p95, {g711.NAMES[pt]}, {profile} {how}")
-    for profile, pt, lo, hi, how in (
-        ("clean", g711.PCMU, -3.8, 32.9, "(calibrate --speech)"),
-        ("clean", g711.PCMA, -88.1, 24.3, "(calibrate --speech)"),
-        ("lte", g711.PCMU, -3.4, 32.3, "(calibrate --speech --profiles lte)"),
-        ("lte", g711.PCMA, -87.6, 25.2, "(calibrate --speech --profiles lte)"),
-        ("lte-bad", g711.PCMU, -16.7, 52.5, "(calibrate --speech --profiles lte-bad)"),
-        ("lte-bad", g711.PCMA, -96.9, 35.1, "(calibrate --speech --profiles lte-bad)"),
+    (profile, pt): Bar(lo, hi, f"webrtcvad onset, p5..p95, {g711.NAMES[pt]}, {profile} {_SPEECH}")
+    for profile, pt, lo, hi in (
+        ("clean", g711.PCMU, -3.2, 44.6),
+        ("clean", g711.PCMA, -133.0, 11.0),
+        ("lte", g711.PCMU, -3.6, 43.3),
+        ("lte", g711.PCMA, -131.0, 14.1),
+        ("lte-bad", g711.PCMU, -15.5, 60.9),
+        ("lte-bad", g711.PCMA, -141.5, 22.9),
     )
 }
-STOP = {  # agent stop time on a hard cut, by the gate
-    (profile, pt): Bar(lo, hi, f"gate stop time, p5..p95, {g711.NAMES[pt]}, {profile} {how}")
-    for profile, pt, lo, hi, how in (
-        ("clean", g711.PCMU, -79.2, 0.0, "(calibrate --barge-in --codecs pcmu)"),
-        ("clean", g711.PCMA, -71.9, 0.0, "(calibrate --barge-in)"),
-        ("lte", g711.PCMU, -71.0, 0.0, "(calibrate --barge-in --codecs pcmu --profiles lte)"),
-        ("lte", g711.PCMA, -72.1, 0.0, "(calibrate --barge-in --profiles lte)"),
-        (
-            "lte-bad",
-            g711.PCMU,
-            -94.2,
-            5.4,
-            "(calibrate --barge-in --codecs pcmu --profiles lte-bad)",
-        ),
-        ("lte-bad", g711.PCMA, -118.8, 0.0, "(calibrate --barge-in --profiles lte-bad)"),
+ONSET_FIRST = {
+    (profile, pt): Bar(
+        lo, hi, f"webrtcvad first onset, p5..p95, {g711.NAMES[pt]}, {profile} {_SPEECH}"
+    )
+    for profile, pt, lo, hi in (
+        ("clean", g711.PCMU, 1.0, 63.6),
+        ("clean", g711.PCMA, 1.1, 64.9),
+        ("lte", g711.PCMU, -0.8, 67.6),
+        ("lte", g711.PCMA, -2.5, 67.7),
+        ("lte-bad", g711.PCMU, -11.4, 109.8),
+        ("lte-bad", g711.PCMA, -13.1, 102.9),
+    )
+}
+_BARGE = "(calibrate --barge-in, seeds 1-5)"
+STOP = {  # agent stop time on a hard cut, by the gate; seeds 1-5 pooled, 221 stops each
+    (profile, pt): Bar(lo, hi, f"gate stop time, p5..p95, {g711.NAMES[pt]}, {profile} {_BARGE}")
+    for profile, pt, lo, hi in (
+        ("clean", g711.PCMU, -84.8, 0.0),
+        ("clean", g711.PCMA, -84.9, 0.0),
+        ("lte", g711.PCMU, -81.9, 0.0),
+        ("lte", g711.PCMA, -77.6, 0.0),
+        ("lte-bad", g711.PCMU, -104.9, 0.0),
+        ("lte-bad", g711.PCMA, -100.7, 0.0),
     )
 }
 
@@ -543,9 +555,10 @@ class Wire:
     down: analyze.Timed  # RTP the caller received
     profile: str = "clean"  # netem profile, for the error bars
 
-    def onset(self) -> Bar:
-        """Error bar of the agent's speech onsets."""
-        b = bar(ONSET, self.profile, self.log["pt"])
+    def onset(self, t: int) -> Bar:
+        """Error bar of the agent's speech onset at capture time `t`."""
+        first = not any(a < t for a, _ in self.speech)
+        b = bar(ONSET_FIRST if first else ONSET, self.profile, self.log["pt"])
         assert b is not None  # every codec has a clean bar
         return b
 
@@ -667,7 +680,7 @@ def check_greeting(w: Wire) -> Result:
     truth = w.truth("greeting")
     truth_ms = None if truth is None else (truth[0] - ok[0]) / 1e6
     span = (ok[0], onset)
-    r.timings.append(Timing("200 OK to agent speech", ms, w.onset(), truth_ms, span))
+    r.timings.append(Timing("200 OK to agent speech", ms, w.onset(onset), truth_ms, span))
     r.checks.append(
         Check(f"agent speaks within {GREETING_MAX_MS} ms", ms <= GREETING_MAX_MS, span=span)
     )
@@ -839,7 +852,7 @@ def _reaction(w: Wire, r: Result, t: int) -> Result:
         truth = w.truth("dtmf")
         truth_ms = None if truth is None else (truth[0] - t) / 1e6
         ms = (onset - t) / 1e6
-        r.timings.append(Timing("digit to agent speech", ms, w.onset(), truth_ms, (t, onset)))
+        r.timings.append(Timing("digit to agent speech", ms, w.onset(onset), truth_ms, (t, onset)))
     return r
 
 
@@ -916,7 +929,9 @@ def check_refer_fail(w: Wire) -> Result:
         truth = w.truth("retake")
         truth_ms = None if truth is None else (truth[0] - last) / 1e6
         ms = (onset - last) / 1e6
-        r.timings.append(Timing("failure NOTIFY to agent speech", ms, w.onset(), truth_ms, span))
+        r.timings.append(
+            Timing("failure NOTIFY to agent speech", ms, w.onset(onset), truth_ms, span)
+        )
     return r
 
 
@@ -1150,7 +1165,7 @@ def _replies(w: Wire, r: Result) -> Result:
         truth = w.truth("reply")
         truth_ms = None if truth is None else (truth[0] - said[1]) / 1e6
         ms = (onset - said[1]) / 1e6
-        timing = Timing("end of the question to agent speech", ms, w.onset(), truth_ms, span)
+        timing = Timing("end of the question to agent speech", ms, w.onset(onset), truth_ms, span)
         r.timings.append(timing)
     return r
 
