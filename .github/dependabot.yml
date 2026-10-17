@@ -1,3 +1,5 @@
+# Images and packages under targets/ and carrier/ are not here on purpose: they are what is
+# measured, so a version changes only with a new published run.
 version: 2
 updates:
   - package-ecosystem: github-actions
