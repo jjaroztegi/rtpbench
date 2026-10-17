@@ -46,6 +46,9 @@ uv run --extra vad rtpbench target livekit --mock         # a bundled target, no
 sudo .venv/bin/rtpbench cases sip:agent@host              # your agent (after uv sync --extra vad)
 ```
 
+From a fresh clone the first three take about 1, 14 and 11 minutes, building or pulling about
+2.5 GB of Docker images on first use.
+
 Each run writes `results/<timestamp>/` with the captures, `summary.md` and, for cases,
 `report.html`: a timeline of every call's SIP, speech and RTP.
 
