@@ -497,8 +497,17 @@ def target(
                         progress.unit(f"{profile} {tag}{_repeat(k, runs)}")
                         args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
                         (out / rel).mkdir(parents=True, exist_ok=True)
-                        with stack.tap(rel):
-                            stack.caller(*call, *args, lines=progress.turn)
+                        try:
+                            with stack.tap(rel):
+                                stack.caller(*call, *args, lines=progress.turn)
+                        except RuntimeError as e:
+                            if tag in cs.CASES:
+                                raise
+                            # the target refused or broke a latency or barge-in call: keep its
+                            # capture and the error, and go on; the summary lists it
+                            (out / rel / "error.txt").write_text(str(e))
+                            progress.done("did not complete", False)
+                            continue
                         if tag in cs.CASES:
                             _verdict(progress, out / rel, profile, None)
                         else:
@@ -538,9 +547,13 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         calls: dict[str, list[Path]] = {}
         for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
             calls.setdefault(path.parts[-4], []).append(path.parent)
-        if calls:
-            sections.append((title, pooled(calls, clock.steps(out))))
-            summary += f"\n## {title}\n\n" + sections[-1][1]
+        broken = [p.parent.relative_to(out).as_posix() for p in out.glob(f"*/*/{sub}/error.txt")]
+        if calls or broken:
+            text = pooled(calls, clock.steps(out)) if calls else ""
+            if broken:  # not pooled: no measurement, but not to be dropped silently either
+                text += f"\nDid not complete (see error.txt): {', '.join(sorted(broken))}\n"
+            sections.append((title, text))
+            summary += f"\n## {title}\n\n" + text
     if (out / "realtime.jsonl").exists() and (parts := realtime.decompose(out)):
         sections.append(("Turn latency by part", parts))
         summary += "\n## Turn latency by part\n\n" + parts
