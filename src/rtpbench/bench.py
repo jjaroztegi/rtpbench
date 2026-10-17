@@ -215,7 +215,7 @@ def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": _host("git describe --always --dirty"),
         "kernel": sh("uname -r"),
-        "cpu": sh("grep -m1 'model name' /proc/cpuinfo | cut -d: -f2").strip(),
+        "cpus": os.cpu_count(),  # how many, not which model: published conditions name no hardware
         "docker": _host("docker version --format '{{.Server.Version}}'"),
         "python": sh("python3 -V"),
         "tcpdump": sh("tcpdump --version 2>&1 | head -1"),
