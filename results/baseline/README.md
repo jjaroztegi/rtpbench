@@ -9,7 +9,8 @@ turn is known. Every set below is one `rtpbench` invocation of the same code, im
 steps: 0 were seen. Summaries, records and reports are in this folder; the raw run directories
 (captures, logs, the reference agent's truth) are [archived](#raw-runs). The image tag is a hash
 of `src`, the `Dockerfile` and the corpus, so it names this code in any clone; `commit` in
-`conditions.json` is `git describe` in the checkout that ran it.
+`conditions.json` is `git describe` in the checkout that ran it. The git tag `baseline` is a
+commit with this code: `git checkout baseline` to run it again.
 
 ```sh
 uv run rtpbench calibrate [--carrier]
