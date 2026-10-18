@@ -99,6 +99,8 @@ Reference: calls with the expected verdict over every behaviour and profile. Tar
 over the three profiles, 10 repeats each. Last column: what a deterministic engine can judge of
 the case.
 
+Every call's SIP, speech and RTP on one timeline: reference [direct](https://jjaroztegi.github.io/rtpbench/baseline/reference-direct/report.html), [carrier](https://jjaroztegi.github.io/rtpbench/baseline/reference-carrier/report.html); LiveKit [direct](https://jjaroztegi.github.io/rtpbench/baseline/livekit-direct/report.html), [carrier](https://jjaroztegi.github.io/rtpbench/baseline/livekit-carrier/report.html); AI Voice Connector CE [direct](https://jjaroztegi.github.io/rtpbench/baseline/aivc-direct/report.html), [carrier](https://jjaroztegi.github.io/rtpbench/baseline/aivc-carrier/report.html).
+
 | case | reference, direct | reference, carrier | LiveKit, direct | LiveKit, carrier | AIVC CE, direct | AIVC CE, carrier | a mock judges |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `greeting` | 90/90 | 90/90 | pass 30/30 | pass 30/30 | pass 30/30 | pass 30/30 | stack's time, not the model's |

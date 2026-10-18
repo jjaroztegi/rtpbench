@@ -30,7 +30,8 @@ carrier in front, on a mock engine that holds the AI engine's share of each turn
   `a=ssrc`, an INVITE without SDP), hangs up on the caller when a transfer fails, and as
   configured in its example takes SIP over UDP only, so an INVITE over 1300 bytes is refused.
 
-The details, commands, conditions and raw runs are in [the baseline](results/baseline).
+The details, commands, conditions and raw runs are in [the baseline](results/baseline), and every
+call's timeline on [the results site](https://jjaroztegi.github.io/rtpbench/).
 
 ## Quick start
 
@@ -48,8 +49,9 @@ From a fresh clone the first three take about 1, 14 and 11 minutes, building or 
 2.5 GB of Docker images on first use.
 
 Each run writes `results/<timestamp>/` with the captures, `summary.md` and, for cases,
-`report.html`: a timeline of every call's SIP, speech and RTP. `rtpbench COMMAND --help` lists
-a command's options, defaults and valid names.
+`report.html`: a timeline of every call's SIP, speech and RTP. `rtpbench index` links every run
+under `results/` from `results/index.html`; `rtpbench COMMAND --help` lists a command's options,
+defaults and valid names.
 
 ## Documentation
 
