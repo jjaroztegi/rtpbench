@@ -340,10 +340,17 @@ def _cell(href: str, recs: list[dict[str, Any]]) -> str:
     return f'<a href="{escape(href)}#{_id(recs[0]["run"])}">{text}</a>'
 
 
-def index(root: Path) -> str:
+def index(root: Path, markdown: str | None = None) -> str:
     """A page for every result set under `root` (a `rtpbench cases` or `target` directory): per
     folder, each case's verdicts in each set, linked to its first call's timeline, then each
-    set's conditions and files; other runs with a summary.md (calibrations) by that summary."""
+    set's conditions and files; other runs with a summary.md (calibrations) by that summary.
+    `markdown`: where `root`'s Markdown files render (such as the repository's blob URL for it),
+    for their links; a static host serves them as plain text."""
+
+    def href(path: Path) -> str:
+        rel = path.relative_to(root).as_posix()
+        return f"{markdown.rstrip('/')}/{rel}" if markdown and path.suffix == ".md" else rel
+
     sets: dict[Path, list[tuple[Path, dict[str, Any]]]] = {}
     for f in sorted(root.rglob("results.json")):
         conds = json.loads((f.parent / "conditions.json").read_text())
@@ -365,20 +372,20 @@ def index(root: Path) -> str:
         readme = folder / "README.md"
         parts.append(f"<h2>{escape(rel if rel != '.' else root.name)}</h2>")
         if readme.exists():
-            parts.append(f'<p class="note"><a href="{escape(_href(root, readme))}">README</a></p>')
+            parts.append(f'<p class="note"><a href="{escape(href(readme))}">README</a></p>')
         if group:
             by_case: dict[str, dict[Path, list[dict[str, Any]]]] = {}
             for d, _ in group:
                 for rec in json.loads((d / "results.json").read_text()):
                     by_case.setdefault(rec["case"], {}).setdefault(d, []).append(rec)
             th = "".join(
-                f'<th><a href="{escape(_href(root, d / "report.html"))}">{escape(d.name)}</a></th>'
+                f'<th><a href="{escape(href(d / "report.html"))}">{escape(d.name)}</a></th>'
                 for d, _ in group
             )
             rows = [
                 f"<tr><td>{escape(case)}</td>"
                 + "".join(
-                    f"<td>{_cell(_href(root, d / 'report.html'), by_case[case][d])}</td>"
+                    f"<td>{_cell(href(d / 'report.html'), by_case[case][d])}</td>"
                     if d in by_case[case]
                     else "<td>-</td>"
                     for d, _ in group
@@ -402,7 +409,7 @@ def index(root: Path) -> str:
                         escape(str(conds.get("runs", ""))),
                         escape(conds.get("image") or conds.get("commit", "")),
                         " · ".join(
-                            f'<a href="{escape(_href(root, d / n))}">{n.split(".")[0]}</a>'
+                            f'<a href="{escape(href(d / n))}">{n.split(".")[0]}</a>'
                             for n in ("report.html", "summary.md", "conditions.json")
                             if (d / n).exists()
                         ),
@@ -420,7 +427,7 @@ def index(root: Path) -> str:
             )
         if summaries := others.get(folder):
             links = ", ".join(
-                f'<a href="{escape(_href(root, f))}">{escape(f.parent.name)}</a>' for f in summaries
+                f'<a href="{escape(href(f))}">{escape(f.parent.name)}</a>' for f in summaries
             )
             parts.append(f'<p class="note">Other runs (summary): {links}</p>')
     body = "\n".join(parts)
@@ -430,7 +437,3 @@ def index(root: Path) -> str:
         f"<title>rtpbench results</title><style>{CSS}{INDEX_CSS}</style>"
         f"<body>{body}</body></html>\n"
     )
-
-
-def _href(root: Path, path: Path) -> str:
-    return path.relative_to(root).as_posix()

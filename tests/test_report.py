@@ -43,3 +43,6 @@ def test_index(tmp_path: Path) -> None:
     assert "flips: pass 1, fail 1" in html
     assert "<td>hold</td><td>-</td>" in html  # not run on the reference
     assert 'href="pub/cal/summary.md"' in html
+    html = report.index(tmp_path, "https://example.test/blob/abc/results/")
+    assert 'href="https://example.test/blob/abc/results/pub/cal/summary.md"' in html
+    assert 'href="pub/ref/report.html"' in html  # only Markdown moves
