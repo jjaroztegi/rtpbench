@@ -188,10 +188,16 @@ the same name (other seeds) pool.""",
         epilog="""\
 example:
   uv run --extra vad rtpbench analyze results/*/clean    # every calibration's clean runs
+  uv run --extra vad rtpbench analyze --methods results/*/lte-pcmu   # --speech runs only
 """,
         formatter_class=Help,
     )
     p.add_argument("runs", type=Path, nargs="+", metavar="DIR", help="e.g. results/*/clean")
+    p.add_argument(
+        "--methods",
+        action="store_true",
+        help="calibrate --speech runs: turn latency by common measurement methods against truth",
+    )
 
     p = sub.add_parser(
         "index",
@@ -345,6 +351,8 @@ example:
         summarize = speechcal.summarize if "speech" in first[0] else analyze.summarize
         if "prompt" in first[0]:
             summarize = bargein.summarize
+        if args.methods:
+            summarize = speechcal.methods
         runs: dict[str, list[Path]] = {}
         for run in args.runs:
             runs.setdefault(run.name, []).append(run)

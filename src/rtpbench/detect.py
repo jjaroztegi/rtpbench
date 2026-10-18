@@ -1,14 +1,17 @@
 """Speech detectors for received audio: [start, end) sample spans of detected speech.
 
   gate       |sample| >= 1000 on the 16-bit scale (the calibration's rule); gaps under 20 ms merged
+  rms        every 1 ms, the RMS of the 10 ms around it, mean removed, above 0.01 of full scale:
+             the onset rule of Coval's TTS time-to-first-audio benchmark (coval-ai/benchmarks,
+             runner/src/coval_bench/metrics/ttfa.py), applied to both edges of every span
   webrtcvad  WebRTC VAD, aggressiveness 3, 10 ms frames
   silero     Silero VAD 6.2.3 (ONNX) at 8 kHz, 32 ms windows; speech from p >= 0.5 until p < 0.35
   silero16   the same on the audio upsampled to 16 kHz. Fed a whole call, the 8 kHz mode answers
              speech that follows earlier speech and a long silence tens of ms late, sometimes not
              at all; the 16 kHz mode on the same audio does not.
 
-The window detectors run raw: no minimum durations and no padding, so their bias shows. They
-need the `vad` extra (webrtcvad-wheels, onnxruntime); the Silero model is fetched once from
+All but gate run raw: no minimum durations and no padding, so their bias shows. They need the
+`vad` extra (webrtcvad-wheels, onnxruntime, numpy); the Silero model is fetched once from
 its PyPI wheel, checked against a pinned hash and cached.
 """
 
@@ -24,8 +27,9 @@ from typing import Any
 
 from rtpbench.voice import GATE, RATE
 
-DETECTORS = ("gate", "webrtcvad", "silero", "silero16")
+DETECTORS = ("gate", "rms", "webrtcvad", "silero", "silero16")
 GATE_GAP = 160
+RMS_FRAME, RMS_HOP, RMS_LEVEL = 80, 8, 0.01
 WEBRTC_MODE = 3
 WEBRTC_FRAME = 80
 SILERO_WINDOW = 256
@@ -54,6 +58,17 @@ def _spans(flags: Iterable[bool], size: int, gap: int = 0) -> list[tuple[int, in
 
 def gate(pcm: list[int]) -> list[tuple[int, int]]:
     return _spans((abs(s) >= GATE for s in pcm), 1, GATE_GAP)
+
+
+def rms(pcm: list[int]) -> list[tuple[int, int]]:
+    import numpy as np
+
+    x = np.pad(np.asarray(pcm, dtype=np.float64) / 32768, RMS_FRAME // 2, mode="edge")
+    s1, s2 = (np.concatenate([[0], np.cumsum(v)]) for v in (x, x * x))
+    at = np.arange(0, len(x) - RMS_FRAME + 1, RMS_HOP)
+    mean = (s1[at + RMS_FRAME] - s1[at]) / RMS_FRAME
+    power = (s2[at + RMS_FRAME] - s2[at]) / RMS_FRAME - mean * mean
+    return _spans((power > RMS_LEVEL**2).tolist(), RMS_HOP)
 
 
 def webrtc(pcm: list[int]) -> list[tuple[int, int]]:
@@ -121,6 +136,7 @@ def _silero(pcm: list[int], rate: int) -> list[tuple[int, int]]:
 
 DETECT: dict[str, Callable[[list[int]], list[tuple[int, int]]]] = {
     "gate": gate,
+    "rms": rms,
     "webrtcvad": webrtc,
     "silero": lambda pcm: _silero(pcm, RATE),
     "silero16": lambda pcm: _silero(pcm, 16000),

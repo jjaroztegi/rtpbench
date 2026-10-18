@@ -8,6 +8,10 @@ Truth is the first / last labelled sample that arrived. Per detector:
            speech after it) minus the truth (to the agent's first labelled sample)
   offset   last detected sample of the speech around a labelled clip minus its last labelled
            sample; likewise onset and offset of the caller's own utterances (uplink)
+  rec      turn latency as a two-channel recording at the caller reads it: the caller's end and
+           the agent's onset both detected, the agent's channel timed as the wire, a jitter
+           buffer (rtp) or a recorder appending payloads as they arrive (concat) places it
+  agent    the truth measured on the agent's capture instead, as an agent-side log sees a turn
 
 A detected span belongs to a clip if it overlaps the clip's labelled speech widened by 300 ms.
 """
@@ -62,6 +66,12 @@ def _first(
     return next((t for t in starts if t), None)
 
 
+def _after(st: analyze.Stream, found: list[Span], t: int | None, until: int | None) -> int | None:
+    """Time of the first detected onset after `t` and before `until`."""
+    starts = (st.time(a, True) for a, _ in found)
+    return next((x for x in starts if t and x and x > t and (until is None or x < until)), None)
+
+
 def _ms(a: int | None, b: int | None) -> float | None:
     return None if a is None or b is None else (a - b) / 1e6
 
@@ -76,6 +86,11 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
     pt = caller_log["pt"]
     up, down = analyze.stream(cap.up, pt), analyze.stream(cap.down, pt)
     found = {d: (detect.DETECT[d](up.pcm), detect.DETECT[d](down.pcm)) for d in detectors}
+    rtp, concat = analyze.stream(cap.down, pt, "rtp"), analyze.stream(cap.down, pt, "concat")
+    heard = {  # the agent's channel per recording; rtp has the wire's audio on its own clock
+        d: {"wire": (down, fd), "rtp": (rtp, fd), "concat": (concat, detect.DETECT[d](concat.pcm))}
+        for d, (_, fd) in found.items()
+    }
 
     def place(st: analyze.Stream, seq0: int, spans: list[list[int]]) -> list[Span]:
         return [(st.index(seq0, a), st.index(seq0, b)) for a, b in spans]
@@ -89,6 +104,18 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
     if agent_log and len(replies) != len(said):
         raise ValueError(f"{run}: agent answered {len(replies)} turns, caller spoke {len(said)}")
     said_t = [_truth(up, s) for s in said]
+    if agent_log and (run / "agent.pcap").exists():
+        mine = analyze.load(run / "agent.pcap")
+        a_up, a_down = analyze.stream(mine.up, pt), analyze.stream(mine.down, pt)
+        ends = [
+            _truth(a_up, place(a_up, caller_log["seq0"], t["speech"])) for t in caller_log["turns"]
+        ]
+        onsets = [
+            _truth(a_down, place(a_down, agent_log["seq0"], t["speech"]))
+            for t in agent_log["turns"]
+        ]
+    else:
+        ends = onsets = []
     out = []
     for i, c in enumerate(said):
         ct = said_t[i]
@@ -104,10 +131,14 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
         }
         if agent_log and at:
             rec |= {"agent_clip": agent_log["turns"][i]["clip"], "truth_ms": (at[0] - ct[1]) / 1e6}
+        if ends and (e := ends[i]) and (o := onsets[i]):
+            rec["agent_ms"] = (o[0] - e[1]) / 1e6
         for d, (fu, fd) in found.items():
-            starts = (down.time(s, True) for s, _ in fd)
-            on = next((t for t in starts if t and t > ct[1] and (nxt is None or t < nxt)), None)
+            on = _after(down, fd, ct[1], nxt)
             c_on, c_off = _edges(up, fu, c)
+            c_next = _edges(up, fu, said[i + 1])[0] if i + 1 < len(said) else None
+            for m, (st, spans) in heard[d].items():
+                rec[f"{d}_rec_{m}_ms"] = _ms(_after(st, spans, c_off, c_next), c_off)
             rec |= {
                 f"{d}_ms": _ms(on, ct[1]),
                 f"{d}_caller_onset_ms": _ms(c_on, ct[0]),
@@ -255,4 +286,74 @@ def pooled(
         "turn of every run. True value = measured - error, error within the onset bar; where the "
         "caller's speech ends is defined to ±17 ms (label threshold ±5 dB).\n\n"
         + analyze._table(head, rows)
+    )
+
+
+METHODS = (  # how a turn's latency is measured, and the per-turn key it lands in
+    ("rtpbench: wire, labelled end, webrtcvad onset", "webrtcvad_ms"),
+    ("the agent's capture, labelled: an agent-side log", "agent_ms"),
+    *((f"recording, {d} at both edges", f"{d}_rec_rtp_ms") for d in detect.DETECTORS[1:]),
+    ("recording appending payloads as they arrive, webrtcvad", "webrtcvad_rec_concat_ms"),
+)
+GAP_MS = 500  # Coval's Latency counts only silences at least this long
+
+
+def methods(runs: dict[str, list[Path]]) -> str:
+    """Turn latency by common measurement methods against the truth, on calls with a reference
+    agent: each method's error per turn, where a recording's error comes from, and the error of
+    the mean of gaps over GAP_MS per call. The runs under one name (one per seed) pool."""
+    calls: dict[str, list[list[dict[str, Any]]]] = {}
+    for name, dirs in runs.items():
+        for run in dirs:
+            recs = turns(run)
+            (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+            calls.setdefault(name, []).append([r for r in recs if "truth_ms" in r])
+    pooled = {n: [r for c in cs for r in c] for n, cs in calls.items()}
+
+    def cell(key: str, minus: str | None = "truth_ms") -> list[str]:
+        out = []
+        for recs in pooled.values():
+            v = [r[key] - (r[minus] if minus else 0) for r in recs if r.get(key) is not None]
+            p = [f"{analyze._pct(v, q):+.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
+            miss = f" ({len(v)}/{len(recs)})" if len(v) < len(recs) else ""
+            out.append(f"{p[1]} [{p[0]}, {p[2]}]{miss}")
+        return out
+
+    def gaps(d: str) -> list[str]:
+        out = []
+        for cs in calls.values():
+            errs, kept, total = [], 0, 0
+            for c in cs:
+                v = [r[f"{d}_rec_rtp_ms"] for r in c if (r[f"{d}_rec_rtp_ms"] or 0) >= GAP_MS]
+                kept, total = kept + len(v), total + len(c)
+                if v:
+                    errs.append(statistics.mean(v) - statistics.mean(r["truth_ms"] for r in c))
+            p = (statistics.median(errs), min(errs), max(errs)) if errs else None
+            out.append(f"{p[0]:+.0f} [{p[1]:+.0f}, {p[2]:+.0f}] ({kept}/{total})" if p else "-")
+        return out
+
+    names = list(pooled)
+    detectors = detect.DETECTORS[1:]
+    latency = [["truth itself", *cell("truth_ms", None)], *([m, *cell(k)] for m, k in METHODS)]
+    edges = [
+        row
+        for d in detectors
+        for row in (
+            [f"{d}: caller's end", *cell(f"{d}_caller_offset_ms", None)],
+            [f"{d}: agent's onset", *cell(f"{d}_ms")],
+        )
+    ]
+    return (
+        "Turn latency, measured - truth, ms: p50 [p5, p95] over every turn (turns measured / "
+        "turns where some were missed). Truth: from the caller's last labelled sample to the "
+        "agent's first, as they crossed the caller's wire. A recording is two channels at the "
+        "caller, the agent's placed by a jitter buffer, unless said; both edges detected.\n\n"
+        + analyze._table(["method", *names], latency)
+        + "\nWhere a recording's error comes from: detected - labelled, ms, p50 [p5, p95]. "
+        "A recording's error is about the agent's onset error - the caller's end error.\n\n"
+        + analyze._table(["edge", *names], edges)
+        + f"\nPer call, the mean of the recording's gaps of at least {GAP_MS} ms (Coval's "
+        "Latency) - the mean of the call's true latencies, ms: median [min, max] over calls "
+        "(gaps counted / turns)\n\n"
+        + analyze._table(["detector", *names], [[d, *gaps(d)] for d in detectors])
     )
