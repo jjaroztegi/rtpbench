@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import secrets
+import shlex
 import shutil
 import subprocess
 import time
@@ -24,7 +25,7 @@ if TYPE_CHECKING:  # the CLI's help imports this module for its names; keep that
     from rtpbench.progress import Progress
 
 ROOT = Path(__file__).resolve().parents[2]
-LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real agent
+LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a target
 # compose targets, targets/<name>/compose.yaml: the SIP user to dial, and the variables that set
 # its AI engine with their defaults (of a URL only its domain and query go into the conditions)
 TARGETS = {
@@ -98,14 +99,31 @@ def _image_tag() -> str:
 class Stack:
     """caller | router | agent, plus a target's services when given (on the mock engine with
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
-    are relative to the repository root)."""
+    are relative to the repository root). With `uri`, caller | router only, for an agent outside
+    the stack: the router also joins the Docker network `network`, and with `ports` (first-last)
+    the host publishes that range on the router."""
 
     def __init__(
-        self, out: Path, target: str | None = None, carrier: str | None = None, mock: bool = False
+        self,
+        out: Path,
+        target: str | None = None,
+        carrier: str | None = None,
+        mock: bool = False,
+        uri: bool = False,
+        network: str | None = None,
+        ports: str | None = None,
     ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
         self.files = [ROOT / "compose.yaml"]
+        self.services = ["router", "caller"] if uri else []
+        self.passed: list[str] = []  # variables passed to the caller's commands, by name only
+        if network:
+            self.files.append(ROOT / "uri" / "network.yaml")
+            self.env["RTPBENCH_NETWORK"] = network
+        if ports:
+            self.files.append(ROOT / "uri" / "advertise.yaml")
+            self.env["RTPBENCH_PORTS"] = ports
         if target:
             self.files.append(ROOT / "targets" / target / "compose.yaml")
         if target and mock:
@@ -144,13 +162,15 @@ class Stack:
 
     def caller(self, *args: str, lines: Callable[[str], None] | None = None) -> str:
         """`rtpbench args` in the caller container."""
-        return self.compose("exec", "-T", "caller", "python", "-m", "rtpbench", *args, lines=lines)
+        env = [a for name in self.passed for a in ("-e", name)]
+        cmd = ["exec", "-T", *env, "caller", "python", "-m", "rtpbench", *args]
+        return self.compose(*cmd, lines=lines)
 
     def up(self, phase: Callable[[str], None]) -> None:
         phase("building images")
         self.compose("build", "-q")
         phase("starting the stack")
-        self.compose("up", "-d", "--wait")
+        self.compose("up", "-d", "--wait", *self.services)
 
     def down(self) -> None:
         self.compose("down", "-t", "0", "--remove-orphans", check=False)
@@ -184,17 +204,25 @@ class Stack:
             if "\n0 packets dropped by kernel" not in stats:
                 raise RuntimeError(f"tcpdump dropped packets on the carrier:\n{stats}")
 
-    def netem(self, args: str, peers: list[str]) -> None:
+    def dev(self, ip: str) -> str:
+        """The router's interface towards `ip`."""
+        return self.sh("router", f"ip -o route get {ip}").split(" dev ")[1].split()[0]
+
+    def netem(self, args: str, peers: list[str], sip: tuple[int, ...] = (5060,)) -> None:
+        """netem on the router's way to each of `peers`; SIP to or from the ports `sip` exempt."""
         for ip in peers:
-            dev = self.sh("router", f"ip -o route get {ip}").split(" dev ")[1].split()[0]
+            dev = self.dev(ip)
             self.sh("router", f"tc qdisc del dev {dev} root 2>/dev/null || true")
             if not args:
                 continue
             prio = f"root handle 1: prio bands 3 priomap {' '.join(['2'] * 16)}"
             self.sh("router", f"tc qdisc add dev {dev} {prio}")
             self.sh("router", f"tc qdisc add dev {dev} parent 1:3 handle 30: netem {args}")
-            for proto, port in itertools.product((17, 6), ("sport", "dport")):  # UDP, TCP
-                match = f"u32 match ip protocol {proto} 0xff match ip {port} 5060 0xffff flowid 1:1"
+            # UDP, TCP
+            for proto, way, port in itertools.product((17, 6), ("sport", "dport"), sip):
+                match = (
+                    f"u32 match ip protocol {proto} 0xff match ip {way} {port} 0xffff flowid 1:1"
+                )
                 self.sh("router", f"tc filter add dev {dev} parent 1: protocol ip prio 1 {match}")
 
 
@@ -211,7 +239,7 @@ def _host(cmd: str) -> str:
 
 
 def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
-    """Versions and host; `sh` runs a command where the capture runs (a container or here)."""
+    """Versions and host; `sh` runs a command in the stack (where the capture runs)."""
     governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -328,88 +356,58 @@ def calibrate(
 
 def cases(
     out: Path,
-    uri: str | None,
     names: list[str],
     profiles: list[str],
     runs: int,
     seed: int,
-    iface: str,
-    lines: Path | None = None,
     carrier: bool = False,
     *,
     progress: Progress,
 ) -> tuple[str, bool]:
-    """Conformance cases against the reference agent (each behaviour of each case, in Docker
-    behind the netem router and, with `carrier`, the carrier, `runs` times per profile), or
-    against `uri` from here (capturing on `iface`, `runs` times, no netem). Repeat k uses seed +
-    k - 1. Returns the summary and, for the reference agent, whether every case was proven in
-    every repeat."""
+    """Conformance cases against the reference agent: each behaviour of each case, in Docker
+    behind the netem router and, with `carrier`, the carrier, `runs` times per profile. Repeat k
+    uses seed + k - 1. Returns the summary and whether every case was proven in every repeat."""
     from rtpbench import cases as cs
-    from rtpbench.capture import capture
 
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     done: list[cs.Run] = []
-    each = len(names) if uri else len(profiles) * sum(len(cs.CASES[n].behaviours()) for n in names)
-    progress.plan(each * runs)
+    progress.plan(len(profiles) * sum(len(cs.CASES[n].behaviours()) for n in names) * runs)
     with clock.watch() as steps:
-        if uri:
-            conds = conditions(_host, seed) | {"target": uri, "iface": iface, "runs": runs}
-            conds["python"] = platform.python_version()
-            for k in range(1, runs + 1):
-                for name in names:
-                    rel = f"host/{k:02d}/{name}"
-                    (out / rel).mkdir(parents=True, exist_ok=True)
-                    progress.unit(name + _repeat(k, runs))
-                    with capture(out / rel / "caller.pcap", iface):
-                        log = cs.run(name, uri, seed + k - 1, lines)
-                    (out / rel / "caller.json").write_text(json.dumps(log, indent=1))
-                    done.append(cs.Run("host", k, name, None, rel))
-                    _verdict(progress, out / rel, "host", None)
-            if uid := os.environ.get("SUDO_UID"):  # run with sudo to capture; hand the results back
-                subprocess.run(
-                    ["chown", "-R", f"{uid}:{os.environ['SUDO_GID']}", str(out)], check=True
-                )
-        else:
-            stack = Stack(out, carrier="agent" if carrier else None)
-            try:
-                stack.up(progress.phase)
-                caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
-                proxy = stack.entry("operator")  # the transferee's next hop for a transfer
-                conds = conditions(partial(stack.sh, "router"), seed)
-                conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
-                if carrier:
-                    conds["images"] = stack.compose("images")
-                for profile in profiles:
-                    stack.netem(PROFILES[profile], [caller_ip, agent_ip])
-                    for k in range(1, runs + 1):
-                        for name in names:
-                            for behaviour in cs.CASES[name].behaviours():
-                                rel = f"{profile}/{k:02d}/{name}-{behaviour}"
-                                (out / rel).mkdir(parents=True, exist_ok=True)
-                                tag = f"{profile} {name}/{behaviour}{_repeat(k, runs)}"
-                                progress.unit(tag)
-                                args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
-                                agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
-                                stack.compose(
-                                    "exec", "-d", "agent", "python", "-m", "rtpbench", *agent
-                                )
-                                _wait_for(out / rel / "ready", 120)
-                                call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
-                                call += args
-                                with stack.tap(rel):
-                                    stack.caller(*call)
-                                    _wait_for(out / rel / "agent.json", 30)
-                                done.append(cs.Run(profile, k, name, behaviour, rel))
-                                _verdict(progress, out / rel, profile, behaviour)
-            finally:
-                if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
-                    stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
-                stack.down()
+        stack = Stack(out, carrier="agent" if carrier else None)
+        try:
+            stack.up(progress.phase)
+            caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
+            proxy = stack.entry("operator")  # the transferee's next hop for a transfer
+            conds = conditions(partial(stack.sh, "router"), seed)
+            conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
+            if carrier:
+                conds["images"] = stack.compose("images")
+            for profile in profiles:
+                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                for k in range(1, runs + 1):
+                    for name in names:
+                        for behaviour in cs.CASES[name].behaviours():
+                            rel = f"{profile}/{k:02d}/{name}-{behaviour}"
+                            (out / rel).mkdir(parents=True, exist_ok=True)
+                            progress.unit(f"{profile} {name}/{behaviour}{_repeat(k, runs)}")
+                            args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
+                            agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
+                            stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
+                            _wait_for(out / rel / "ready", 120)
+                            call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
+                            with stack.tap(rel):
+                                stack.caller(*call, *args)
+                                _wait_for(out / rel / "agent.json", 30)
+                            done.append(cs.Run(profile, k, name, behaviour, rel))
+                            _verdict(progress, out / rel, profile, behaviour)
+        finally:
+            if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
+                stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
+            stack.down()
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     progress.phase("judging")
-    summary, ok = judge(out, done)
-    return summary, ok or uri is not None
+    return judge(out, done)
 
 
 def _repeat(k: int, runs: int) -> str:
@@ -437,6 +435,62 @@ def _verdict(progress: Progress, run: Path, profile: str, behaviour: str | None)
         progress.done(f"{r.verdict}, expected {want}" + (f" ({failed})" if failed else ""), False)
 
 
+def check_lines(lines: Path, names: list[str]) -> None:
+    """Raise unless `lines` has, for the calls in `names`, every line it needs (as in
+    corpus/lines/en), each 8 kHz mono 16-bit with speech the labeller can find."""
+    from rtpbench import cases as cs
+
+    need = {
+        "prompt.wav": any(n in cs.CASES for n in names),
+        "transfer.wav": any(n in ("refer", "refer-fail") for n in names),
+        "turn-*.wav": "latency" in names,
+        "prompt-*.wav": "barge-in" in names,
+        "interrupt-*.wav": "barge-in" in names,
+    }
+    problems = []
+    for pattern in (p for p, needed in need.items() if needed):
+        if not (files := sorted(lines.glob(pattern))):
+            problems.append(f"no {pattern}")
+        for f in files:
+            try:
+                speech.label(speech.read_wav(f))
+            except ValueError as e:
+                problems.append(f"{f.name}: {e}")
+    if problems:
+        raise ValueError(f"{lines}: " + "; ".join(problems))
+
+
+def _reach(
+    stack: Stack, caller_ip: str, host: str, network: str | None, advertise: str | None
+) -> tuple[str, str | None]:
+    """Set the router up for an agent outside the stack, at `host`: replies come back through
+    it (so netem holds both ways, not only out) and, when the caller advertises an address
+    (`advertise`, or with `network` the router's own there), it forwards the caller's ports.
+    Returns the agent's address as the router resolves it and the advertised HOST:PORT."""
+    from rtpbench.caller import ADVERTISE_PORT, ADVERTISE_PORTS
+
+    found = stack.sh("router", f"getent ahostsv4 {shlex.quote(host)}", check=False).split()
+    if not found:
+        raise RuntimeError(f"{host} does not resolve from the stack")
+    stack.env["RTPBENCH_RESOLVE"] = f"{host}={found[0]}"
+    stack.passed.append("RTPBENCH_RESOLVE")
+    callnet = stack.dev(caller_ip)
+    stack.sh("router", f"iptables -t nat -A POSTROUTING ! -o {callnet} -j MASQUERADE")
+    if network and not advertise:
+        route = stack.sh("router", f"ip -o route get {found[0]}").split()
+        advertise = f"{route[route.index('src') + 1]}:{ADVERTISE_PORT}"
+    if advertise:
+        first = int(advertise.rpartition(":")[2])
+        span = f"{first}:{first + ADVERTISE_PORTS - 1}"
+        dnat = f"-j DNAT --to-destination {caller_ip}"
+        for proto in ("udp", "tcp"):
+            match = f"! -i {callnet} -p {proto} --dport {span}"
+            stack.sh("router", f"iptables -t nat -A PREROUTING {match} {dnat}")
+        stack.env["RTPBENCH_ADVERTISE"] = advertise
+        stack.passed.append("RTPBENCH_ADVERTISE")
+    return found[0], advertise
+
+
 def target(
     out: Path,
     name: str,
@@ -446,56 +500,93 @@ def target(
     seed: int,
     carrier: bool = False,
     mock: bool = False,
+    lines: Path | None = None,
+    proxy: str | None = None,
+    network: str | None = None,
+    advertise: str | None = None,
     *,
     progress: Progress,
 ) -> str:
     """The cases, a turn-latency call and a barge-in call (those of them in `names`) against
-    the compose target `name` (on the mock engine with `mock`), placed from the caller container
-    through the netem router (and, with `carrier`, the carrier), `runs` times per profile
-    (repeat k uses seed + k - 1); returns the summary."""
+    the compose target `name` (on the mock engine with `mock`) or the agent at the SIP URI
+    `name`, placed from the caller container through the netem router (and, with `carrier`, the
+    carrier), `runs` times per profile (repeat k uses seed + k - 1); returns the summary.
+
+    `lines`: the caller's lines instead of corpus/lines/en. For a URI: `proxy` is where a
+    transfer's INVITE goes (else the Refer-To host); the router joins the Docker network
+    `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
+    next few to it), else with `network` its router's address there."""
     from rtpbench import cases as cs
     from rtpbench import realtime
+    from rtpbench.caller import ADVERTISE_PORTS, parse_uri
 
-    user, settings = TARGETS[name]
+    if lines:
+        check_lines(lines, names)
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
+    said = LINES
+    if lines:
+        said = out / "lines"
+        shutil.copytree(lines, said, dirs_exist_ok=True)
 
     def inside(*paths: Path) -> list[str]:  # as the caller container sees them
-        return [f"/app/{p.relative_to(ROOT).as_posix()}" for p in paths]
+        return [
+            f"/out/{p.relative_to(out).as_posix()}"
+            if p.is_relative_to(out)
+            else f"/app/{p.relative_to(ROOT).as_posix()}"
+            for p in paths
+        ]
 
-    def lines(pattern: str) -> list[str]:
-        return inside(*sorted(LINES.glob(pattern)))
+    def wavs(pattern: str) -> list[str]:
+        return inside(*sorted(said.glob(pattern)))
 
     done: list[cs.Run] = []
     with clock.watch() as steps:
-        stack = Stack(out, name, "target" if carrier else None, mock)
+        if name.startswith("sip:"):
+            host, port = parse_uri(name)
+            ports = None
+            if advertise:  # the host publishes the range
+                first = int(advertise.rpartition(":")[2])
+                ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
+            stack = Stack(out, uri=True, network=network, ports=ports)
+        else:
+            stack = Stack(out, name, "target" if carrier else None, mock)
         try:
             stack.up(progress.phase)
-            caller_ip, target_ip = stack.ip("caller"), stack.entry("target")
-            router_ip = stack.sh("target", "getent hosts router").split()[0]
-            stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
+            caller_ip = stack.ip("caller")
             conds = conditions(partial(stack.sh, "router"), seed)
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
-            conds["engine"] = realtime.conditions() if mock else _engine(settings)
+            if name.startswith("sip:"):
+                target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
+                uri, sip = name, tuple(dict.fromkeys((port, 5060)))
+                conds |= {"network": network, "advertise": advertise}
+            else:
+                user, settings = TARGETS[name]
+                target_ip, sip = stack.entry("target"), (5060,)
+                router_ip = stack.sh("target", "getent hosts router").split()[0]
+                stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
+                conds["engine"] = realtime.conditions() if mock else _engine(settings)
+                uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")
+            if lines:
+                conds["lines"] = {
+                    f.name: hashlib.sha256(f.read_bytes()).hexdigest()
+                    for f in sorted(said.glob("*.wav"))
+                }
             conds["images"] = stack.compose("images")
-            uri = f"sip:{user}@{target_ip}"
-            proxy = stack.entry("operator")
-            turns = lines("turn-*.wav")
+            transfer = ["--proxy", proxy] if proxy else []
+            turns = wavs("turn-*.wav")
             latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]
-            barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *lines("prompt-*.wav")]
+            barge = ["--turns", "10", "--lead", "10", "--barge-in", "--wav", *wavs("prompt-*.wav")]
             calls = {
-                **{
-                    c: ["case", c, uri, "--proxy", proxy, "--lines", *inside(LINES)]
-                    for c in cs.CASES
-                },
+                **{c: ["case", c, uri, *transfer, "--lines", *inside(said)] for c in cs.CASES},
                 "latency": ["call", uri, *latency],
-                "barge-in": ["call", uri, *barge, "--interrupt", *lines("interrupt-*.wav")],
+                "barge-in": ["call", uri, *barge, "--interrupt", *wavs("interrupt-*.wav")],
             }
             calls = {tag: call for tag, call in calls.items() if tag in names}
             progress.plan(len(profiles) * runs * len(calls))
             for profile in profiles:
-                stack.netem(PROFILES[profile], [caller_ip, target_ip])
+                stack.netem(PROFILES[profile], [caller_ip, target_ip], sip)
                 for k in range(1, runs + 1):
                     for tag, call in calls.items():
                         rel = f"{profile}/{k:02d}/{tag}"
@@ -532,6 +623,11 @@ def target(
     return judge(out, done)[0]
 
 
+def _last_line(path: Path) -> str:
+    """The error's last line: the caller's exception, when it raised one."""
+    return (path.read_text().strip().splitlines() or [""])[-1]
+
+
 def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     """Verdicts for the case runs of a results directory (by default the ones its results.json
     lists), plus turn latency and barge-in pooled per profile if it has those calls:
@@ -555,11 +651,13 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
             calls.setdefault(path.parts[-4], []).append(path.parent)
             agent.append((path.parts[-4], path.parent))
-        broken = [p.parent.relative_to(out).as_posix() for p in out.glob(f"*/*/{sub}/error.txt")]
+        broken = sorted(out.glob(f"*/*/{sub}/error.txt"))
         if calls or broken:
             text = pooled(calls, clock.steps(out)) if calls else ""
             if broken:  # not pooled: no measurement, but not to be dropped silently either
-                text += f"\nDid not complete (see error.txt): {', '.join(sorted(broken))}\n"
+                text += "\nDid not complete (see error.txt):\n\n" + "".join(
+                    f"- {p.parent.relative_to(out).as_posix()}: {_last_line(p)}\n" for p in broken
+                )
             sections.append((title, text))
             summary += f"\n## {title}\n\n" + text
     if (out / "realtime.jsonl").exists() and (parts := realtime.decompose(out)):

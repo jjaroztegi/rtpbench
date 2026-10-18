@@ -16,7 +16,7 @@ quick start, from a clone (Linux, Docker 28 or later, uv):
   uv run rtpbench calibrate --profiles clean --turns 5   # how exactly this host times the wire
   uv run --extra vad rtpbench cases                      # prove every case on the reference agent
   uv run --extra vad rtpbench target livekit --mock      # a bundled target, no AI account needed
-  sudo .venv/bin/rtpbench cases sip:agent@host           # your agent (after uv sync --extra vad)
+  uv run --extra vad rtpbench target sip:agent@host      # your agent
 
 Each run writes results/<timestamp>/. rtpbench COMMAND --help shows its options and valid
 values; docs/ in the repository explains the measurements, error bars and cases.
@@ -30,6 +30,31 @@ class Help(argparse.RawDescriptionHelpFormatter):
 
     def _split_lines(self, text: str, width: int) -> list[str]:
         return textwrap.wrap(text, width, break_on_hyphens=False)
+
+
+def _target_args(args: argparse.Namespace) -> str | None:
+    """What is wrong with `rtpbench target`'s arguments, if anything."""
+    from rtpbench.caller import parse_uri
+
+    uri_only = {"--proxy": args.proxy, "--network": args.network, "--advertise": args.advertise}
+    if not args.name.startswith("sip:"):
+        if args.name not in TARGETS:
+            return f"NAME|URI: {args.name!r} is neither {', '.join(TARGETS)} nor a sip: URI"
+        if given := [k for k, v in uri_only.items() if v]:
+            return f"{', '.join(given)}: with a URI only"
+        if args.lines and args.mock:
+            return "--lines: not with --mock, which recognises only the bundled lines"
+        return None
+    if args.mock or args.carrier:
+        return "--mock, --carrier: with a bundled target only"
+    if ":" in args.name.removeprefix("sip:").split("@")[0] and "@" in args.name:
+        return "the URI has a password: give credentials in the environment, not the URI"
+    host, _ = parse_uri(args.name)
+    if host == "localhost" or host.startswith("127."):
+        return f"{host}: the caller runs in Docker; give this host's own address, or --network"
+    if args.advertise and not args.advertise.rpartition(":")[2].isdigit():
+        return "--advertise: HOST:PORT"
+    return None
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -81,22 +106,19 @@ examples:
 
     p = sub.add_parser(
         "cases",
-        help="prove the conformance cases on the reference agent (Docker), or judge a SIP URI",
+        help="prove the conformance cases on the reference agent (Docker)",
         description="""\
-Without a URI, run each case against the reference agent in Docker, behaving well and in
-each way it should fail, and check that every verdict comes out right; exit 1 if one does
-not. With a URI, call that agent from this host, capture on --iface (needs root) and judge
-it. Writes summary.md, results.json, report.html (a timeline of every call) and the
-captures to --out.""",
+Run each case against the reference agent in Docker, behaving well and in each way it should
+fail, and check that every verdict comes out right; exit 1 if one does not. Writes summary.md,
+results.json, report.html (a timeline of every call) and the captures to --out. To judge an
+agent, use `rtpbench target`.""",
         epilog="""\
 examples:
   uv run --extra vad rtpbench cases                      # every case: about 14 minutes
   uv run --extra vad rtpbench cases --only hold,refer --profiles clean,lte --runs 3
-  sudo .venv/bin/rtpbench cases sip:agent@host           # your agent (after uv sync --extra vad)
 """,
         formatter_class=Help,
     )
-    p.add_argument("uri", nargs="?", help="the agent to judge, e.g. sip:agent@host")
     p.add_argument(
         "--only",
         metavar="CASE,...",
@@ -107,33 +129,35 @@ examples:
         "--profiles",
         default="clean",
         metavar="PROFILE,...",
-        help=f"{profiles} (reference agent only; default: clean)",
+        help=f"{profiles} (default: clean)",
     )
     p.add_argument("--runs", type=int, default=1, help="repeats per profile (default: 1)")
     p.add_argument("--out", type=Path, metavar="DIR", help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1, help=seed)
-    p.add_argument("--iface", default="eth0", help="capture interface, with a URI (default: eth0)")
-    p.add_argument(
-        "--lines", type=Path, metavar="DIR", help="with a URI: prompt.wav, transfer.wav to say"
-    )
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
     p = sub.add_parser(
         "target",
-        help="cases, turn latency and barge-in against a bundled target (Docker)",
+        help="cases, turn latency and barge-in against a bundled target or a SIP URI (Docker)",
         description="""\
-Bring up a target from targets/ next to the reference stack and run every case, a 12-turn
-latency call and a 10-turn barge-in call against it through the netem router. Writes
+Run every case, a 12-turn latency call and a 10-turn barge-in call through the netem router
+against a target from targets/ (brought up next to it) or the agent at a SIP URI. Writes
 summary.md, results.json, report.html, target.log and the captures to --out. Without
---mock, the target needs its AI engine's credentials: see targets/NAME/compose.yaml.""",
+--mock, a bundled target needs its AI engine's credentials: see targets/NAME/compose.yaml.""",
         epilog="""\
 examples:
   uv run --extra vad rtpbench target livekit --mock      # no AI account needed: 11 minutes
   uv run --extra vad rtpbench target aivc --mock --only latency,barge-in --profiles clean,lte
+  uv run --extra vad rtpbench target sip:agent@203.0.113.7 --profiles clean,lte
+  uv run --extra vad rtpbench target sip:agent@agent --network myagent_default
 """,
         formatter_class=Help,
     )
-    p.add_argument("name", choices=TARGETS, metavar="NAME", help="%(choices)s")
+    p.add_argument(
+        "name",
+        metavar="NAME|URI",
+        help=f"{', '.join(TARGETS)}, or the agent's sip: URI (sip:user@host[:port])",
+    )
     p.add_argument(
         "--only",
         metavar="NAME,...",
@@ -148,6 +172,23 @@ examples:
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
     p.add_argument("--mock", action="store_true", help="the mock engine instead of the AI engine")
+    p.add_argument(
+        "--lines",
+        type=Path,
+        metavar="DIR",
+        help="the caller's lines, named as in corpus/lines/en (not with --mock)",
+    )
+    p.add_argument("--proxy", metavar="HOST", help="URI: send a transfer's INVITE here")
+    p.add_argument(
+        "--network",
+        metavar="NAME",
+        help="URI: the Docker network the agent is on, when it runs in Docker on this host",
+    )
+    p.add_argument(
+        "--advertise",
+        metavar="HOST:PORT",
+        help="URI: an address where the agent reaches this host; it publishes PORT and the next 7",
+    )
 
     p = sub.add_parser("case", description="run one case's caller side (inside a container)")
     p.add_argument("name")
@@ -288,13 +329,10 @@ example:
         with progress:
             summary, proven = run_cases(
                 out,
-                args.uri,
                 names,
                 args.profiles.split(","),
                 args.runs,
                 args.seed,
-                args.iface,
-                args.lines,
                 args.carrier,
                 progress=progress,
             )
@@ -305,6 +343,8 @@ example:
     elif args.cmd == "target":
         from rtpbench.bench import target
 
+        if problem := _target_args(args):
+            parser.error(problem)
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = (
             args.only.split(",")
@@ -322,6 +362,10 @@ example:
                 args.seed,
                 args.carrier,
                 args.mock,
+                args.lines,
+                args.proxy,
+                args.network,
+                args.advertise,
                 progress=progress,
             )
         print(summary)

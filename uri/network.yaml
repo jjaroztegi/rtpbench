@@ -1,0 +1,14 @@
+# `rtpbench target URI --network NAME`, merged over ../compose.yaml: the router also joins an
+# existing Docker network, where the agent runs (Docker drops traffic between its networks
+# otherwise). agentnet stays the router's way out whatever the networks are called.
+services:
+  router:
+    networks:
+      callnet: {}
+      agentnet: {gw_priority: 1}
+      user: {}
+
+networks:
+  user:
+    external: true
+    name: ${RTPBENCH_NETWORK:?}

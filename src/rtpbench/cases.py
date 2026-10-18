@@ -26,7 +26,7 @@ from typing import Any, NamedTuple
 
 from rtpbench import analyze, clock, detect, g711, pcap, rtp, sip, speech, speechcal
 from rtpbench.agent import BUSY, DIGITS, Behaviour
-from rtpbench.caller import Media, Session, speech_utterances
+from rtpbench.caller import NO_MEDIA, Media, Session, speech_utterances
 from rtpbench.clock import CLOCK
 
 CODECS = (g711.PCMU, g711.PCMA)
@@ -1358,7 +1358,21 @@ def judge(run: Path, profile: str = "clean") -> Result:
     w = load(run, profile)
     if "error" in w.log:
         return Result([Check("call completed", False, w.log["error"])])
-    return CASES[w.log["case"]].check(w)
+    r = CASES[w.log["case"]].check(w)
+    if (silent := no_media(w)) is not None:
+        r.checks.append(silent)
+    return r
+
+
+def no_media(w: Wire) -> Check | None:
+    """A real target answered and we sent RTP, but none came back: a failing check that says
+    where our offer asked for it."""
+    if w.agent is not None or not w.up or w.down or not w.find(_is_2xx_invite, sent=False):
+        return None
+    offer = w.find(lambda m: m.method == "INVITE", sent=True)
+    addr = sip.parse_sdp(offer[1].body).ip if offer else "?"
+    why = f"none, while ours went out; our offer gave c=IN IP4 {addr}: {NO_MEDIA}"
+    return Check("agent RTP arrived", False, why)
 
 
 class Run(NamedTuple):

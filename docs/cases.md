@@ -2,16 +2,15 @@
 
 ```sh
 uv run --extra vad rtpbench cases                      # prove every case against the reference agent
-sudo .venv/bin/rtpbench cases sip:agent@host           # judge your agent (after uv sync --extra vad)
 uv run --extra vad rtpbench cases --profiles clean,lte,lte-bad --runs 10
 ```
 
 Each case ([`cases.py`](../src/rtpbench/cases.py)) is a scripted call with a verdict (pass, fail
 or inconclusive) and timings, each timing with its [error bar](calibration.md#error-bars).
-Without a URI, every case runs against the reference agent once with a behaviour that should
+`rtpbench cases` runs every case against the reference agent once with a behaviour that should
 pass it and once with each behaviour that should fail it, so the case itself is proven; the
-command fails on any unexpected verdict. With a URI, the caller runs on this machine and needs
-root to capture.
+command fails on any unexpected verdict. `rtpbench target` runs them against an agent
+([targets](targets.md)).
 
 With `--runs N`, repeat k uses seed + k − 1. Verdicts are counted ("pass 10/10"); a case whose
 verdict changes between repeats reads "flips: pass 7, fail 3", and fails the reference run.
@@ -19,10 +18,8 @@ Timings read median [min, max]. `report.html` draws, per call, the SIP messages,
 of both sides on one time axis; `rtpbench report DIR` judges a finished run again.
 
 The caller speaks `prompt.wav` (a question) and `transfer.wav` (asking for a person) from
-[`corpus/lines`](../corpus/README.md), or from `--lines DIR` in your agent's language. Transfers
-go to `sip:operator@operator`, a service on the agent's side of the router that rings for a
-second and answers, or answers 486 for `refer-fail`. Against a URI, `--proxy HOST` says where the
-transferee sends its INVITE (by default, the Refer-To host).
+[`corpus/lines`](../corpus/README.md). Transfers go to `sip:operator@operator`, a service on the
+agent's side of the router that rings for a second and answers, or answers 486 for `refer-fail`.
 
 | case | what passes |
 | --- | --- |
