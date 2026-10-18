@@ -214,6 +214,7 @@ def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": _host("git describe --always --dirty"),
+        "image": _image_tag(),  # the code the stacks ran, whatever the history
         "kernel": sh("uname -r"),
         "cpus": os.cpu_count(),  # how many, not which model: published conditions name no hardware
         "docker": _host("docker version --format '{{.Server.Version}}'"),

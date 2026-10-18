@@ -269,7 +269,7 @@ def render(out: Path, sections: list[tuple[str, str]] | None = None) -> str:
     bars = {cases.Bar(*t["bar"]) for r in records for t in r["timings"]}
     meta = ", ".join(
         f"{k} {str(conds[k]).removeprefix('Python ')}"
-        for k in ("date", "commit", "runs", "kernel", "python")
+        for k in ("date", "image", "commit", "runs", "kernel", "python")
         if k in conds
     )
     by_profile: dict[str, list[list[dict[str, Any]]]] = {}
