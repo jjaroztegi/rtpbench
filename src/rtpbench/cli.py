@@ -209,6 +209,11 @@ example:
     p.add_argument(
         "dir", type=Path, nargs="?", default=Path("results"), metavar="DIR", help="default: results"
     )
+    p.add_argument(
+        "--markdown",
+        metavar="URL",
+        help="link Markdown files to URL/<path under DIR>, where they render (default: as files)",
+    )
 
     for name in ("agent", "call"):
         p = sub.add_parser(name, description=f"run the {name} side (inside a container)")
@@ -318,7 +323,7 @@ example:
     elif args.cmd == "index":
         from rtpbench import report
 
-        (args.dir / "index.html").write_text(report.index(args.dir))
+        (args.dir / "index.html").write_text(report.index(args.dir, args.markdown))
         print(f"wrote {args.dir / 'index.html'}")
     elif args.cmd == "operator":
         from rtpbench.agent import operator
