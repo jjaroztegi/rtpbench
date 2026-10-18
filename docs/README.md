@@ -25,3 +25,6 @@ Published:
 
 - [Baseline](../results/baseline): every case on the reference agent and both targets, on a
   mock engine, direct and through a carrier
+- [Metrology](../results/metrology): how far common ways of measuring turn latency (an agent's
+  own view, energy and VAD rules on a recording, a mean of gaps) are from the truth, on the
+  baseline's calibration calls
