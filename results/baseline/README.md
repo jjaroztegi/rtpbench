@@ -188,6 +188,32 @@ clean (its uplink and downlink against AI Voice Connector CE's). How each drives
 (24 kHz PCM against G.711 passed through, and the engine's own speech detection settings) is
 not measured here.
 
+## The connectors' RTP
+
+How evenly each connector's audio reached the caller (RTP pacing in each set's summary): late,
+the p99 of how much later than their RTP timestamps the packets arrived, against the earliest
+before them: the jitter buffer a receiver needs to play 99% of them in time; jitter, the RFC 3550
+interarrival jitter estimate, its median over a call. ms, late / jitter, the median over every
+call of the set (120 to 180 per profile); the reference agent's show what the network and the
+carrier add by themselves.
+
+| profile | route | reference agent | LiveKit | AIVC CE |
+| --- | --- | --- | --- | --- |
+| clean | direct | 0.2 / 0.02 | 21.1 / 0.19 | 1.2 / 0.13 |
+| clean | carrier | 0.7 / 0.04 | 21.2 / 0.22 | 1.4 / 0.25 |
+| lte | direct | 15.7 / 3.28 | 34.4 / 3.34 | 15.9 / 3.33 |
+| lte | carrier | 15.7 / 3.30 | 34.2 / 3.35 | 15.7 / 3.32 |
+| lte-bad | direct | 105.6 / 20.02 | 122.6 / 20.10 | 106.6 / 20.13 |
+| lte-bad | carrier | 106.3 / 20.19 | 120.6 / 20.20 | 105.2 / 20.07 |
+
+LiveKit's stream falls 20 ms behind its own timestamps once in a call: at its 210th packet,
+4.2-4.3 s after its 200 OK, it leaves a 20 ms slot empty without advancing the RTP timestamp,
+and stays 20 ms late to the end. It does so in every call long enough, except in `ptime-30`
+(30 ms packets). A receiver needs a 21.1 ms jitter buffer for it on a clean network, or fills
+a 20 ms gap 4 s into every call; the jitter estimate barely shows it. On a mobile path the slip
+adds to what the network needs (34 ms against 16 under `lte`). AI Voice Connector CE
+needs 1.2 ms on a clean network.
+
 ## Raw runs
 
 Attached to the [release](../../docs/README.md#published-results) as `.tar.zst`; each unpacks to

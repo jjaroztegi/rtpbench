@@ -131,3 +131,17 @@ def test_onset_in_the_last_half_sample_goes_to_the_next_packet() -> None:
     assert m is not None
     assert m.start() == 6 * FRAME
     assert (r.turns[0]["onset_seq"], r.turns[0]["onset_off"]) == (16, 0)
+
+
+def test_pacing_buffer_covers_a_slip_but_not_an_early_burst() -> None:
+    """A sender that stalls one packet without advancing its timestamps runs 20 ms late from
+    then on; one that sends its last packets early, or starts a new source, does not."""
+    sent = [(n * PTIME_NS, Packet(PT, n, n * FRAME, 1, False, SIL)) for n in range(400)]
+    slipped = sent[:200] + [(t + PTIME_NS, p) for t, p in sent[200:397]]
+    burst = [(sent[396][0] + PTIME_NS + k * 1000, p) for k, (_, p) in enumerate(sent[397:])]
+    jitter, late = analyze.pacing(slipped + burst) or (0.0, 0.0)
+    assert jitter < 0.1  # one stall in 400 packets
+    assert late == pytest.approx(20)
+    renumbered = [(t, Packet(PT, p.seq, p.ts, 2, False, SIL)) for t, p in slipped[200:]]
+    assert analyze.pacing(sent[:200] + renumbered) == (0.0, 0.0)
+    assert analyze.pacing(sent[:49]) is None

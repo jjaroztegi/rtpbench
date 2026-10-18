@@ -18,6 +18,7 @@ the caller pcap. The agent pcap splits truth - delay into agent scheduling error
 import json
 import math
 import re
+import statistics
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -243,6 +244,34 @@ def stream_stats(packets: Timed) -> dict[str, int]:
         reordered += r < top
         top = max(top, r)
     return {"received": len(set(rel)), "expected": max(rel) + 1, "reordered": reordered}
+
+
+def pacing(packets: Timed) -> tuple[float, float] | None:
+    """How evenly a sender's RTP arrived (one call, one direction, G.711): the median of the
+    RFC 3550 interarrival jitter estimate (A.8) as it runs, and the p99 of how much later than its
+    timestamp says each packet arrived, against the earliest before it (the jitter buffer a
+    receiver needs to play 99% of them in time), ms. A new SSRC, or a pause of over a second (a
+    hold), starts afresh. None for fewer than 50 packets past the first of their stretch."""
+    jitter: list[float] = []
+    late: list[float] = []
+    j, t0, ts, least, prev = 0.0, 0, 0, 0, None
+    for t, p in packets:
+        if p.pt not in g711.NAMES:
+            continue
+        if prev is None or p.ssrc != prev[1].ssrc or t - prev[0] > 1e9:
+            t0, ts, j, least = t, 0, 0.0, 0
+        else:
+            step = signed(p.ts - prev[1].ts, 32)
+            ts += step
+            j += (abs(t - prev[0] - step * S) / 1e6 - j) / 16
+            jitter.append(j)
+        transit = t - t0 - ts * S  # against the stretch's first packet
+        least = min(least, transit)
+        late.append((transit - least) / 1e6)
+        prev = t, p
+    if len(jitter) < 50:
+        return None
+    return statistics.median(jitter), _pct(late, 0.99)
 
 
 def _pct(values: list[float], q: float) -> float:

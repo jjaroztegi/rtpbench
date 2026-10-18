@@ -148,3 +148,13 @@ Error bars: true value = measured - error, error within
 - [+1.1, +64.9] ms: webrtcvad first onset, p5..p95, PCMA, clean (calibrate --speech, seeds 1-5)
 
 Wall-clock steps during the run: none.
+
+## RTP pacing
+
+The agent's RTP as the caller received it, ms, median [min, max] over calls: late, p99 of how much later than their timestamps say the packets arrived, against the earliest before them: the jitter buffer a receiver needs to play 99% of them in time; jitter, the RFC 3550 interarrival jitter estimate, its median over each call. On a clean network both are the agent's own pacing (and a carrier's); a profile adds its own.
+
+| profile | calls | late, p99 | jitter |
+| --- | --- | --- | --- |
+| clean | 160 | 0.2 [0.0, 19.4] | 0.02 [0.01, 0.07] |
+| lte | 160 | 15.7 [12.0, 30.2] | 3.28 [2.12, 4.13] |
+| lte-bad | 160 | 105.6 [66.2, 141.7] | 20.02 [14.72, 21.52] |

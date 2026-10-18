@@ -545,6 +545,8 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         runs = [cs.Run(*(r[f] for f in cs.Run._fields)) for r in recs]
     summary, records, ok = cs.summarize(out, runs)
     sections: list[tuple[str, str]] = []
+    # the agent's stream in every call where it behaves as it should
+    agent = [(r.profile, out / r.run) for r in runs if r.behaviour in (None, "good")]
     for sub, title, pooled in (
         ("latency", "Turn latency", speechcal.pooled),
         ("barge-in", "Barge-in", bargein.pooled),
@@ -552,6 +554,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         calls: dict[str, list[Path]] = {}
         for path in sorted(out.glob(f"*/*/{sub}/caller.json")):
             calls.setdefault(path.parts[-4], []).append(path.parent)
+            agent.append((path.parts[-4], path.parent))
         broken = [p.parent.relative_to(out).as_posix() for p in out.glob(f"*/*/{sub}/error.txt")]
         if calls or broken:
             text = pooled(calls, clock.steps(out)) if calls else ""
@@ -562,6 +565,9 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     if (out / "realtime.jsonl").exists() and (parts := realtime.decompose(out)):
         sections.append(("Turn latency by part", parts))
         summary += "\n## Turn latency by part\n\n" + parts
+    if paced := cs.pacing(agent):
+        sections.append(("RTP pacing", paced))
+        summary += "\n## RTP pacing\n\n" + paced
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
     (out / "report.html").write_text(report.render(out, sections))

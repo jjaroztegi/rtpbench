@@ -85,3 +85,13 @@ Greeting on the mock engine, ms, p50 [p5, p95]: from the 200 OK on the wire to t
 | clean | 10 | 687 [667, 706] | -16 [-37, -6] | 501 [500, 502] | 203 [195, 218] |
 | lte | 10 | 710 [694, 767] | -31 [-52, -7] | 501 [501, 504] | 244 [223, 272] |
 | lte-bad | 10 | 748 [662, 831] | -34 [-74, -3] | 501 [501, 502] | 261 [215, 363] |
+
+## RTP pacing
+
+The agent's RTP as the caller received it, ms, median [min, max] over calls: late, p99 of how much later than their timestamps say the packets arrived, against the earliest before them: the jitter buffer a receiver needs to play 99% of them in time; jitter, the RFC 3550 interarrival jitter estimate, its median over each call. On a clean network both are the agent's own pacing (and a carrier's); a profile adds its own.
+
+| profile | calls | late, p99 | jitter |
+| --- | --- | --- | --- |
+| clean | 140 | 21.2 [0.6, 22.7] | 0.22 [0.02, 0.49] |
+| lte | 140 | 34.2 [11.1, 39.5] | 3.35 [2.13, 3.66] |
+| lte-bad | 140 | 120.6 [89.7, 136.8] | 20.20 [16.18, 21.39] |
