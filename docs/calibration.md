@@ -24,19 +24,23 @@ and whether the agent stops ([`bargein.py`](../src/rtpbench/bargein.py)).
 
 ## Error bars
 
-A bar of (−24/+88) means the true value lies between 24 ms below and 88 ms above the measured
-one: the p5..p95 range of the detector's error for that profile and codec. One set of bars
-serves every host: a second run on the same host moved the edges by up to 33 ms, as much as a
-change of host did, because each p5/p95 edge rests on about two of 43 turns. The
-`lte-bad` edges are the loosest: 17-18% of the reference agent's onsets fall outside them, where
-about 10% would be expected.
+A bar of (−3.2/+44.6) means the true value lies between 3.2 ms below and 44.6 ms above the
+measured one: the p5..p95 range of the detector's error for that profile and codec. Each bar
+pools five seeds of `calibrate --speech` or `--barge-in`, 215 onsets or 221 stops per profile
+and codec ([`cases.py`](../src/rtpbench/cases.py)); five more seeds leave 5-13% outside the
+bars, where about 10% would be expected ([held out](../results/baseline#detector-error-bars-held-out)).
+One set of bars serves every host: with one seed per bar, a second run on the same host moved
+the edges by up to 33 ms, as much as a change of host did.
 
-The PCMA onset bar's early edge (p5 about −88 ms, against −4 on PCMU) is webrtcvad, not the
-codec alone. On A-law, a detector that has heard earlier speech fires on the low-level lead-in
-before a labelled onset: room tone and TTS noise floor, below the label's −35 dB threshold.
-A fresh detector per clip does not do it, and nor does a lead-in replaced by digital silence.
-A-law has no zero level (silence decodes to ±8), mu-law has one. An A-law agent's onsets can
-read up to about 90 ms early.
+The agent's first speech in a call, usually its greeting, has its own onset bar: a detector that
+has heard nothing yet fires later, and without the early A-law tail below.
+
+The PCMA onset bar's early edge (p5 −131 to −142 ms, against −3 to −16 on PCMU) is webrtcvad,
+not the codec alone. On A-law, a detector that has heard earlier speech fires on the low-level
+lead-in before a labelled onset: room tone and TTS noise floor, below the label's −35 dB
+threshold. A fresh detector per clip does not do it, and nor does a lead-in replaced by digital
+silence. A-law has no zero level (silence decodes to ±8), mu-law has one. An A-law agent's
+onsets after its first can read more than 130 ms early.
 
 ## Clock steps
 
