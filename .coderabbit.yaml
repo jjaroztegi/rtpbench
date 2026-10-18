@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# AGENTS.md is read as the review guidelines (a CodeRabbit default). What follows adds what a
+# reviewer of this repository must know: published numbers rest on archived wire captures.
+language: en-US
+tone_instructions: >-
+  Terse. Lead with the defect and what it breaks; no praise, no restating the diff.
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: false # the PR body already states problem, change and verification
+  review_status: false
+  poem: false
+  in_progress_fortune: false
+  sequence_diagrams: false
+  suggested_labels: false
+  suggested_reviewers: false
+  auto_review:
+    enabled: true
+    drafts: false
+  finishing_touches: # both go against AGENTS.md: comments say why, no test suites
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: warning
+      requirements: >-
+        A conventional commit in plain language, e.g. "feat(timing): measure turn latency
+        from RTP".
+    custom_checks:
+      - name: Published results
+        mode: warning
+        instructions: >-
+          Fail if the PR changes what goes on the wire (in src/rtpbench: caller.py, agent.py,
+          voice.py, rtp.py, sip.py, realtime.py (the mock engine), the network profiles; or
+          the Dockerfile, corpus/, carrier/, mock/, targets/) and its description does not say whether the published results in
+          results/ need a new wave. Fail if it edits a number under results/ or a number quoted
+          from results/ in README.md or docs/ without the regenerated records (summary.md,
+          results.json) that produce it. Otherwise pass.
+  path_filters:
+    - "!results/**/report.html" # generated from results.json
+    - "!results/**/results.json"
+    - "!uv.lock"
+    - "!corpus/**"
+  path_instructions:
+    - path: "**"
+      instructions: >-
+        Public repository: flag anything that names a host, user, home directory, IP address
+        outside loopback and private test ranges, credential, CPU model, cloud region or
+        deployment, or private notes.
+    - path: "src/**/*.py"
+      instructions: >-
+        Timing must come from capture timestamps of packets on the wire, never from agent
+        logs, recordings or the host clock at the time of reading; senders schedule on the
+        monotonic clock. Judging code (checks, error bars, summaries, report) must still read
+        the run directories already archived, since they are re-judged rather than re-run.
+        Several runs share a host: ports, namespaces, container names and output paths must
+        be unique per run, never fixed.
+    - path: "{targets,carrier,mock}/**"
+      instructions: >-
+        These are what is measured, not dependencies to keep fresh: every image and package
+        pinned exactly, and a version change needs a new published run, which the PR must say.
+    - path: "tests/**"
+      instructions: >-
+        One small runnable check per non-trivial behaviour; flag new fixtures, mocks or
+        helpers that only serve a test of trivial code.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Actions pinned by full commit SHA with a version comment, checkout with
+        persist-credentials false, least permissions, no pull_request_target or workflow_run.
+        Quick start must run the README's commands as written.
+    - path: "{README.md,docs/**,results/**/README.md}"
+      instructions: >-
+        Flag text that restates the code or --help, accounts appended instead of rewritten, and
+        claims without the command and conditions that reproduce them. Every quoted number
+        must match the results/ files it comes from.
+
+  tools: # ruff (pyproject.toml) and mypy are the project's checks; these would disagree
+    pylint:
+      enabled: false
+    flake8:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    yamllint:
+      enabled: false
+
+chat:
+  allow_non_org_members: false
+
+knowledge_base: # never draw on other repositories of the account
+  learnings:
+    scope: local
+  pull_requests:
+    scope: local
+  issues:
+    scope: local
