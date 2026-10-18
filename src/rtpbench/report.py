@@ -45,6 +45,16 @@ svg .hit { fill: transparent; stroke: none; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
   vertical-align: -1px; margin-right: 6px; }
 details { margin: 8px 0 0; } summary { cursor: pointer; color: var(--ink2); }
+@media (max-width: 640px) {  /* a phone: tables as wide as their cells; each case a card, its
+  cells stacked under their names */
+  table { min-width: 0; } table.cases tr:first-child { display: none; }
+  table.cases tr { display: block; padding: 6px 0; border-bottom: 1px solid var(--grid); }
+  table.cases tr:last-child { border-bottom: 0; }
+  table.cases td { display: block; min-width: 0; border: 0; padding: 3px 12px; }
+  table.cases td.none { display: none; } table.cases td:first-child { font-weight: 600; }
+  table.cases .n { white-space: normal; }
+  table.cases td[data-label]::before { content: attr(data-label); display: block;
+    color: var(--ink2); font-size: 12px; font-weight: 600; } }
 """
 INDEX_CSS = """
 .m td a { text-decoration: none; } .m td:first-child { white-space: nowrap; }
@@ -93,15 +103,14 @@ def _table(groups: list[list[dict[str, Any]]]) -> str:
         if reference:
             cells.append(escape(", ".join(cases.errors(recs))) or "-")
         timing = 4 if reference else 2
-        rows.append(
-            "<tr>"
-            + "".join(
-                f"<td{' class=t' if i == timing else ''}>{c}</td>" for i, c in enumerate(cells)
-            )
-            + "</tr>"
-        )
+        tds = []
+        for i, c in enumerate(cells):
+            kind = " ".join(k for k, on in (("t", i == timing), ("none", c in ("", "-"))) if on)
+            attrs = (f' class="{kind}"' if kind else "") + (f' data-label="{head[i]}"' if i else "")
+            tds.append(f"<td{attrs}>{c}</td>")  # on a phone each cell shows its column's name
+        rows.append("<tr>" + "".join(tds) + "</tr>")
     th = "".join(f"<th>{h}</th>" for h in head)
-    return f'<div class="scroll"><table><tr>{th}</tr>{"".join(rows)}</table></div>'
+    return f'<div class="scroll"><table class="cases"><tr>{th}</tr>{"".join(rows)}</table></div>'
 
 
 def _runs(times: list[int]) -> list[tuple[int, int]]:
