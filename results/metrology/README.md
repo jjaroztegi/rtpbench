@@ -16,9 +16,9 @@ uv run --extra vad rtpbench analyze pub/barge-s*-{clean,lte,lte-bad}-pcm{u,a}/*-
 ```
 
 Conditions of the calls: as the baseline's, image `rtpbench:965085c223d2`, 16 CPUs, 0 clock
-steps. The analysis is the code of the commit that added this folder; it reads the captures
-only, so its numbers do not depend on the host. The full outputs are
-[methods](methods/summary.md) and [barge-in](barge-in/summary.md).
+steps. The analysis is the code of the commit that added this folder; it reads only the
+archived captures and the caller's and agent's logs, so its numbers do not depend on the host.
+The full outputs are [methods](methods/summary.md) and [barge-in](barge-in/summary.md).
 
 ## Methods
 
@@ -53,7 +53,7 @@ documentation, so none is named here.
   Silero at 16 kHz about −20. Per turn (p5 to p95), webrtcvad runs from −80 to +158 ms on PCMU
   and −191 to +117 on PCMA; Silero at 16 kHz, the tightest, from −68 to +135 on clean and −94
   to +170 on lte-bad. Silero at 8 kHz reads long instead, up to 311 ms, and misses 8 of 215
-  replies.
+  replies (9 on lte-bad PCMA).
 - **A mean per call hides the spread, and still moves with outliers.** With webrtcvad on PCMU, on clean
   and lte, every call's mean of gaps is within 9 ms of its true mean while its turns are off by
   −64 to +158 ms. With Silero at 8 kHz a few late detections move a call's mean by up to 321 ms.

@@ -63,6 +63,8 @@ def gate(pcm: list[int]) -> list[tuple[int, int]]:
 def rms(pcm: list[int]) -> list[tuple[int, int]]:
     import numpy as np
 
+    if not pcm:
+        return []  # edge padding needs a sample
     x = np.pad(np.asarray(pcm, dtype=np.float64) / 32768, RMS_FRAME // 2, mode="edge")
     s1, s2 = (np.concatenate([[0], np.cumsum(v)]) for v in (x, x * x))
     at = np.arange(0, len(x) - RMS_FRAME + 1, RMS_HOP)

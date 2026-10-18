@@ -60,11 +60,12 @@ def test_rms_finds_a_step_as_coval_does() -> None:
     assert not rest
     assert 760 < start < 800
     assert 1600 < end <= 1648
+    assert detect.rms([]) == []
 
 
 @pytest.mark.parametrize("name", ["rms", "webrtcvad", "silero", "silero16"])
 def test_window_detectors_ignore_silence(name: str) -> None:
-    pytest.importorskip("webrtcvad" if name == "webrtcvad" else "onnxruntime")
+    pytest.importorskip({"rms": "numpy", "webrtcvad": "webrtcvad"}.get(name, "onnxruntime"))
     assert detect.DETECT[name]([0] * 16000) == []
 
 
