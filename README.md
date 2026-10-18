@@ -30,7 +30,8 @@ carrier in front, on a mock engine that holds the AI engine's share of each turn
   `a=ssrc`, an INVITE without SDP), hangs up on the caller when a transfer fails, and as
   configured in its example takes SIP over UDP only, so an INVITE over 1300 bytes is refused.
 
-The details, commands, conditions and raw runs are in [the baseline](results/baseline).
+The details, commands, conditions, raw runs and every call's timeline are in
+[the baseline](results/baseline).
 
 ## Quick start
 
