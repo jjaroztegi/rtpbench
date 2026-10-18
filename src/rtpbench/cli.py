@@ -193,6 +193,23 @@ example:
     )
     p.add_argument("runs", type=Path, nargs="+", metavar="DIR", help="e.g. results/*/clean")
 
+    p = sub.add_parser(
+        "index",
+        help="write DIR/index.html, linking every result set under DIR",
+        description="""\
+Write DIR/index.html: for each folder of result sets, every case's verdicts in each set, linked
+to its first call's timeline, then each set's conditions and files; calibrations by their
+summary. Places no calls.""",
+        epilog="""\
+example:
+  uv run rtpbench index                                  # results/index.html
+""",
+        formatter_class=Help,
+    )
+    p.add_argument(
+        "dir", type=Path, nargs="?", default=Path("results"), metavar="DIR", help="default: results"
+    )
+
     for name in ("agent", "call"):
         p = sub.add_parser(name, description=f"run the {name} side (inside a container)")
         p.add_argument("--speech", action="store_true", help="speak corpus clips")
@@ -298,6 +315,11 @@ example:
             )
         print(summary)
         print(f"results in {out}")
+    elif args.cmd == "index":
+        from rtpbench import report
+
+        (args.dir / "index.html").write_text(report.index(args.dir))
+        print(f"wrote {args.dir / 'index.html'}")
     elif args.cmd == "operator":
         from rtpbench.agent import operator
 

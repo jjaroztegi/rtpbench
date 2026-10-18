@@ -46,6 +46,10 @@ svg .hit { fill: transparent; stroke: none; }
   vertical-align: -1px; margin-right: 6px; }
 details { margin: 8px 0 0; } summary { cursor: pointer; color: var(--ink2); }
 """
+INDEX_CSS = """
+.m td a { text-decoration: none; } .m td:first-child { white-space: nowrap; }
+.sets { margin-top: 16px; }
+"""
 ICON = {"pass": "✓", "fail": "✗", "inconclusive": "?"}
 
 
@@ -321,3 +325,112 @@ def render(out: Path, sections: list[tuple[str, str]] | None = None) -> str:
         f"<title>rtpbench cases: {escape(target)}</title><style>{CSS}</style>"
         f"<body>{body}</body></html>\n"
     )
+
+
+def _cell(href: str, recs: list[dict[str, Any]]) -> str:
+    """One case in one set: the reference agent's calls with the expected verdict, or a target's
+    verdicts; linked to the case's first timeline."""
+    if recs[0]["behaviour"] is None:
+        text = _group_verdict(recs)
+    else:
+        ok = sum(r["verdict"] == cases.expected(r["behaviour"]) for r in recs)
+        v = "pass" if ok == len(recs) else "fail"
+        icon = f'<span class="icon" aria-hidden="true">{ICON[v]}</span>'
+        text = f'<span class="v {v}">{icon} <span class="n">{ok}/{len(recs)}</span></span>'
+    return f'<a href="{escape(href)}#{_id(recs[0]["run"])}">{text}</a>'
+
+
+def index(root: Path) -> str:
+    """A page for every result set under `root` (a `rtpbench cases` or `target` directory): per
+    folder, each case's verdicts in each set, linked to its first call's timeline, then each
+    set's conditions and files; other runs with a summary.md (calibrations) by that summary."""
+    sets: dict[Path, list[tuple[Path, dict[str, Any]]]] = {}
+    for f in sorted(root.rglob("results.json")):
+        conds = json.loads((f.parent / "conditions.json").read_text())
+        sets.setdefault(f.parent.parent, []).append((f.parent, conds))
+    others: dict[Path, list[Path]] = {}
+    for f in sorted(root.rglob("summary.md")):
+        if not any(f.is_relative_to(d) for group in sets.values() for d, _ in group):
+            others.setdefault(f.parent.parent, []).append(f)
+    order = {name: i for i, name in enumerate(cases.CASES)}
+    parts = [
+        "<h1>rtpbench results</h1>",
+        '<p class="meta">Reference columns: calls with the expected verdict over every behaviour '
+        "of a case (the good agent passes, each bad one fails). Target columns: verdicts over "
+        "every profile and repeat. Each links to the case's first call.</p>",
+    ]
+    for folder in sorted(sets.keys() | others.keys()):
+        rel = folder.relative_to(root).as_posix()
+        group = sorted(sets.get(folder, []), key=lambda s: ("target" in s[1], s[0].name))
+        readme = folder / "README.md"
+        parts.append(f"<h2>{escape(rel if rel != '.' else root.name)}</h2>")
+        if readme.exists():
+            parts.append(f'<p class="note"><a href="{escape(_href(root, readme))}">README</a></p>')
+        if group:
+            by_case: dict[str, dict[Path, list[dict[str, Any]]]] = {}
+            for d, _ in group:
+                for rec in json.loads((d / "results.json").read_text()):
+                    by_case.setdefault(rec["case"], {}).setdefault(d, []).append(rec)
+            th = "".join(
+                f'<th><a href="{escape(_href(root, d / "report.html"))}">{escape(d.name)}</a></th>'
+                for d, _ in group
+            )
+            rows = [
+                f"<tr><td>{escape(case)}</td>"
+                + "".join(
+                    f"<td>{_cell(_href(root, d / 'report.html'), by_case[case][d])}</td>"
+                    if d in by_case[case]
+                    else "<td>-</td>"
+                    for d, _ in group
+                )
+                + "</tr>"
+                for case in sorted(by_case, key=lambda c: (order.get(c, len(order)), c))
+            ]
+            parts.append(
+                f'<div class="scroll"><table class="m"><tr><th>case</th>{th}</tr>'
+                f"{''.join(rows)}</table></div>"
+            )
+            info = [
+                "<tr>"
+                + "".join(
+                    f"<td>{c}</td>"
+                    for c in (
+                        escape(d.name),
+                        escape(conds.get("target", "reference agent")),
+                        escape(conds.get("date", "")[:16].replace("T", " ")),
+                        escape(", ".join(conds.get("profiles", []))),  # none with a URI
+                        escape(str(conds.get("runs", ""))),
+                        escape(conds.get("image") or conds.get("commit", "")),
+                        " · ".join(
+                            f'<a href="{escape(_href(root, d / n))}">{n.split(".")[0]}</a>'
+                            for n in ("report.html", "summary.md", "conditions.json")
+                            if (d / n).exists()
+                        ),
+                    )
+                )
+                + "</tr>"
+                for d, conds in group
+            ]
+            head = "".join(
+                f"<th>{h}</th>"
+                for h in ("set", "agent", "date (UTC)", "profiles", "runs", "code", "files")
+            )
+            parts.append(
+                f'<div class="scroll sets"><table><tr>{head}</tr>{"".join(info)}</table></div>'
+            )
+        if summaries := others.get(folder):
+            links = ", ".join(
+                f'<a href="{escape(_href(root, f))}">{escape(f.parent.name)}</a>' for f in summaries
+            )
+            parts.append(f'<p class="note">Other runs (summary): {links}</p>')
+    body = "\n".join(parts)
+    return (
+        '<!doctype html><html lang="en"><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>rtpbench results</title><style>{CSS}{INDEX_CSS}</style>"
+        f"<body>{body}</body></html>\n"
+    )
+
+
+def _href(root: Path, path: Path) -> str:
+    return path.relative_to(root).as_posix()
