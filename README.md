@@ -36,8 +36,8 @@ The details, commands, conditions and raw runs are in [the baseline](results/bas
 call's timeline on [the results site](https://jjaroztegi.github.io/rtpbench/).
 
 Common ways of measuring turn latency have errors of their own: measured inside the agent, a turn
-misses the network (80 ms on an LTE path); an energy rule on a recording reads every turn about
-90 ms long. Each method against the truth: [metrology](results/metrology).
+misses the network (80 ms on an LTE path); an energy rule on a recording reads turns long, by
+87-110 ms at the median. Each method against the truth: [metrology](results/metrology).
 
 ## Quick start
 
