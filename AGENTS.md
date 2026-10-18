@@ -6,7 +6,8 @@ behaviour from captured packets, with and without network impairment (`tc netem`
 ## Principles
 
 - Timing comes from packets on the wire, never from agent logs or recordings.
-- Every published number ships with the command and conditions that reproduce it.
+- Every published number ships with the command and conditions that reproduce it, and its raw
+  runs are archived: judging changes re-judge them; only wire changes need new runs.
 - Smallest change that works. No speculative abstractions or "for later" code.
 - Docs stay short. Code explains itself; comments say why, not what.
 
