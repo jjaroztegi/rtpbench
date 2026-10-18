@@ -21,7 +21,5 @@ uv run --extra vad rtpbench analyze DIR...   # calibrations; same-named director
 
 Published:
 
-- [Both targets on a mock engine](../results/bare-metal-mock): where each stack's time goes
-- [LiveKit and AI Voice Connector CE on a real engine](../results/two-targets)
-- [Through a carrier](../results/carrier)
-- [First results](../results/first): the reference agent and AI Voice Connector CE
+- [Baseline](../results/baseline): every case on the reference agent and both targets, on a
+  mock engine, direct and through a carrier

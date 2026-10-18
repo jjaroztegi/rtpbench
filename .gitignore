@@ -5,7 +5,4 @@ dist/
 *.pcap
 *.pcapng
 results/*
-!results/first/
-!results/carrier/
-!results/two-targets/
-!results/bare-metal-mock/
+!results/baseline/

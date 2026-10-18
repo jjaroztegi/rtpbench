@@ -1,0 +1,50 @@
+{
+ "date": "2026-10-17T20:37:42+00:00",
+ "commit": "4b0b7bc",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  3.21,
+  2.17,
+  2.4
+ ],
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "aivc",
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "images": "CONTAINER                         REPOSITORY           TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-fc0c9f-agent-1           rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-caller-1          rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-carrier-1         rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-carrier-media-1   rtpbench-rtpengine   12.5.1.31           linux/amd64         9d43faaae99f        295MB               4 hours ago\nrtpbench-fc0c9f-carrier-sip-1     opensips/opensips    <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-fc0c9f-engine-1          rtpbench-aivc        09e14d0             linux/amd64         d21f558e0bf5        1.32GB              5 hours ago\nrtpbench-fc0c9f-opensips-1        opensips/opensips    <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-fc0c9f-operator-1        rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-realtime-1        rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-router-1          rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago\nrtpbench-fc0c9f-target-1          rtpbench             ad0a03d9c585        linux/amd64         1af8a0ff4a06        136MB               About a minute ago",
+ "clock_steps": [],
+ "load_end": [
+  5.36,
+  5.35,
+  6.5
+ ]
+}

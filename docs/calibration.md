@@ -50,7 +50,7 @@ stepped back 25-80 ms about every 30 s under load.
 
 Each run brings up its own containers and network, so several can run at once. On an 8-core
 host, 12 reference stacks at once kept wire timing exact, no packet more than 10 ms late and no
-capture drop ([table](../results/bare-metal-mock#timing-on-this-host)). Target stacks weigh more:
+capture drop ([table](../results/baseline#timing-on-this-host)). Target stacks weigh more:
 calibrate at the concurrency you intend to publish at, and watch the load.
 
 ## Network profiles

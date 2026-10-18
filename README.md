@@ -13,26 +13,24 @@ Status: early development.
 ## What it found
 
 Two open-source SIP connectors for the OpenAI Realtime API, through 21 cases, with and without a
-carrier in front:
+carrier in front, on a mock engine that holds the AI engine's share of each turn fixed:
 
 | | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) |
 | --- | --- | --- |
-| cases failed of 21, on a mock engine | 7 | 12, and 1 inconclusive |
-| turn latency on gpt-realtime-2.1, p50 | 1654 ms | 1178 ms |
-| the connector's own media path per turn, on a mock engine | 334 ms | 9 ms |
-| stops for an interruption, p50 | 707 ms | 294 ms |
+| cases failed of 21 | 7 | 12, and 1 inconclusive |
+| turn latency, clean, p50 | 1833 ms | 1512 ms |
+| the connector's own media path per turn, p50 | 335 ms | 11 ms |
+| stops for an interruption, clean, p50 | 306 ms | 24 ms |
 
 - Neither handles hold correctly: both keep sending audio to a held caller, and both answer a
   re-INVITE that changes codec with the old codec.
-- On the real engine both stop talking for most backchannels ("uh-huh", "okay"), and almost never
-  for a cough.
-- Most of LiveKit's extra latency is its own media path: 325 ms per turn more than AI Voice
-  Connector CE's, measured with the engine held fixed by a mock.
+- Most of LiveKit's extra latency is its own media path: 324 ms per turn more than AI Voice
+  Connector CE's.
 - AI Voice Connector CE fails every signalling variation a carrier sends (compact headers, a bare
   `a=ssrc`, an INVITE without SDP), hangs up on the caller when a transfer fails, and as
   configured in its example takes SIP over UDP only, so an INVITE over 1300 bytes is refused.
 
-The details, commands and conditions are in [results](docs/README.md#published-results).
+The details, commands, conditions and raw runs are in [the baseline](results/baseline).
 
 ## Quick start
 

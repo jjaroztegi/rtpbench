@@ -1,0 +1,50 @@
+{
+ "date": "2026-10-17T20:38:07+00:00",
+ "commit": "4b0b7bc",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  3.66,
+  2.35,
+  2.46
+ ],
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "livekit",
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "images": "CONTAINER                         REPOSITORY               TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-a53353-agent-1           rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-agent-worker-1    rtpbench-livekit-agent   1.8.7               linux/amd64         b3879760316b        521MB               5 hours ago\nrtpbench-a53353-caller-1          rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-carrier-1         rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-carrier-media-1   rtpbench-rtpengine       12.5.1.31           linux/amd64         b7d451777ab2        295MB               4 hours ago\nrtpbench-a53353-carrier-sip-1     opensips/opensips        <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-a53353-livekit-1         livekit/livekit-server   <none>              linux/amd64         74b3dee8f66a        96.3MB              10 days ago\nrtpbench-a53353-operator-1        rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-realtime-1        rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-redis-1           redis                    <none>              linux/amd64         fdd7c4673185        71.4MB              3 weeks ago\nrtpbench-a53353-router-1          rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago\nrtpbench-a53353-sip-1             livekit/sip              <none>              linux/amd64         098cb62d26bc        152MB               4 days ago\nrtpbench-a53353-target-1          rtpbench                 ad0a03d9c585        linux/amd64         df3de76de722        136MB               About a minute ago",
+ "clock_steps": [],
+ "load_end": [
+  8.89,
+  9.92,
+  9.7
+ ]
+}

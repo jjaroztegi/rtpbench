@@ -1,0 +1,39 @@
+{
+ "date": "2026-10-17T20:36:40+00:00",
+ "commit": "4b0b7bc",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  2.16,
+  1.84,
+  2.32
+ ],
+ "seed": 1,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "images": "CONTAINER                         REPOSITORY           TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-ce5344-agent-1           rtpbench             ad0a03d9c585        linux/amd64         ebbc77036f85        136MB               24 seconds ago\nrtpbench-ce5344-caller-1          rtpbench             ad0a03d9c585        linux/amd64         ebbc77036f85        136MB               24 seconds ago\nrtpbench-ce5344-carrier-1         rtpbench             ad0a03d9c585        linux/amd64         ebbc77036f85        136MB               24 seconds ago\nrtpbench-ce5344-carrier-media-1   rtpbench-rtpengine   12.5.1.31           linux/amd64         3da5f483b052        295MB               4 hours ago\nrtpbench-ce5344-carrier-sip-1     opensips/opensips    <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-ce5344-operator-1        rtpbench             ad0a03d9c585        linux/amd64         ebbc77036f85        136MB               24 seconds ago\nrtpbench-ce5344-router-1          rtpbench             ad0a03d9c585        linux/amd64         ebbc77036f85        136MB               24 seconds ago",
+ "clock_steps": [],
+ "load_end": [
+  1.36,
+  1.7,
+  1.71
+ ]
+}
