@@ -35,6 +35,10 @@ carrier in front, on a mock engine that holds the AI engine's share of each turn
 The details, commands, conditions and raw runs are in [the baseline](results/baseline), and every
 call's timeline on [the results site](https://jjaroztegi.github.io/rtpbench/).
 
+Common ways of measuring turn latency have errors of their own: measured inside the agent, a turn
+misses the network (80 ms on an LTE path); an energy rule on a recording reads every turn about
+90 ms long. Each method against the truth: [metrology](results/metrology).
+
 ## Quick start
 
 Needs Linux (WSL2 works), Docker 28 or later with Compose, and
