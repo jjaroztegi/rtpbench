@@ -48,7 +48,8 @@ From a fresh clone the first three take about 1, 14 and 11 minutes, building or 
 2.5 GB of Docker images on first use.
 
 Each run writes `results/<timestamp>/` with the captures, `summary.md` and, for cases,
-`report.html`: a timeline of every call's SIP, speech and RTP.
+`report.html`: a timeline of every call's SIP, speech and RTP. `rtpbench COMMAND --help` lists
+a command's options, defaults and valid names.
 
 ## Documentation
 

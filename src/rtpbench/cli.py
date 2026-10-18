@@ -2,53 +2,154 @@
 
 import argparse
 import json
+import textwrap
 from datetime import datetime
 from pathlib import Path
 
-from rtpbench import analyze
+from rtpbench import analyze, cases
+from rtpbench.bench import PROFILES, TARGETS
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 
 CODECS = {"pcmu": 0, "pcma": 8}
+QUICK_START = """\
+quick start, from a clone (Linux, Docker 28 or later, uv):
+  uv run rtpbench calibrate --profiles clean --turns 5   # how exactly this host times the wire
+  uv run --extra vad rtpbench cases                      # prove every case on the reference agent
+  uv run --extra vad rtpbench target livekit --mock      # a bundled target, no AI account needed
+  sudo .venv/bin/rtpbench cases sip:agent@host           # your agent (after uv sync --extra vad)
+
+Each run writes results/<timestamp>/. rtpbench COMMAND --help shows its options and valid
+values; docs/ in the repository explains the measurements, error bars and cases.
+case, operator, realtime, agent and call are run inside containers by the commands above.
+"""
+
+
+class Help(argparse.RawDescriptionHelpFormatter):
+    """Descriptions and epilogs as written; option help wrapped without splitting names like
+    lte-bad at the hyphen."""
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        return textwrap.wrap(text, width, break_on_hyphens=False)
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="rtpbench", description=__doc__)
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    parser = argparse.ArgumentParser(
+        prog="rtpbench", description=__doc__, epilog=QUICK_START, formatter_class=Help
+    )
+    parser.add_argument("--version", action="store_true", help="print the version and exit")
+    # container commands get no help=, which keeps them out of the listing
+    sub = parser.add_subparsers(dest="cmd", title="commands", metavar="COMMAND")
+    profiles = f"comma-separated netem profiles: {', '.join(PROFILES)}"
+    seed = "seed of the run's random choices (default: %(default)s)"
 
-    p = sub.add_parser("calibrate", help="measure the error against a reference agent (Docker)")
-    p.add_argument("--out", type=Path, help="default: results/<timestamp>")
+    p = sub.add_parser(
+        "calibrate",
+        help="measure this host's timing error against the reference agent (Docker)",
+        description="""\
+Call the reference agent, which logs the truth, once per network profile and codec, and
+compare what the wire shows with it: the error bars every other measurement carries.
+Writes summary.md, conditions.json and each call's captures to --out.""",
+        epilog="""\
+examples:
+  uv run rtpbench calibrate --profiles clean --turns 5   # about 1 minute
+  uv run rtpbench calibrate                              # every profile, 20 turns: 10 minutes
+  uv run --extra vad rtpbench calibrate --barge-in       # interruptions: about 35 minutes
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("--out", type=Path, metavar="DIR", help="default: results/<timestamp>")
     kind = p.add_mutually_exclusive_group()
     kind.add_argument("--speech", action="store_true", help="speech detection on real speech")
     kind.add_argument("--barge-in", action="store_true", help="barge-in stop time")
-    p.add_argument("--profiles", help="default: all; --speech, --barge-in: clean,mobile")
-    p.add_argument("--codecs", help="default pcmu; --speech: pcmu,pcma; --barge-in: pcma")
-    p.add_argument("--replies", type=Path, help="with --speech: agent replies from these WAVs")
+    p.add_argument(
+        "--profiles",
+        metavar="PROFILE,...",
+        help=f"{profiles} (default: all; --speech, --barge-in: clean,mobile)",
+    )
+    p.add_argument(
+        "--codecs",
+        metavar="CODEC,...",
+        help=f"comma-separated, of {', '.join(CODECS)} (default: pcmu; --speech: pcmu,pcma;"
+        " --barge-in: pcma)",
+    )
+    p.add_argument(
+        "--replies", type=Path, metavar="DIR", help="with --speech: agent replies from these WAVs"
+    )
     p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
-    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
-    p = sub.add_parser("cases", help="conformance cases: reference agent (Docker), or a SIP URI")
-    p.add_argument("uri", nargs="?", help="target; without one, prove each case on the reference")
-    p.add_argument("--only", help="comma-separated cases (default: all)")
-    p.add_argument("--profiles", default="clean", help="netem profiles (reference agent only)")
-    p.add_argument("--runs", type=int, default=1, help="repeats per profile")
-    p.add_argument("--out", type=Path, help="default: results/<timestamp>")
-    p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--iface", default="eth0", help="capture interface (with a URI)")
-    p.add_argument("--lines", type=Path, help="with a URI: prompt.wav, transfer.wav to say")
+    p = sub.add_parser(
+        "cases",
+        help="prove the conformance cases on the reference agent (Docker), or judge a SIP URI",
+        description="""\
+Without a URI, run each case against the reference agent in Docker, behaving well and in
+each way it should fail, and check that every verdict comes out right; exit 1 if one does
+not. With a URI, call that agent from this host, capture on --iface (needs root) and judge
+it. Writes summary.md, results.json, report.html (a timeline of every call) and the
+captures to --out.""",
+        epilog="""\
+examples:
+  uv run --extra vad rtpbench cases                      # every case: about 14 minutes
+  uv run --extra vad rtpbench cases --only hold,refer --profiles clean,lte --runs 3
+  sudo .venv/bin/rtpbench cases sip:agent@host           # your agent (after uv sync --extra vad)
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("uri", nargs="?", help="the agent to judge, e.g. sip:agent@host")
+    p.add_argument(
+        "--only",
+        metavar="CASE,...",
+        help="comma-separated cases (default: all; a few run only direct or only with --carrier): "
+        + ", ".join(cases.CASES),
+    )
+    p.add_argument(
+        "--profiles",
+        default="clean",
+        metavar="PROFILE,...",
+        help=f"{profiles} (reference agent only; default: clean)",
+    )
+    p.add_argument("--runs", type=int, default=1, help="repeats per profile (default: 1)")
+    p.add_argument("--out", type=Path, metavar="DIR", help="default: results/<timestamp>")
+    p.add_argument("--seed", type=int, default=1, help=seed)
+    p.add_argument("--iface", default="eth0", help="capture interface, with a URI (default: eth0)")
+    p.add_argument(
+        "--lines", type=Path, metavar="DIR", help="with a URI: prompt.wav, transfer.wav to say"
+    )
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
 
-    p = sub.add_parser("target", help="cases, turn latency and barge-in against a target (Docker)")
-    p.add_argument("name", help="a directory under targets/, e.g. aivc")
-    p.add_argument("--only", help="comma-separated cases, latency, barge-in (default: all)")
-    p.add_argument("--profiles", default="clean", help="comma-separated netem profiles")
-    p.add_argument("--runs", type=int, default=1, help="repeats per profile")
-    p.add_argument("--out", type=Path, help="default: results/<timestamp>")
-    p.add_argument("--seed", type=int, default=1)
+    p = sub.add_parser(
+        "target",
+        help="cases, turn latency and barge-in against a bundled target (Docker)",
+        description="""\
+Bring up a target from targets/ next to the reference stack and run every case, a 12-turn
+latency call and a 10-turn barge-in call against it through the netem router. Writes
+summary.md, results.json, report.html, target.log and the captures to --out. Without
+--mock, the target needs its AI engine's credentials: see targets/NAME/compose.yaml.""",
+        epilog="""\
+examples:
+  uv run --extra vad rtpbench target livekit --mock      # no AI account needed: 11 minutes
+  uv run --extra vad rtpbench target aivc --mock --only latency,barge-in --profiles clean,lte
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("name", choices=TARGETS, metavar="NAME", help="%(choices)s")
+    p.add_argument(
+        "--only",
+        metavar="NAME,...",
+        help="comma-separated cases, latency, barge-in (default: all; a few cases run only direct"
+        " or only with --carrier): " + ", ".join([*cases.CASES, "latency", "barge-in"]),
+    )
+    p.add_argument(
+        "--profiles", default="clean", metavar="PROFILE,...", help=f"{profiles} (default: clean)"
+    )
+    p.add_argument("--runs", type=int, default=1, help="repeats per profile (default: 1)")
+    p.add_argument("--out", type=Path, metavar="DIR", help="default: results/<timestamp>")
+    p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
     p.add_argument("--mock", action="store_true", help="the mock engine instead of the AI engine")
 
-    p = sub.add_parser("case", help="run one case's caller side (inside a container)")
+    p = sub.add_parser("case", description="run one case's caller side (inside a container)")
     p.add_argument("name")
     p.add_argument("uri")
     p.add_argument("--out", type=Path, required=True)
@@ -57,21 +158,43 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--lines", type=Path, help="prompt.wav, transfer.wav to say")
     p.add_argument("--proxy", help="send a transfer's INVITE here (default: the Refer-To host)")
 
-    p = sub.add_parser("operator", help="run the transfer target (inside a container)")
+    p = sub.add_parser("operator", description="run the transfer target (inside a container)")
     p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
-    p = sub.add_parser("realtime", help="run the mock engine (inside a container)")
+    p = sub.add_parser("realtime", description="run the mock engine (inside a container)")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
-    p = sub.add_parser("report", help="judge a cases directory again; rewrite its report")
-    p.add_argument("out", type=Path)
+    p = sub.add_parser(
+        "report",
+        help="judge a cases or target directory again; rewrite its report",
+        description="""\
+Judge a finished cases or target run with this version's checks, without placing calls.
+Rewrites summary.md, results.json and report.html in DIR.""",
+        epilog="""\
+example:
+  uv run --extra vad rtpbench report results/20260101-120000
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("out", type=Path, metavar="DIR", help="a cases or target results directory")
 
-    p = sub.add_parser("analyze", help="summarise run directories already captured")
-    p.add_argument("runs", type=Path, nargs="+", help="those with the same name (seeds) pool")
+    p = sub.add_parser(
+        "analyze",
+        help="summarise calibration run directories already captured",
+        description="""\
+Print the summary of calibrate's run directories, without placing calls. Directories with
+the same name (other seeds) pool.""",
+        epilog="""\
+example:
+  uv run --extra vad rtpbench analyze results/*/clean    # every calibration's clean runs
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("runs", type=Path, nargs="+", metavar="DIR", help="e.g. results/*/clean")
 
     for name in ("agent", "call"):
-        p = sub.add_parser(name, help=f"run the {name} side (inside a container)")
+        p = sub.add_parser(name, description=f"run the {name} side (inside a container)")
         p.add_argument("--speech", action="store_true", help="speak corpus clips")
         p.add_argument("--barge-in", action="store_true", help="follow the barge-in script")
         if name == "agent":
@@ -95,12 +218,20 @@ def main(argv: list[str] | None = None) -> None:
         p.add_argument("--iface", default="eth0")
 
     args = parser.parse_args(argv)
+    if args.version:
+        from importlib.metadata import version  # ~40 ms: not for every command
+
+        print(f"rtpbench {version('rtpbench')}")
+        return
+    if args.cmd is None:
+        parser.print_help()
+        raise SystemExit(2)
     if args.cmd in ("calibrate", "cases", "target"):
         from rtpbench.progress import Progress
 
         progress = Progress()
     if args.cmd == "calibrate":
-        from rtpbench.bench import PROFILES, calibrate
+        from rtpbench.bench import calibrate
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         special = args.speech or args.barge_in
@@ -122,7 +253,6 @@ def main(argv: list[str] | None = None) -> None:
         print(summary)
         print(f"results in {out}")
     elif args.cmd == "cases":
-        from rtpbench import cases
         from rtpbench.bench import cases as run_cases
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -145,7 +275,6 @@ def main(argv: list[str] | None = None) -> None:
         if not proven:
             raise SystemExit(1)
     elif args.cmd == "target":
-        from rtpbench import cases
         from rtpbench.bench import target
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")

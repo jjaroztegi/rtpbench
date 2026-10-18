@@ -14,12 +14,14 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from rtpbench import analyze, bargein, clock, realtime, speech, speechcal
+from rtpbench import analyze, bargein, clock, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
-from rtpbench.progress import Progress
+
+if TYPE_CHECKING:  # the CLI's help imports this module for its names; keep that import light
+    from rtpbench.progress import Progress
 
 ROOT = Path(__file__).resolve().parents[2]
 LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a real agent
@@ -452,6 +454,7 @@ def target(
     through the netem router (and, with `carrier`, the carrier), `runs` times per profile
     (repeat k uses seed + k - 1); returns the summary."""
     from rtpbench import cases as cs
+    from rtpbench import realtime
 
     user, settings = TARGETS[name]
     out.mkdir(parents=True, exist_ok=True)
@@ -534,7 +537,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     summary.md, results.json and report.html. Returns the summary and whether every reference
     case was proven in every repeat."""
     from rtpbench import cases as cs
-    from rtpbench import report
+    from rtpbench import realtime, report
 
     if runs is None:
         recs = json.loads((out / "results.json").read_text())
