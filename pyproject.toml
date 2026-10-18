@@ -1,6 +1,6 @@
 [project]
 name = "rtpbench"
-version = "0.0.0"
+version = "0.1.0"
 description = "Wire-level latency and conformance tests for voice agents over SIP/RTP"
 readme = "README.md"
 license = "Apache-2.0"

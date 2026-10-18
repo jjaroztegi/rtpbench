@@ -391,7 +391,7 @@ wheels = [
 
 [[package]]
 name = "rtpbench"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "rich" },
@@ -413,7 +413,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "onnxruntime", marker = "extra == 'vad'", specifier = ">=1.31" },
-    { name = "rich", specifier = ">=15.0.0" },
+    { name = "rich", specifier = ">=15" },
     { name = "webrtcvad-wheels", marker = "extra == 'vad'", specifier = ">=2.0.14" },
 ]
 provides-extras = ["vad"]
