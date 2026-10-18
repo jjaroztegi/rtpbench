@@ -4,7 +4,7 @@
 
 ```sh
 uv run --extra vad rtpbench target livekit --mock   # no AI account needed
-uv run --extra vad rtpbench target aivc --mock      # about 12 minutes
+uv run --extra vad rtpbench target aivc --mock
 export OPENAI_API_KEY=...                           # see targets/aivc/compose.yaml
 uv run --extra vad rtpbench target aivc             # on the real engine
 ```

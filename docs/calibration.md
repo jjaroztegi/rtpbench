@@ -29,8 +29,8 @@ measured one: the p5..p95 range of the detector's error for that profile and cod
 pools five seeds of `calibrate --speech` or `--barge-in`, 215 onsets or 221 stops per profile
 and codec ([`cases.py`](../src/rtpbench/cases.py)); five more seeds leave 5-13% outside the
 bars, where about 10% would be expected ([held out](../results/baseline#detector-error-bars-held-out)).
-One set of bars serves every host: with one seed per bar, a second run on the same host moved
-the edges by up to 33 ms, as much as a change of host did.
+The bars come from one host and serve every host: with one seed per bar, a run on a second host
+moved the edges no more than a second run on the same host did.
 
 The agent's first speech in a call, usually its greeting, has its own onset bar: a detector that
 has heard nothing yet fires later, and without the early A-law tail below.
