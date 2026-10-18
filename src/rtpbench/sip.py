@@ -3,6 +3,8 @@
 Messages stay plain header lists, so a caller can add, drop or reorder anything before sending.
 """
 
+import hashlib
+import re
 import secrets
 import select
 import socket
@@ -191,6 +193,63 @@ def parse_sdp(body: bytes) -> Sdp:
 
 class SipError(Exception):
     pass
+
+
+_PARAM = re.compile(r'([\w-]+)\s*=\s*("([^"]*)"|[^,\s]*)')
+_HASH = {"MD5": hashlib.md5, "SHA-256": hashlib.sha256}  # strongest last
+
+
+def digest(
+    challenges: list[str],
+    method: str,
+    uri: str,
+    user: str,
+    password: str,
+    cnonce: str | None = None,
+) -> str:
+    """An Authorization or Proxy-Authorization value answering the strongest of `challenges`
+    (WWW- or Proxy-Authenticate values) this supports: digest (RFC 7616) with MD5 or SHA-256
+    (RFC 8760), plain or -sess, qop auth or none."""
+    offers = []
+    for value in challenges:
+        scheme, _, rest = value.strip().partition(" ")
+        if scheme.lower() != "digest":
+            continue
+        p = {m[1].lower(): m[3] if m[3] is not None else m[2] for m in _PARAM.finditer(rest)}
+        algorithm = p.get("algorithm", "MD5").upper()
+        qops = [q.strip() for q in p.get("qop", "").split(",") if q.strip()]
+        if algorithm.removesuffix("-SESS") in _HASH and (not qops or "auth" in qops):
+            offers.append((list(_HASH).index(algorithm.removesuffix("-SESS")), algorithm, p))
+    if not offers:
+        raise SipError(f"no digest challenge this caller supports: {'; '.join(challenges)}")
+    _, algorithm, p = max(offers, key=lambda o: o[0])
+    h = _HASH[algorithm.removesuffix("-SESS")]
+
+    def hex_(text: str) -> str:
+        return h(text.encode()).hexdigest()
+
+    cnonce = cnonce or secrets.token_hex(8)
+    realm, nonce = p.get("realm", ""), p.get("nonce", "")
+    ha1 = hex_(f"{user}:{realm}:{password}")
+    if algorithm.endswith("-SESS"):
+        ha1 = hex_(f"{ha1}:{nonce}:{cnonce}")
+    ha2 = hex_(f"{method}:{uri}")
+    fields = [
+        f'username="{user}"',
+        f'realm="{realm}"',
+        f'nonce="{nonce}"',
+        f'uri="{uri}"',
+        f"algorithm={algorithm}",
+    ]
+    if "qop" in p:  # one request per nonce here, so nc is always 1
+        response = hex_(f"{ha1}:{nonce}:00000001:{cnonce}:auth:{ha2}")
+        fields += [f'cnonce="{cnonce}"', "qop=auth", "nc=00000001"]
+    else:
+        response = hex_(f"{ha1}:{nonce}:{ha2}")
+    fields.insert(4, f'response="{response}"')
+    if "opaque" in p:
+        fields.append(f'opaque="{p["opaque"]}"')
+    return "Digest " + ", ".join(fields)
 
 
 class Tcp:

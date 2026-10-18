@@ -142,6 +142,9 @@ class Session:
         self.dtmf: int | None = None  # telephone-event payload type, if the answer has it
         port = self.rtp.getsockname()[1]
         offer = sip.sdp(local_ip, port, list(codecs), origin=self.origin, dtmf=dtmf)
+        self.headers = headers
+        user, password = (os.environ.get(f"RTPBENCH_SIP_{k}") for k in ("USER", "PASSWORD"))
+        self.credentials = (user, password) if user and password else None
         self.invite = self.dialog.request("INVITE", offer, headers)
         self.invites = {self.invite.branch: self.invite}
         self.final: sip.Message | None = None  # final response to the INVITE
@@ -166,10 +169,12 @@ class Session:
             return
         initial = msg.branch == self.invite.branch
         if msg.status >= 300:
-            if initial:
-                self.final = msg
             if req := self.invites.get(msg.branch):
                 self.dialog.ack_failure(req, msg)
+            if initial and (again := self._authorize(self.invite, msg, self.headers)):
+                self.invite = again
+            elif initial:
+                self.final = msg
             return
         if not initial:
             req = self.invites.get(msg.branch)
@@ -182,6 +187,30 @@ class Session:
             self.addr = (answer.ip, answer.port)
             self.pt = next((p for p in answer.pts if p in g711.NAMES), -1)  # -1: answer() ends it
             self.dtmf = answer.dtmf
+
+    def _authorize(
+        self,
+        req: sip.Message,
+        resp: sip.Message,
+        headers: list[tuple[str, str]] | None,
+        content_type: str = "application/sdp",
+    ) -> sip.Message | None:
+        """Send `req` again (a new CSeq) with credentials for the challenge in `resp`, if it is
+        one (401, 407), we have credentials (RTPBENCH_SIP_USER, RTPBENCH_SIP_PASSWORD) and `req`
+        did not carry them already; the new request."""
+        if resp.status not in (401, 407) or self.credentials is None:
+            return None
+        if req.get("authorization") or req.get("proxy-authorization"):
+            return None  # these credentials were refused
+        name = "Authorization" if resp.status == 401 else "Proxy-Authorization"
+        asked = resp.all("www-authenticate" if resp.status == 401 else "proxy-authenticate")
+        value = sip.digest(asked, req.method, req.first.split()[1], *self.credentials)
+        hdrs = [*(headers or []), (name, value)]
+        again = self.dialog.request(req.method, req.body, hdrs, content_type)
+        if again.method == "INVITE":
+            self.invites[again.branch] = again
+        self.dialog.send(again)
+        return again
 
     def _answer(self, ok: sip.Message) -> bytes:
         """Answer to the offer in a 2xx to a re-INVITE without one (RFC 3261 14.1): the call's
@@ -260,6 +289,11 @@ class Session:
             )
 
         self.wait(lambda: final() is not None, 64 * sip.T1)
+        if (resp := final()) is not None and (
+            again := self._authorize(req, resp, headers, content_type)
+        ):
+            req = again
+            self.wait(lambda: final() is not None, 64 * sip.T1)
         return final()
 
     def reinvite(

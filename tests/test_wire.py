@@ -214,3 +214,38 @@ def test_sender_survives_a_refused_packet() -> None:
     sender.run()
     assert sender.send_errors == [(0, "PermissionError: [Errno 1] Operation not permitted")]
     assert [p.seq for p in map(rtp.parse, sock.sent) if p] == [101, 102, 103]
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "response"),
+    [  # RFC 7616 3.9.1
+        ("MD5", "8ca523f5e9506fed4657c9700eebdbec"),
+        ("SHA-256", "753927fa0e85d155564e2e272a28d1802ca10daf4496794697cf8db5856cb6c1"),
+    ],
+)
+def test_digest_rfc7616_example(algorithm: str, response: str) -> None:
+    nonce, opaque = (
+        "7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v",
+        "FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS",
+    )
+    challenge = (
+        f'Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm={algorithm},'
+        f' nonce="{nonce}", opaque="{opaque}"'
+    )
+    cnonce = "f2/wE4q74E6zIJEtWaHKaf5wv/H5QzzpXusqGemxURZJ"
+    got = sip.digest([challenge], "GET", "/dir/index.html", "Mufasa", "Circle of Life", cnonce)
+    assert f'response="{response}"' in got
+    assert f'opaque="{opaque}"' in got
+    assert "qop=auth," in got
+
+
+def test_digest_takes_the_strongest_it_supports() -> None:
+    offered = [
+        'Digest realm="r", nonce="n", algorithm=MD5',
+        'Digest realm="r", nonce="n", algorithm=SHA-256',
+    ]
+    assert "algorithm=SHA-256" in sip.digest(offered, "INVITE", "sip:a@b", "u", "p")
+    with pytest.raises(sip.SipError):
+        sip.digest(
+            ['Digest realm="r", nonce="n", algorithm=SHA-512-256'], "BYE", "sip:a@b", "u", "p"
+        )
