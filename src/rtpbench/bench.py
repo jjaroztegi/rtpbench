@@ -282,7 +282,7 @@ def calibrate(
         stack.up(progress.phase)
         caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
         conds = conditions(partial(stack.sh, "router"), seed) | {"turns_per_profile": turns}
-        conds |= {"codecs": codecs, "speech": real, "barge": barge}
+        conds |= {"codecs": codecs, "speech": real, "barge": barge, "carrier": carrier}
         if replies:
             conds["replies"] = sorted(clips or {})
         if carrier:
@@ -377,7 +377,7 @@ def cases(
                 caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
                 proxy = stack.entry("operator")  # the transferee's next hop for a transfer
                 conds = conditions(partial(stack.sh, "router"), seed)
-                conds |= {"profiles": profiles, "runs": runs}
+                conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
                 if carrier:
                     conds["images"] = stack.compose("images")
                 for profile in profiles:
@@ -475,7 +475,8 @@ def target(
             router_ip = stack.sh("target", "getent hosts router").split()[0]
             stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
             conds = conditions(partial(stack.sh, "router"), seed)
-            conds |= {"profiles": profiles, "runs": runs, "target": name}
+            conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
+            conds["mock"] = mock
             conds["engine"] = realtime.conditions() if mock else _engine(settings)
             conds["images"] = stack.compose("images")
             uri = f"sip:{user}@{target_ip}"
