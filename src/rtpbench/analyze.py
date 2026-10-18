@@ -251,7 +251,7 @@ def pacing(packets: Timed) -> tuple[float, float] | None:
     RFC 3550 interarrival jitter estimate (A.8) as it runs, and the p99 of how much later than its
     timestamp says each packet arrived, against the earliest before it (the jitter buffer a
     receiver needs to play 99% of them in time), ms. A new SSRC, or a pause of over a second (a
-    hold), starts afresh. None for fewer than 50 packets in a stretch."""
+    hold), starts afresh. None for fewer than 50 packets past the first of their stretch."""
     jitter: list[float] = []
     late: list[float] = []
     j, t0, ts, least, prev = 0.0, 0, 0, 0, None
