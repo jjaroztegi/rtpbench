@@ -407,6 +407,7 @@ vad = [
 dev = [
     { name = "mypy" },
     { name = "pytest" },
+    { name = "rtpbench", extra = ["vad"] },
     { name = "ruff" },
 ]
 
@@ -422,6 +423,7 @@ provides-extras = ["vad"]
 dev = [
     { name = "mypy", specifier = ">=2.4" },
     { name = "pytest", specifier = ">=9" },
+    { name = "rtpbench", extras = ["vad"] },
     { name = "ruff", specifier = ">=0.17" },
 ]
 
