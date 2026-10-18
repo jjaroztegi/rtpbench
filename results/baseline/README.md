@@ -4,10 +4,12 @@
 Connector CE, direct and through the [carrier](../../docs/targets.md#carrier), under three network
 profiles, 10 repeats each, with both targets on the [mock engine](../../docs/targets.md#mock-engine)
 instead of a paid AI engine, so every verdict is the connector's and the engine's share of each
-turn is known. Every set below is one `rtpbench` invocation from a clean checkout at commit
-4b0b7bc. Senders schedule on the monotonic clock and every run logs wall-clock steps:
-0 were seen. Summaries, records and reports are in this folder; the raw run directories
-(captures, logs, the reference agent's truth) are [archived](#raw-runs).
+turn is known. Every set below is one `rtpbench` invocation of the same code, image
+`rtpbench:ad0a03d9c585`. Senders schedule on the monotonic clock and every run logs wall-clock
+steps: 0 were seen. Summaries, records and reports are in this folder; the raw run directories
+(captures, logs, the reference agent's truth) are [archived](#raw-runs). The image tag is a hash
+of `src`, the `Dockerfile` and the corpus, so it names this code in any clone; `commit` in
+`conditions.json` is `git describe` in the checkout that ran it.
 
 ```sh
 uv run rtpbench calibrate [--carrier]
@@ -43,8 +45,9 @@ carrier, 20 turns per profile, and the time the carrier adds per packet:
 Sender lateness, both ends, direct, 57017 packets: p50 0.010, p99 0.050, max 2.65 ms
 
 How far concurrent stacks can go before timing suffers: N reference stacks at once, 60 turns
-each, clean (an earlier wave, commit e37a944; the caller, the reference agent and their
-stacks have changed since only by a progress line the caller prints). Wire against truth; the reference agent's scheduling error; how late each sender's
+each, clean (an earlier wave, image `rtpbench:ba330eecbd02`; the caller, the reference agent
+and their stacks have changed since only by a progress line the caller prints). Wire against
+truth; the reference agent's scheduling error; how late each sender's
 packets left against its own 20 ms grid (from its capture); capture drops; load average (1 min):
 
 | N | turns | wire-truth p99 / max | agent sched p99 / max | late caller p99 / max | late agent p99 / max | > 10 ms late | drops | load mean / max |
@@ -64,8 +67,9 @@ way; the wire timing of the cases below rests on the calibrations above.
 
 The speech onset and barge-in stop bars in the code are the p5..p95 of seeds 1-5
 (`calibrate --speech`, `calibrate --barge-in`, pooled with `rtpbench analyze`). Seeds 6-10, run
-the same way at commit ba41c79 (the detector, the caller and the reference agent have
-changed since only by that progress line), against them: a p5..p95 bar leaves about 10% outside.
+the same way with image `rtpbench:965085c223d2` (the detector, the caller and the reference
+agent have changed since only by that progress line), against them: a p5..p95 bar leaves about
+10% outside.
 
 | bar | profile | codec | shipped | turns | below | above | outside |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -184,19 +188,18 @@ not measured here.
 ## Raw runs
 
 Attached to the [release](../../docs/README.md#published-results) as `.tar.zst`; each unpacks to
-the directory `rtpbench` wrote. The held-out detector seeds and the capacity curve are from the
-commits named above.
+the directory `rtpbench` wrote, and each is named by the image that wrote it.
 
 | archive | SHA-256 |
 | --- | --- |
-| `baseline-reference-direct-4b0b7bc.tar.zst` | `d84afc6307988fb4995c284051eaaa1ff81d5ffdffb09d50ffde5ea35bb4ee77` |
-| `baseline-reference-carrier-4b0b7bc.tar.zst` | `d6c80595d3cbc9c817ad088ec47ebe5a95d004d316494edb1f548563806cd68c` |
-| `baseline-aivc-direct-4b0b7bc.tar.zst` | `965607623e8f1bf2444f92fcb6fbe1cdc20ec7056ec87daf8381bd74a177e8aa` |
-| `baseline-livekit-direct-4b0b7bc.tar.zst` | `0adfa0b69428b4d9db01219b16e9acab65960f05f06ab2f386a691c0aaa65024` |
-| `baseline-aivc-carrier-4b0b7bc.tar.zst` | `e7ea6a8a22ba514ff9c3d4a00b1990bc0dd122aae45e72ccde580748bb179639` |
-| `baseline-livekit-carrier-4b0b7bc.tar.zst` | `ff309a7bec0ca2ca4872c793cb13539bc8148f058d67dbd10471d138849c5822` |
-| `baseline-calibrate-4b0b7bc.tar.zst` | `fffe4f33a84ea57d5e46bb67994e22e93eb9f7d4628eb297a50d92309576c1c6` |
-| `baseline-calibrate-carrier-4b0b7bc.tar.zst` | `9edfcb7f66fc181b786f5c2ffaea49d324377bfa83fb40020472ce6a052f31a5` |
-| `baseline-detector-seeds6-10-ba41c79.tar.zst` | `74fae489b78b11301805a42a49a9ea39463cf0bdd40c353f14128df09e89aea5` |
-| `baseline-capacity-e37a944.tar.zst` | `9aa82807b06c188d4ce4727562e482ecc7315d9830937c72813f51632dc2dfee` |
+| `baseline-reference-direct-ad0a03d9c585.tar.zst` | `d84afc6307988fb4995c284051eaaa1ff81d5ffdffb09d50ffde5ea35bb4ee77` |
+| `baseline-reference-carrier-ad0a03d9c585.tar.zst` | `d6c80595d3cbc9c817ad088ec47ebe5a95d004d316494edb1f548563806cd68c` |
+| `baseline-aivc-direct-ad0a03d9c585.tar.zst` | `965607623e8f1bf2444f92fcb6fbe1cdc20ec7056ec87daf8381bd74a177e8aa` |
+| `baseline-livekit-direct-ad0a03d9c585.tar.zst` | `0adfa0b69428b4d9db01219b16e9acab65960f05f06ab2f386a691c0aaa65024` |
+| `baseline-aivc-carrier-ad0a03d9c585.tar.zst` | `e7ea6a8a22ba514ff9c3d4a00b1990bc0dd122aae45e72ccde580748bb179639` |
+| `baseline-livekit-carrier-ad0a03d9c585.tar.zst` | `ff309a7bec0ca2ca4872c793cb13539bc8148f058d67dbd10471d138849c5822` |
+| `baseline-calibrate-ad0a03d9c585.tar.zst` | `fffe4f33a84ea57d5e46bb67994e22e93eb9f7d4628eb297a50d92309576c1c6` |
+| `baseline-calibrate-carrier-ad0a03d9c585.tar.zst` | `9edfcb7f66fc181b786f5c2ffaea49d324377bfa83fb40020472ce6a052f31a5` |
+| `baseline-detector-seeds6-10-965085c223d2.tar.zst` | `74fae489b78b11301805a42a49a9ea39463cf0bdd40c353f14128df09e89aea5` |
+| `baseline-capacity-ba330eecbd02.tar.zst` | `9aa82807b06c188d4ce4727562e482ecc7315d9830937c72813f51632dc2dfee` |
 
