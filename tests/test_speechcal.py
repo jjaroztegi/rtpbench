@@ -82,3 +82,22 @@ def test_runs_of_the_same_name_pool_into_one_row(
     cli.main(["analyze", *(str(tmp_path / s / "lte-bad-pcmu") for s in errors)])
     row = next(x for x in capsys.readouterr().out.splitlines() if "| webrtcvad | 3/3 |" in x)
     assert row.startswith("| lte-bad-pcmu |")
+
+
+def test_methods_count_only_gaps_of_half_a_second_in_the_mean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = tmp_path / "s6" / "lte-pcmu"
+    run.mkdir(parents=True)
+    keys = [k for _, k in speechcal.METHODS] + [
+        f"{d}_{e}" for d in detect.DETECTORS for e in ("rec_rtp_ms", "caller_offset_ms", "ms")
+    ]
+    recs = [  # true 600 and 800 ms; a recording reads 400 (missed by the mean) and 820
+        {"truth_ms": 600.0} | dict.fromkeys(keys, 400.0),
+        {"truth_ms": 800.0} | dict.fromkeys(keys, 820.0),
+    ]
+    monkeypatch.setattr(speechcal, "turns", lambda run, *_: recs)
+    out = speechcal.methods({"lte-pcmu": [run]})
+    assert "| webrtcvad | +120 [+120, +120] (1/2) |" in out  # 820 - (600 + 800) / 2
+    row = next(x for x in out.splitlines() if x.startswith("| recording, rms at both edges |"))
+    assert row.endswith("| -200 [-200, +20] |")  # p50 is the lower of two: nearest rank

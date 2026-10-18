@@ -52,9 +52,20 @@ def test_gate_merges_gaps_up_to_20_ms() -> None:
     assert spans[0][1] == 2560
 
 
-@pytest.mark.parametrize("name", ["webrtcvad", "silero", "silero16"])
+def test_rms_finds_a_step_as_coval_does() -> None:
+    pytest.importorskip("numpy")
+    # Coval's rule centres a 10 ms window on each 1 ms step: a loud step is found up to 5 ms
+    # before it starts and lost up to 5 ms after it ends
+    (start, end), *rest = detect.rms([0] * 800 + tone(800, 4000) + [0] * 800)
+    assert not rest
+    assert 760 < start < 800
+    assert 1600 < end <= 1648
+    assert detect.rms([]) == []
+
+
+@pytest.mark.parametrize("name", ["rms", "webrtcvad", "silero", "silero16"])
 def test_window_detectors_ignore_silence(name: str) -> None:
-    pytest.importorskip("webrtcvad" if name == "webrtcvad" else "onnxruntime")
+    pytest.importorskip({"rms": "numpy", "webrtcvad": "webrtcvad"}.get(name, "onnxruntime"))
     assert detect.DETECT[name]([0] * 16000) == []
 
 
