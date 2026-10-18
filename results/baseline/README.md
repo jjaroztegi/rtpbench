@@ -193,14 +193,14 @@ the directory `rtpbench` wrote, and each is named by the image that wrote it.
 
 | archive | SHA-256 |
 | --- | --- |
-| `baseline-reference-direct-ad0a03d9c585.tar.zst` | `d84afc6307988fb4995c284051eaaa1ff81d5ffdffb09d50ffde5ea35bb4ee77` |
-| `baseline-reference-carrier-ad0a03d9c585.tar.zst` | `d6c80595d3cbc9c817ad088ec47ebe5a95d004d316494edb1f548563806cd68c` |
-| `baseline-aivc-direct-ad0a03d9c585.tar.zst` | `965607623e8f1bf2444f92fcb6fbe1cdc20ec7056ec87daf8381bd74a177e8aa` |
-| `baseline-livekit-direct-ad0a03d9c585.tar.zst` | `0adfa0b69428b4d9db01219b16e9acab65960f05f06ab2f386a691c0aaa65024` |
-| `baseline-aivc-carrier-ad0a03d9c585.tar.zst` | `e7ea6a8a22ba514ff9c3d4a00b1990bc0dd122aae45e72ccde580748bb179639` |
-| `baseline-livekit-carrier-ad0a03d9c585.tar.zst` | `ff309a7bec0ca2ca4872c793cb13539bc8148f058d67dbd10471d138849c5822` |
-| `baseline-calibrate-ad0a03d9c585.tar.zst` | `fffe4f33a84ea57d5e46bb67994e22e93eb9f7d4628eb297a50d92309576c1c6` |
-| `baseline-calibrate-carrier-ad0a03d9c585.tar.zst` | `9edfcb7f66fc181b786f5c2ffaea49d324377bfa83fb40020472ce6a052f31a5` |
-| `baseline-detector-seeds6-10-965085c223d2.tar.zst` | `74fae489b78b11301805a42a49a9ea39463cf0bdd40c353f14128df09e89aea5` |
-| `baseline-capacity-ba330eecbd02.tar.zst` | `9aa82807b06c188d4ce4727562e482ecc7315d9830937c72813f51632dc2dfee` |
+| `baseline-reference-direct-ad0a03d9c585.tar.zst` | `8f500ff4514a3c8c308cd36cdbb4356fbfd3c906e46b476b33d1c15f893dbd86` |
+| `baseline-reference-carrier-ad0a03d9c585.tar.zst` | `f262eb30cc7f215f79ecc9ba44480f79237c75611d9d715de68fd7cd31e63f0f` |
+| `baseline-aivc-direct-ad0a03d9c585.tar.zst` | `17f366dbe602c00c874ad48640668578200c428c2dc9ec4a75e6435f2b817bb5` |
+| `baseline-livekit-direct-ad0a03d9c585.tar.zst` | `84458093f9f13a919b080e20452d9e636a97ac5b55556e5efd55231ad6ed1440` |
+| `baseline-aivc-carrier-ad0a03d9c585.tar.zst` | `4dfdf3e456fe2c10b71d14589cdb852703b642e43ac7454feca90c8813e31f26` |
+| `baseline-livekit-carrier-ad0a03d9c585.tar.zst` | `dd33b15214a7b3cd90a12f3a539cd171e87cce5a59b97b9a4515abf66c300371` |
+| `baseline-calibrate-ad0a03d9c585.tar.zst` | `66a8a401c6eae1696b4c421833137b181f3db57dcbff6c1b238538e90800fddd` |
+| `baseline-calibrate-carrier-ad0a03d9c585.tar.zst` | `34ea4d0af153af10cdb15bb59aca0f3bdb16179bd0619da25d27728e75790dc1` |
+| `baseline-detector-seeds6-10-965085c223d2.tar.zst` | `b2ffa0585eb3c6d29eef4d0287cff53b12d57cc25fcf648c349efee872515640` |
+| `baseline-capacity-ba330eecbd02.tar.zst` | `c586a53e25bf0db0674eb4ddf5a887dfbcd620aa62540062ec8f879647c75b52` |
 
