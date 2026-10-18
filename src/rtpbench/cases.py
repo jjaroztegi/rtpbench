@@ -1473,6 +1473,30 @@ def proven(records: list[dict[str, Any]]) -> bool:
     return all(r["verdict"] == expected(r["behaviour"]) for r in records if r["behaviour"])
 
 
+def pacing(calls: list[tuple[str, Path]]) -> str:
+    """How evenly the agent's RTP reached the caller, per profile over the `calls` (profile, run
+    directory) that have one: `analyze.pacing` of each, median [min, max] over the calls; empty
+    if none has."""
+    by: dict[str, list[tuple[float, float]]] = {}
+    for profile, run in calls:
+        if (paced := analyze.pacing(load(run, profile).down)) is not None:
+            by.setdefault(profile, []).append(paced)
+    if not by:
+        return ""
+    rows = [
+        [p, str(len(v)), _spread([late for _, late in v], ".1f"), _spread([j for j, _ in v], ".2f")]
+        for p, v in by.items()
+    ]
+    return (
+        "The agent's RTP as the caller received it, ms, median [min, max] over calls: late, p99 "
+        "of how much later than their timestamps say the packets arrived, against the earliest "
+        "before them: the jitter buffer a receiver needs to play 99% of them in time; jitter, the "
+        "RFC 3550 interarrival jitter estimate, its median over each call. On a clean network "
+        "both are the agent's own pacing (and a carrier's); a profile adds its own.\n\n"
+        + analyze._table(["profile", "calls", "late, p99", "jitter"], rows)
+    )
+
+
 def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bool]:
     """Markdown summary per profile (repeats grouped), per-run records, and whether every
     reference behaviour got the verdict it should (good: pass, bad: fail) in every repeat."""
