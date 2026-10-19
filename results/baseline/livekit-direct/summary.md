@@ -131,3 +131,13 @@ The agent's RTP as the caller received it, ms, median [min, max] over calls: lat
 | clean | 180 | 21.1 [0.7, 22.7] | 0.19 [0.04, 0.56] |
 | lte | 180 | 34.4 [9.7, 39.4] | 3.34 [2.20, 3.79] |
 | lte-bad | 180 | 122.6 [81.0, 142.2] | 20.10 [15.12, 21.48] |
+
+## Engine audio as the caller received it
+
+The mock engine's answers as the caller received them (completed answers in the latency and barge-in calls), median [min, max] over answers. Each piece of speech is aligned with what the mock sent; for 24 kHz audio, that is its interpolation through an ideal 8 kHz converter, so the mock's own resampling is not counted. Samples in packets the network lost are left out. unchanged: answers with every sample as sent. distortion: the audio against what no linear filter of ±4 ms explains; a resampler or band filter would leave G.711's own, about 37 dB. moved: answers where a piece came out 5 ms or more later or earlier than the one before (a pause lengthened or shortened, audio inserted or dropped), and the largest move. gain: least squares. 3.4-4 kHz: that band against 300-3400 Hz, relative to what was sent.
+
+| profile | answers | unchanged | distortion, dB | moved | gain, dB | 3.4-4 kHz, dB |
+| --- | --- | --- | --- | --- | --- | --- |
+| clean | 240 | 0 | 27.4 [23.0, 29.7] | 14, up to 40 ms | -0.2 [-0.3, -0.0] | -8.2 [-8.9, -7.3] |
+| lte | 240 | 0 | 27.3 [23.0, 29.8] | 23, up to 40 ms | -0.2 [-0.3, -0.0] | -8.2 [-12.5, -7.4] |
+| lte-bad | 237 | 0 | 26.8 [20.7, 30.1] | 17, up to 40 ms | -0.2 [-0.3, -0.0] | -10.1 [-15.4, +11.1] |
