@@ -249,3 +249,11 @@ def test_digest_takes_the_strongest_it_supports() -> None:
         sip.digest(
             ['Digest realm="r", nonce="n", algorithm=SHA-512-256'], "BYE", "sip:a@b", "u", "p"
         )
+
+
+def test_digest_without_qop_sends_no_cnonce() -> None:
+    with pytest.raises(sip.SipError):  # -sess hashes a cnonce in that could not be sent
+        sip.digest(['Digest realm="r", nonce="n", algorithm=MD5-sess'], "BYE", "sip:a@b", "u", "p")
+    legacy = sip.digest(['Digest realm="r", nonce="n", qop=""'], "BYE", "sip:a@b", "u", "p")
+    assert "qop" not in legacy
+    assert "cnonce" not in legacy

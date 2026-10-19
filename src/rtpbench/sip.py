@@ -209,7 +209,7 @@ def digest(
 ) -> str:
     """An Authorization or Proxy-Authorization value answering the strongest of `challenges`
     (WWW- or Proxy-Authenticate values) this supports: digest (RFC 7616) with MD5 or SHA-256
-    (RFC 8760), plain or -sess, qop auth or none."""
+    (RFC 8760), plain or -sess (with qop auth), qop auth or none."""
     offers = []
     for value in challenges:
         scheme, _, rest = value.strip().partition(" ")
@@ -218,11 +218,13 @@ def digest(
         p = {m[1].lower(): m[3] if m[3] is not None else m[2] for m in _PARAM.finditer(rest)}
         algorithm = p.get("algorithm", "MD5").upper()
         qops = [q.strip() for q in p.get("qop", "").split(",") if q.strip()]
-        if algorithm.removesuffix("-SESS") in _HASH and (not qops or "auth" in qops):
-            offers.append((list(_HASH).index(algorithm.removesuffix("-SESS")), algorithm, p))
+        # -sess hashes a cnonce in, which only goes out with a qop (RFC 7616 3.4.2)
+        usable = "auth" in qops or not (qops or algorithm.endswith("-SESS"))
+        if algorithm.removesuffix("-SESS") in _HASH and usable:
+            offers.append((list(_HASH).index(algorithm.removesuffix("-SESS")), algorithm, p, qops))
     if not offers:
         raise SipError(f"no digest challenge this caller supports: {'; '.join(challenges)}")
-    _, algorithm, p = max(offers, key=lambda o: o[0])
+    _, algorithm, p, qops = max(offers, key=lambda o: o[0])
     h = _HASH[algorithm.removesuffix("-SESS")]
 
     def hex_(text: str) -> str:
@@ -241,7 +243,7 @@ def digest(
         f'uri="{uri}"',
         f"algorithm={algorithm}",
     ]
-    if "qop" in p:  # one request per nonce here, so nc is always 1
+    if qops:  # one request per nonce here, so nc is always 1
         response = hex_(f"{ha1}:{nonce}:00000001:{cnonce}:auth:{ha2}")
         fields += [f'cnonce="{cnonce}"', "qop=auth", "nc=00000001"]
     else:
