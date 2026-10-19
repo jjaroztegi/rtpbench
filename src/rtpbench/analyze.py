@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rtpbench import g711, pcap, rtp
+from rtpbench import g711, pcap, rtp, sip
 from rtpbench.voice import GATE
 
 METHODS = ("wire", "packet", "rtp", "concat")
@@ -45,15 +45,22 @@ class Capture:
 
 def load(path: Path) -> Capture:
     grams = pcap.read(path)
-    invite = next(g for g in grams if g.payload.startswith(b"INVITE "))
+    caller = _caller(grams, path)
     up: Timed = []
     down: Timed = []
     for g in grams:
         if g.tcp or 5060 in (g.sport, g.dport) or (p := rtp.parse(g.payload)) is None:
             continue
         if p.pt in g711.NAMES:
-            (up if g.src == invite.src else down).append((g.t_ns, p))
+            (up if g.src == caller else down).append((g.t_ns, p))
     return Capture(up, down)
+
+
+def _caller(grams: list[pcap.Datagram], path: Path) -> str:
+    """Who sent the first INVITE in the capture at `path` (over TLS, read with the key log the
+    caller wrote next to it)."""
+    msgs = sip.captured(grams, path.with_name("keys.log"))
+    return next(src for _, src, data in msgs if data.startswith(b"INVITE "))
 
 
 def signed(diff: int, bits: int) -> int:
@@ -312,7 +319,7 @@ def transit(path: Path) -> dict[str, list[float]]:
     """RTP through a relay, from a capture of both its legs on one interface: each packet's time
     from arriving to leaving (ms), for the caller's stream ("up") and the agent's ("down")."""
     grams = pcap.read(path)
-    caller = next(g.src for g in grams if g.payload.startswith(b"INVITE "))
+    caller = _caller(grams, path)
     seen: dict[tuple[int, int, int], tuple[int, str]] = {}
     out: dict[str, list[float]] = {"up": [], "down": []}
     for g in grams:

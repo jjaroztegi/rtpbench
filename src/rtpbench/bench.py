@@ -20,6 +20,8 @@ from urllib.parse import urlsplit
 
 from rtpbench import analyze, bargein, clock, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
+from rtpbench.sip import TLS_PORT
+from rtpbench.tls import certificates
 
 if TYPE_CHECKING:  # the CLI's help imports this module for its names; keep that import light
     from rtpbench.progress import Progress
@@ -68,6 +70,13 @@ MOCK = {
 
 # digest credentials the caller answers challenges with (and the carrier then demands)
 CREDENTIALS = ("RTPBENCH_SIP_USER", "RTPBENCH_SIP_PASSWORD")
+# the names the stack's test certificate is for: the services that may serve TLS
+TLS_NAMES = ["agent", "caller", "carrier", "operator", "target"]
+
+
+def is_uri(name: str) -> bool:
+    """`rtpbench target`'s NAME is an agent's SIP URI, not a bundled target."""
+    return name.split(":", 1)[0].lower() in ("sip", "sips")
 
 
 # compose takes these as ${VAR-default}, so set but empty is a value; the rest, ${VAR:-default}
@@ -126,7 +135,9 @@ class Stack:
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
     are relative to the repository root). With `uri`, caller | router only, for an agent outside
     the stack: the router also joins the Docker network `network`, and with `ports` (first-last)
-    the host publishes that range on the router."""
+    the host publishes that range on the router. With `tls`, out/tls holds a test certificate
+    for the stack's TLS servers, and ca.pem, what the caller trusts: `ca`, or with no `uri` the
+    stack's test CA; else the caller trusts the system's certificates."""
 
     def __init__(
         self,
@@ -137,6 +148,8 @@ class Stack:
         uri: bool = False,
         network: str | None = None,
         ports: str | None = None,
+        tls: bool = False,
+        ca: Path | None = None,
     ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
@@ -158,6 +171,19 @@ class Stack:
             self.files.append(ROOT / "carrier" / "compose.yaml")
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
         self.carrier = carrier is not None
+        if tls:
+            where = out / "tls"
+            certificates(where, TLS_NAMES)
+            if ca or not uri:
+                shutil.copyfile(ca or where / "stack-ca.pem", where / "ca.pem")
+            self.env["RTPBENCH_TLS"] = "/out/tls"
+            self.passed.append("RTPBENCH_TLS")
+
+    def resolve(self, *services: str) -> None:
+        """The caller reaches these services by name (SIP over TLS checks the name)."""
+        names = ",".join(f"{s}={self.ip(s)}" for s in services)
+        self.env["RTPBENCH_RESOLVE"] = names
+        self.passed.append("RTPBENCH_RESOLVE")
 
     def compose(
         self, *args: str, check: bool = True, lines: Callable[[str], None] | None = None
@@ -201,6 +227,8 @@ class Stack:
 
     def down(self) -> None:
         self.compose("down", "-t", "0", "--remove-orphans", check=False)
+        # the test certificate's key is no use to judging; the CAs stay with the results
+        (Path(self.env["RTPBENCH_OUT"]) / "tls" / "server.key").unlink(missing_ok=True)
 
     def ip(self, service: str) -> str:
         return self.sh("router", f"getent hosts {service}").split()[0]
@@ -265,8 +293,15 @@ def _host(cmd: str) -> str:
     return subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=ROOT).stdout.strip()
 
 
-def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
-    """Versions and host; `sh` runs a command in the stack (where the capture runs)."""
+def conditions(sh: Callable[[str], str], seed: int, tls: Path | None = None) -> dict[str, Any]:
+    """Versions and host; `sh` runs a command in the stack (where the capture runs); `tls`, the
+    results' tls/ directory when SIP goes over TLS."""
+    ca = tls / "ca.pem" if tls else None
+    trust = (
+        f"ca sha256:{hashlib.sha256(ca.read_bytes()).hexdigest()}"
+        if ca and ca.exists()
+        else "system"
+    )
     governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -282,6 +317,8 @@ def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
         "load_start": _load(),
         "seed": seed,
         "sip_auth": all(os.environ.get(k) for k in CREDENTIALS),  # whether, never what
+        "tls": tls is not None,
+        **({"tls_trust": trust} if tls else {}),
         "netem_per_direction": PROFILES,
     }
 
@@ -306,12 +343,13 @@ def calibrate(
     replies: Path | None = None,
     barge: bool = False,
     carrier: bool = False,
+    tls: bool = False,
     *,
     progress: Progress,
 ) -> str:
     """Timing calibration; with `real` the speech-detection one (the agent replies with corpus
     clips, or the WAVs in `replies`); with `barge` the barge-in one; with `carrier` through the
-    carrier. Each profile runs once per codec."""
+    carrier; with `tls` SIP over TLS. Each profile runs once per codec."""
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     agent_args, clips = [], None
@@ -333,11 +371,13 @@ def calibrate(
     runs = [(p, c) for p in profiles for c in codecs or [""]]
     names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
     progress.plan(len(runs))
-    stack = Stack(out, carrier="agent" if carrier else None)
+    stack = Stack(out, carrier="agent" if carrier else None, tls=tls)
     try:
         stack.up(progress.phase)
         caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
-        conds = conditions(partial(stack.sh, "router"), seed) | {"turns_per_profile": turns}
+        uri, sip, agent_args = _reference(stack, agent_ip, tls, agent_args)
+        conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
+        conds |= {"turns_per_profile": turns}
         conds |= {"codecs": codecs, "speech": real, "barge": barge, "carrier": carrier}
         if replies:
             conds["replies"] = sorted(clips or {})
@@ -350,12 +390,12 @@ def calibrate(
                 run = out / name
                 run.mkdir(exist_ok=True)
                 progress.unit(name)
-                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                stack.netem(PROFILES[profile], [caller_ip, agent_ip], sip)
                 args = ["--out", f"/out/{name}", "--seed", str(seed)]
                 agent = ["python", "-m", "rtpbench", "agent", *args, *agent_args]
                 stack.compose("exec", "-d", "agent", *agent)
                 _wait_for(run / "ready", 120)
-                call = ["call", f"sip:agent@{agent_ip}", "--turns", str(turns), *args]
+                call = ["call", uri, "--turns", str(turns), *args]
                 if codec:
                     call += ["--codec", codec]
                 if real:
@@ -389,12 +429,14 @@ def cases(
     runs: int,
     seed: int,
     carrier: bool = False,
+    tls: bool = False,
     *,
     progress: Progress,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent: each behaviour of each case, in Docker
-    behind the netem router and, with `carrier`, the carrier, `runs` times per profile. Repeat k
-    uses seed + k - 1. Returns the summary and whether every case was proven in every repeat."""
+    behind the netem router and, with `carrier`, the carrier, `runs` times per profile, with
+    `tls` over TLS. Repeat k uses seed + k - 1. Returns the summary and whether every case was
+    proven in every repeat."""
     from rtpbench import cases as cs
 
     out.mkdir(parents=True, exist_ok=True)
@@ -402,17 +444,18 @@ def cases(
     done: list[cs.Run] = []
     progress.plan(len(profiles) * sum(len(cs.CASES[n].behaviours()) for n in names) * runs)
     with clock.watch() as steps:
-        stack = Stack(out, carrier="agent" if carrier else None)
+        stack = Stack(out, carrier="agent" if carrier else None, tls=tls)
         try:
             stack.up(progress.phase)
             caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
             proxy = stack.entry("operator")  # the transferee's next hop for a transfer
-            conds = conditions(partial(stack.sh, "router"), seed)
+            uri, sip, agent_args = _reference(stack, agent_ip, tls, [])
+            conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
             conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
             if carrier:
                 conds["images"] = stack.compose("images")
             for profile in profiles:
-                stack.netem(PROFILES[profile], [caller_ip, agent_ip])
+                stack.netem(PROFILES[profile], [caller_ip, agent_ip], sip)
                 for k in range(1, runs + 1):
                     for name in names:
                         for behaviour in cs.CASES[name].behaviours():
@@ -421,9 +464,10 @@ def cases(
                             progress.unit(f"{profile} {name}/{behaviour}{_repeat(k, runs)}")
                             args = ["--out", f"/out/{rel}", "--seed", str(seed + k - 1)]
                             agent = ["agent", *args, "--case", name, "--behaviour", behaviour]
+                            agent += agent_args
                             stack.compose("exec", "-d", "agent", "python", "-m", "rtpbench", *agent)
                             _wait_for(out / rel / "ready", 120)
-                            call = ["case", name, f"sip:agent@{agent_ip}", "--proxy", proxy]
+                            call = ["case", name, uri, "--proxy", proxy]
                             with stack.tap(rel):
                                 stack.caller(*call, *args)
                                 _wait_for(out / rel / "agent.json", 30)
@@ -436,6 +480,17 @@ def cases(
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     progress.phase("judging")
     return judge(out, done)
+
+
+def _reference(
+    stack: Stack, agent_ip: str, tls: bool, agent_args: list[str]
+) -> tuple[str, tuple[int, ...], list[str]]:
+    """The reference agent's URI, its SIP ports (exempt from netem) and its arguments: over TLS
+    by name, as its certificate has it."""
+    if not tls:
+        return f"sip:agent@{agent_ip}", (5060,), agent_args
+    stack.resolve("agent")
+    return "sips:agent@agent", (5060, TLS_PORT), [*agent_args, "--tls", "/out/tls"]
 
 
 def _repeat(k: int, runs: int) -> str:
@@ -539,6 +594,7 @@ def target(
     proxy: str | None = None,
     network: str | None = None,
     advertise: str | None = None,
+    ca: Path | None = None,
     *,
     progress: Progress,
 ) -> str:
@@ -550,10 +606,12 @@ def target(
     `lines`: the caller's lines instead of corpus/lines/en. For a URI: `proxy` is where a
     transfer's INVITE goes (else the Refer-To host); the router joins the Docker network
     `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
-    next few to it), else with `network` its router's address there."""
+    next few to it), else with `network` its router's address there; over TLS (a sips: URI, or
+    transport=tls) it trusts the certificates in `ca`, else the system's."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
+    from rtpbench.sip import secure
 
     if lines:
         check_lines(lines, names)
@@ -577,22 +635,23 @@ def target(
 
     done: list[cs.Run] = []
     with clock.watch() as steps:
-        if name.startswith("sip:"):
+        tls = is_uri(name) and secure(name)
+        if is_uri(name):
             host, port = parse_uri(name)
             ports = None
             if advertise:  # the host publishes the range
                 first = int(advertise.rpartition(":")[2])
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
-            stack = Stack(out, uri=True, network=network, ports=ports)
+            stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca)
         else:
             stack = Stack(out, name, "target" if carrier else None, mock)
         try:
             stack.up(progress.phase)
             caller_ip = stack.ip("caller")
-            conds = conditions(partial(stack.sh, "router"), seed)
+            conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
-            if name.startswith("sip:"):
+            if is_uri(name):
                 target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
                 uri, sip = name, tuple(dict.fromkeys((port, 5060)))
                 if proxy:  # where a transfer goes, as the router resolves it
@@ -668,6 +727,20 @@ def _last_line(path: Path) -> str:
     return (path.read_text().strip().splitlines() or [""])[-1]
 
 
+def _tls_note(out: Path) -> str:
+    """How many calls went over each TLS version and cipher suite, if any did."""
+    seen: dict[str, int] = {}
+    for path in sorted(out.glob("**/caller.json")):
+        if t := json.loads(path.read_text()).get("tls"):
+            key = f"{t['version']} {t['cipher']}"
+            seen[key] = seen.get(key, 0) + 1
+    return (
+        "\nSIP over TLS: " + ", ".join(f"{k} ({n} calls)" for k, n in seen.items()) + "\n"
+        if seen
+        else ""
+    )
+
+
 def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     """Verdicts for the case runs of a results directory (by default the ones its results.json
     lists), plus turn latency and barge-in pooled per profile if it has those calls:
@@ -680,6 +753,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         recs = json.loads((out / "results.json").read_text())
         runs = [cs.Run(*(r[f] for f in cs.Run._fields)) for r in recs]
     summary, records, ok = cs.summarize(out, runs)
+    summary += _tls_note(out)
     sections: list[tuple[str, str]] = []
     # the agent's stream in every call where it behaves as it should
     agent = [(r.profile, out / r.run) for r in runs if r.behaviour in (None, "good")]

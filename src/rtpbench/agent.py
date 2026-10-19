@@ -17,6 +17,7 @@ import re
 import secrets
 import select
 import socket
+import ssl
 import threading
 import time
 from collections.abc import Callable
@@ -471,8 +472,11 @@ class Uas:
 
     def _ok(self, req: sip.Message, direction: str) -> sip.Message:
         local = _local_ip(self.addr)
-        param = ";transport=tcp" if isinstance(self.sock, sip.Tcp) else ""
-        extra = [("Contact", f"<sip:agent@{local}:{self.sock.getsockname()[1]}{param}>")]
+        assert self.invite is not None
+        transport = getattr(self.sock, "transport", "UDP")
+        sips = self.invite.first.split()[1].lower().startswith("sips:")
+        contact = sip.contact("agent", local, self.sock.getsockname()[1], transport, sips)
+        extra = [("Contact", contact)]
         origin = (self.origin[0], self.origin[1])
         pts = list(g711.NAMES) if self.late and self.sender is None else [self.pt]
         body = sip.sdp(local, self.rtp.getsockname()[1], pts, direction, origin, self.dtmf)
@@ -563,12 +567,14 @@ def serve(
     replies: Path | None = None,
     barge: bool = False,
     case: Behaviour | None = None,
+    tls: Path | None = None,
 ) -> dict[str, Any]:
     """Answer one call; return its per-turn ground truth. Touches `ready` once listening.
 
     `real`: reply with speech (corpus clips, or the WAVs in `replies`), not the synthetic voice.
     `barge`: reply with the long corpus clips and follow the barge-in plan.
     `case`: answer no turns; behave as a conformance case asks (short then long corpus clips).
+    `tls`: a directory with server.crt and server.key; SIP over TLS on 5061 too.
     """
     real = real or barge
     rng = random.Random(seed)
@@ -586,7 +592,11 @@ def serve(
     hangover = SPEECH_HANGOVER_NS if real or case else HANGOVER_NS
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", sip_port))
-    tcp = sip.Tcp(sip_port) if (case or Behaviour()).tcp else None
+    streams: list[sip.Tcp] = [sip.Tcp(sip_port)] if (case or Behaviour()).tcp else []
+    if tls:
+        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ctx.load_cert_chain(tls / "server.crt", tls / "server.key")
+        streams.append(sip.Tls(sip.TLS_PORT, server=ctx))
     rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rtp.bind(("0.0.0.0", rtp_port))
     ready.touch()
@@ -596,18 +606,24 @@ def serve(
 
     call = Uas(sock, rtp, case or Behaviour(), responder, greeting)
     sock.settimeout(0)
+    for t in streams:
+        t.settimeout(0)
     while not call.done:
-        ready_socks = select.select([sock, *(tcp.sockets() if tcp else [])], [], [], 0.02)[0]
+        ready_socks = select.select(
+            [sock, *(s for t in streams for s in t.sockets())], [], [], 0.02
+        )
         try:
-            if sock in ready_socks:
+            if sock in ready_socks[0]:
                 data, addr = sock.recvfrom(65535)
                 call.handle(sip.parse(data), addr, sock)
-            elif tcp and ready_socks:
-                tcp.settimeout(0)
-                data, addr = tcp.recvfrom()
-                call.handle(sip.parse(data), addr, tcp)
-        except TimeoutError, BlockingIOError:
+        except BlockingIOError:
             pass
+        for t in streams:  # each, even unwoken: a message may wait read already
+            try:
+                data, addr = t.recvfrom()
+            except TimeoutError:
+                continue
+            call.handle(sip.parse(data), addr, t)
         call.tick()
     call.stop()
     r = call.responder

@@ -82,10 +82,39 @@ authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
 
 The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
 loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
-captures name the URI and the addresses on the path. SIP over TLS (`sips:`) and SRTP are not
-supported: TLS hides SIP from the capture, so judging would need its session keys (a key log)
-to read it; SRTP needs AES counter mode and HMAC-SHA1 (a new dependency) and its keys kept with
-the captures to judge the audio.
+captures name the URI and the addresses on the path. A `sips:` URI, or one with
+`;transport=tls`, puts SIP on TLS ([below](#sip-over-tls)). SRTP is not supported: it needs AES
+counter mode and HMAC-SHA1, and its keys kept with the captures to judge the audio.
+
+## SIP over TLS
+
+```sh
+uv run --extra vad rtpbench target 'sip:agent@agent.example.com;transport=tls'
+uv run --extra vad rtpbench target sips:agent@agent --network myagent_default --ca agent-ca.pem
+uv run --extra vad rtpbench cases --tls
+```
+
+On port 5061 unless the URI gives one: TLS 1.3, or 1.2 with an AES-GCM or ChaCha20 suite (the
+only ones the caller offers there). The caller checks the agent's certificate for the URI's host
+against the system's trusted certificates, or those in `--ca` (PEM). Its connection leaves from
+the port its Contact gives (and its Via, with RFC 5923 `alias`), so an agent that sends its own
+requests (a BYE, a REFER) to the Contact finds that connection and uses it. One that opens a new
+connection reaches the caller only if the way back is open (`--advertise`), and must not check
+the caller's certificate, a test one.
+
+TLS hides SIP from the capture, so the caller writes each call's session keys to `keys.log`
+next to its capture, and judging decrypts the messages from the capture with them: each message
+is timed by the packet that brought the start of its TLS record. The same file opens the
+capture in Wireshark (TLS protocol preferences, (Pre)-Master-Secret log filename). Anyone with
+the results reads that call's signalling, and only that call's: TLS protects nothing beyond test
+calls here. With [digest authentication](#digest-authentication) the captures then hold the
+digest, as over UDP.
+
+`cases --tls` and `calibrate --tls` reach the reference agent over TLS, with a certificate from a
+CA the stack makes for the run (both kept in the results' `tls/`). `large-invite` does not run
+over TLS: the case is about switching from UDP. `conditions.json` records `tls` and what the
+caller trusted (`tls_trust`); each call's `caller.json`, the TLS version and cipher suite, which
+the summary counts.
 
 ## Mock engine
 

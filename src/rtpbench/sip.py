@@ -1,4 +1,4 @@
-"""Minimal SIP over UDP or TCP: one audio call as UAC or UAS (RFC 3261 subset).
+"""Minimal SIP over UDP, TCP or TLS: one audio call as UAC or UAS (RFC 3261 subset).
 
 Messages stay plain header lists, so a caller can add, drop or reorder anything before sending.
 """
@@ -8,12 +8,16 @@ import re
 import secrets
 import select
 import socket
+import ssl
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from rtpbench import pcap, tls
 from rtpbench.g711 import NAMES
 
 T1, T2 = 0.5, 4.0
+TLS_PORT = 5061
 _COMPACT = {
     "i": "call-id",
     "f": "from",
@@ -92,6 +96,21 @@ def tag(value: str) -> str:
 
 def uri_of(value: str) -> str:
     return value.split("<", 1)[1].split(">", 1)[0] if "<" in value else value.split(";")[0]
+
+
+def secure(uri: str) -> bool:
+    """Whether a URI asks for TLS: a sips: URI, or transport=tls (RFC 3261 19.1.1)."""
+    params = uri.split(">", 1)[0].lower().split(";")
+    return params[0].startswith("sips:") or "transport=tls" in params[1:]
+
+
+def contact(user: str, ip: str, port: int, transport: str, sips: bool = False) -> str:
+    """A Contact for this transport: sips: when the request was (RFC 5630 4.1), else sip: with
+    transport=tcp or tls on a stream."""
+    if sips:
+        return f"<sips:{user}@{ip}:{port}>"
+    param = f";transport={transport.lower()}" if transport != "UDP" else ""
+    return f"<sip:{user}@{ip}:{port}{param}>"
 
 
 def response(
@@ -261,10 +280,13 @@ class Tcp:
     18.3). The peer of an accepted connection is its address, so answers go back on it."""
 
     transport = "TCP"
+    reuse_port = False  # SO_REUSEPORT on the listener, so connections can leave from its port
 
     def __init__(self, port: int = 0) -> None:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if self.reuse_port:
+            self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         self.server.bind(("0.0.0.0", port))
         self.server.listen(16)
         self.conns: dict[tuple[str, int], socket.socket] = {}
@@ -284,10 +306,18 @@ class Tcp:
     def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
         """Send on the connection with `addr`; ConnectionRefusedError if none can be opened."""
         if addr not in self.conns:
-            conn = socket.create_connection(addr, timeout=5)
+            conn = self._open(addr)
             conn.settimeout(None)
             self.conns[addr], self.buf[addr] = conn, b""
         self.conns[addr].sendall(data)
+
+    def _open(self, addr: tuple[str, int]) -> socket.socket:
+        """A connection to `addr`, ready for SIP."""
+        return socket.create_connection(addr, timeout=5)
+
+    def _accept(self, conn: socket.socket) -> socket.socket | None:
+        """A connection the far end opened, ready for SIP; None to refuse it."""
+        return conn
 
     def _message(self) -> tuple[bytes, tuple[str, int]] | None:
         """A complete message already read, if any."""
@@ -312,10 +342,18 @@ class Tcp:
             for s in ready:
                 if s is self.server:
                     conn, addr = s.accept()
-                    self.conns[addr], self.buf[addr] = conn, b""
+                    if (accepted := self._accept(conn)) is not None:
+                        self.conns[addr], self.buf[addr] = accepted, b""
                     continue
                 addr = next(a for a, c in self.conns.items() if c is s)
-                data = s.recv(65535)
+                try:
+                    data = s.recv(65535)
+                    # TLS hands one record over per recv; the rest is decrypted already, and
+                    # select would not wake for it
+                    while isinstance(s, ssl.SSLSocket) and s.pending():
+                        data += s.recv(s.pending())
+                except ssl.SSLError:  # a TLS alert, or the connection cut mid-record
+                    data = b""
                 if data:
                     self.buf[addr] += data
                 else:  # closed by the peer
@@ -326,6 +364,94 @@ class Tcp:
     def close(self) -> None:
         for s in self.sockets():
             s.close()
+
+
+class Tls(Tcp):
+    """SIP over TLS (RFC 3261 26.2.1): `Tcp` on TLS connections. Opens them with `client`,
+    checking the certificate of `hostname`; accepts them with `server`, or refuses them.
+
+    Its connections leave from the port it listens on, which its Contact and Via give: a far end
+    that sends its own requests to the Contact finds the connection already open to that address
+    and reuses it, instead of opening one back through the NATs and port forwards on the way."""
+
+    transport = "TLS"
+    reuse_port = True
+
+    def __init__(
+        self,
+        port: int = 0,
+        client: ssl.SSLContext | None = None,
+        server: ssl.SSLContext | None = None,
+        hostname: str | None = None,
+    ) -> None:
+        super().__init__(port)
+        self.client, self.accepting, self.hostname = client, server, hostname
+
+    def _open(self, addr: tuple[str, int]) -> socket.socket:
+        if self.client is None:
+            raise ConnectionRefusedError("no TLS client context")
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        for opt in (socket.SO_REUSEADDR, socket.SO_REUSEPORT):
+            conn.setsockopt(socket.SOL_SOCKET, opt, 1)
+        conn.settimeout(5)
+        try:
+            conn.bind(("0.0.0.0", self.getsockname()[1]))
+            conn.connect(addr)
+            return self.client.wrap_socket(conn, server_hostname=self.hostname)
+        except OSError:
+            conn.close()
+            raise
+
+    def _accept(self, conn: socket.socket) -> socket.socket | None:
+        if self.accepting is None:
+            conn.close()
+            return None
+        conn.settimeout(5)  # the handshake; a peer that stalls it is dropped
+        try:
+            tls_conn = self.accepting.wrap_socket(conn, server_side=True)
+        except OSError:  # ssl.SSLError among them
+            conn.close()
+            return None
+        tls_conn.settimeout(None)
+        return tls_conn
+
+    def negotiated(self) -> dict[str, str]:
+        """TLS version and cipher suite of the first connection."""
+        for conn in self.conns.values():
+            if isinstance(conn, ssl.SSLSocket) and (cipher := conn.cipher()):
+                return {"version": conn.version() or "", "cipher": cipher[0]}
+        return {}
+
+
+_SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
+
+
+def captured(grams: list[pcap.Datagram], keys: Path | None = None) -> list[tuple[int, str, bytes]]:
+    """Every SIP message in a capture, in capture order, with its time and sender: datagrams,
+    and messages framed from the TCP streams (TLS ones decrypted with the key log `keys`)."""
+    udp = [(g.t_ns, g.src, g.payload) for g in grams if not g.tcp and _SIP.match(g.payload)]
+    return sorted([*_over_tcp(tls.streams(grams, keys)), *udp])
+
+
+def _over_tcp(segs: list[pcap.Datagram]) -> list[tuple[int, str, bytes]]:
+    """SIP messages in the TCP streams, framed by Content-Length (RFC 3261 18.3), each at the
+    capture time of the segment that brought its first byte."""
+    out = []
+    flows: dict[tuple[str, int, str, int], tuple[bytes, int]] = {}  # bytes not yet a message
+    for g in segs:
+        flow = (g.src, g.sport, g.dst, g.dport)
+        buf, t = flows.get(flow, (b"", g.t_ns))
+        buf, t = buf + g.payload, t if buf.strip(b"\r\n") else g.t_ns
+        while True:
+            buf = buf.lstrip(b"\r\n")  # keep-alive CRLFs
+            head, sep, rest = buf.partition(b"\r\n\r\n")
+            length = int(parse(head + sep).get("content-length") or 0) if sep else 0
+            if not sep or len(rest) < length or not _SIP.match(buf):
+                break
+            out.append((t, g.src, head + sep + rest[:length]))
+            buf, t = rest[length:], g.t_ns
+        flows[flow] = (buf, t)
+    return out
 
 
 @dataclass
@@ -354,8 +480,8 @@ class Dialog:
         self.sock, self.peer, self.local_ip = sock, peer, local_ip
         self.local, self.remote, self.call_id, self.target = local, remote, call_id, target
         self.transport: str = getattr(sock, "transport", "UDP")
-        param = ";transport=tcp" if self.transport == "TCP" else ""
-        self.contact = f"<sip:{user}@{local_ip}:{sock.getsockname()[1]}{param}>"
+        port, sips = sock.getsockname()[1], target.lower().startswith("sips:")
+        self.contact = contact(user, local_ip, port, self.transport, sips)
         self.cseq = 0
         self.routes: list[str] = []
         self.pending: dict[tuple[str, str], _Tx] = {}  # (branch, method)
@@ -402,7 +528,9 @@ class Dialog:
             self.cseq += 1
         port = self.sock.getsockname()[1]
         branch = "z9hG4bK" + secrets.token_hex(6)
-        hdrs = [("Via", f"SIP/2.0/{self.transport} {self.local_ip}:{port};branch={branch};rport")]
+        via = f"SIP/2.0/{self.transport} {self.local_ip}:{port};branch={branch};rport"
+        # TLS: ask the far end to send its own requests on this connection (RFC 5923)
+        hdrs = [("Via", via + ";alias" if self.transport == "TLS" else via)]
         hdrs += [("Route", r) for r in self.routes]
         hdrs += [
             ("Max-Forwards", "70"),

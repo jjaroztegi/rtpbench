@@ -59,7 +59,7 @@ calibrate at the concurrency you intend to publish at, and watch the load.
 
 ## Network profiles
 
-netem settings per direction, on the router, applied to RTP only: SIP, over UDP or TCP, is never
+netem settings per direction, on the router, applied to RTP only: SIP, over UDP, TCP or TLS, is never
 impaired. `delay`, `jitter`, `loss` and `mobile` are synthetic stimuli for the calibrations
 ([`bench.py`](../src/rtpbench/bench.py)). `lte` and `lte-bad` stand for a mobile caller's path,
 and every number in them has a source:
