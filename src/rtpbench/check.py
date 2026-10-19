@@ -24,7 +24,6 @@ RESAMPLES = 2000
 # fewer turns a side and the interval is too narrow for the noise: compared on the baseline,
 # single barge-in calls (2-5 of each interjection) failed often with nothing changed
 MIN_TURNS = 10
-KEYS = ("verdicts", "latency", "barge-in")  # what --previous must hold
 
 
 class InputError(ValueError):
@@ -279,6 +278,39 @@ def evaluate(
     return rows, all(r[2] != "FAIL" for r in rows)
 
 
+def _shaped(before: Any) -> bool:
+    """Whether `before` holds what `evaluate` reads of a previous run, as `measure` writes it
+    (a profile may be missing: it was not run)."""
+
+    def turns(calls: Any) -> bool:
+        return isinstance(calls, list) and all(
+            isinstance(c, list) and all(v is None or isinstance(v, int | float) for v in c)
+            for c in calls
+        )
+
+    if not isinstance(before, dict):
+        return False
+    verdicts, latency, barge = (before.get(k) for k in ("verdicts", "latency", "barge-in"))
+    return (
+        isinstance(verdicts, dict)
+        and all(
+            isinstance(cs, dict) and all(isinstance(v, list) for v in cs.values())
+            for cs in verdicts.values()
+        )
+        and all(
+            isinstance(e, dict) and isinstance(e.get("codecs"), list) and turns(e.get("calls", []))
+            for e in (latency.values() if isinstance(latency, dict) else [None])
+        )
+        and all(
+            isinstance(e, dict)
+            and isinstance(e.get("codecs"), list)
+            and isinstance(e.get("kinds", {}), dict)
+            and all(turns(c) for c in e.get("kinds", {}).values())
+            for e in (barge.values() if isinstance(barge, dict) else [None])
+        )
+    )
+
+
 def check(out: Path, policy: Path | None, previous: Path | None) -> tuple[str, bool]:
     """Judge the target run in `out` against `policy` (default: every case passes) and the
     check.json `previous`: writes check.md and check.json in `out`; returns check.md and
@@ -287,13 +319,11 @@ def check(out: Path, policy: Path | None, previous: Path | None) -> tuple[str, b
     try:
         now = measure(out)
         before = json.loads(previous.read_text()) if previous else None
-        if before is not None and not (
-            isinstance(before, dict) and all(isinstance(before.get(k), dict) for k in KEYS)
-        ):
+        if before is not None and not _shaped(before):
             raise InputError(f"{previous}: not a check.json")
     except InputError:
         raise
-    except (OSError, ValueError, KeyError) as e:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:  # reads only
         raise InputError(f"{type(e).__name__}: {e}") from e
     rows, ok = evaluate(now, rules, before)
     failed = sum(r[2] == "FAIL" for r in rows)

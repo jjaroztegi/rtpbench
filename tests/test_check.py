@@ -173,14 +173,20 @@ def test_cli_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     with pytest.raises(SystemExit) as e:
         cli.main(["check", str(d), "--policy", str(_policy(tmp_path, "[cases]\nx = 'fail'\n"))])
     assert e.value.code == 2
-    (tmp_path / "previous.json").write_text("[]")
-    for args in (["--previous", str(tmp_path / "previous.json")], ["--previous", "missing.json"]):
+    good = json.loads((d / "check.json").read_text()) | {"latency": {"clean": {"calls": []}}}
+    for i, bad in enumerate(("[]", json.dumps(good))):  # not one; a profile without codecs
+        (tmp_path / f"previous{i}.json").write_text(bad)
+    for previous in ("previous0.json", "previous1.json", "missing.json"):
         with pytest.raises(SystemExit) as e:
-            cli.main(["check", str(d), *args])
+            cli.main(["check", str(d), "--previous", str(tmp_path / previous)])
         assert e.value.code == 2
-    with pytest.raises(SystemExit) as e:
-        cli.main(["check", str(tmp_path / "no-run")])
-    assert e.value.code == 2
+    (tmp_path / "null").mkdir()
+    (tmp_path / "null/conditions.json").write_text("{}")
+    (tmp_path / "null/results.json").write_text("null")
+    for run in ("no-run", "null"):
+        with pytest.raises(SystemExit) as e:
+            cli.main(["check", str(tmp_path / run)])
+        assert e.value.code == 2
 
 
 def test_too_few_turns_are_not_compared(tmp_path: Path) -> None:
