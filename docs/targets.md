@@ -15,8 +15,8 @@ it through the same netem router. `rtpbench target NAME` runs every case, a 12-t
 and a 10-turn barge-in call against it (`--only` picks among them), with `--profiles` and
 `--runs` as for the cases. `summary.md` holds the verdicts, then turn latency and barge-in over
 every turn of every repeat, how evenly the target's RTP reached the caller and, on the mock
-engine, what of its answers' audio reached the caller as sent; `target.log`, the target's own
-logs.
+engine, what of its answers' audio reached the caller as sent and of the caller's reached the
+engine; `target.log`, the target's own logs.
 
 | target | what |
 | --- | --- |
@@ -96,7 +96,9 @@ one to the long question, or a call to the transfer tool to the transfer line (n
 argument; a tool with any other required argument is not called). Speech while it answers
 cancels the answer. It logs when it heard each turn end and when it sent its first
 audio, on the captures' clock, so the summary splits turn latency and greeting time into the
-target's uplink, the engine's fixed share and the target's downlink.
+target's uplink, the engine's fixed share and the target's downlink. It records what it
+receives as it arrives (`realtime/` in the run directory), so the summary also compares the
+caller's lines with what reached the engine.
 
 It recognises the caller's own lines, not speech in general: it names the nearest line by the
 shape of its energy envelope, whatever the level and through lost packets. A target's audio path
