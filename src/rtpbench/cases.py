@@ -44,6 +44,7 @@ RESUME_MS = 1000
 CLOCK_MS = 40  # RTP clock vs arrival time, before vs after a pause (two packets)
 FLOOR_PACKETS = 25  # either side of a pause: the least transit time over 0.5 s, past jitter
 SEQ_LOST_MAX = 10  # packets lost in a row where a stream resumes, and it is still the next seq
+SILENT_NS = 1_000_000_000  # agent RTP absent this long before a request: it had stopped by itself
 KEY_MS = 100  # how long the caller holds a key
 REFER_WAIT_S = 20.0  # after asking for a person
 BYE_WAIT_S = 10.0  # after the transfer is reported done
@@ -823,6 +824,12 @@ def check_hold(w: Wire) -> Result:
             continue  # it never paused, so there is no resume to time
         before = [(u, p) for u, p in w.down if u < t_back]
         after = [(u, p) for u, p in w.down if u > t_back]
+        last = max((u for u, _ in w.down if u < t_hold), default=None)
+        if not after and last is not None and t_hold - last >= SILENT_NS:
+            # an agent that sends RTP only while it speaks, and had nothing to say
+            said = "the agent said nothing after the resume, nor for a second before the hold"
+            r.checks.append(Check(f"resume from {offer}: agent RTP again", None, said))
+            continue
         if not after or not before:
             r.checks.append(Check(f"resume from {offer}: agent RTP again", False))
             continue
@@ -1048,7 +1055,11 @@ def _refreshed(w: Wire, r: Result, sent: tuple[int, sip.Message]) -> int | None:
     # its RTP clock skipped between packets, and how far its clock moved against arrival times
     byes = [u for u, _, m in w.msgs if m.method == "BYE" and u > resp[0]]
     end = min([resp[0] + 2_000_000_000, *byes])
-    near = [(u, p) for u, p in w.down if t - 1e9 <= u <= end]
+    near = [(u, p) for u, p in w.down if t - SILENT_NS <= u <= end]
+    # silent around it, and silence is what its stream does (a loss burst leaves a seq gap)
+    if not near and analyze.pauses(w.down, SEQ_LOST_MAX):
+        _silent_refresh(w, r, t, resp[0], end)
+        return resp[0]
     ssrcs = len({p.ssrc for _, p in near})
     skipped = max(
         (
@@ -1068,6 +1079,28 @@ def _refreshed(w: Wire, r: Result, sent: tuple[int, sip.Message]) -> int | None:
     calm = ssrcs == 1 and goes_on and skipped <= MEDIA_GAP_MS and abs(shift) <= MEDIA_GAP_MS
     r.checks.append(Check("media undisturbed by the refresh", calm, detail, (round(t - 1e9), end)))
     return resp[0]
+
+
+def _silent_refresh(w: Wire, r: Result, t: int, ok: int, end: int) -> None:
+    """The agent sent nothing around a refresh (re-INVITE at `t`, 2xx at `ok`), as one that
+    sends RTP only while it speaks does between replies (its stream pauses in the call): its
+    next RTP must go on with the same stream (SSRC, next seq). How its clock went across the
+    silence is not the refresh's doing; the summary shows it for every pause
+    (`analyze.pauses`)."""
+    name = "media undisturbed by the refresh"
+    before = [p for u, p in w.down if u < t]
+    after = [(u, p) for u, p in w.down if u > ok]
+    if not before or not after:
+        r.checks.append(Check(name, None, "no agent RTP around it", (t - SILENT_NS, end)))
+        return
+    (u, b), a = after[0], before[-1]
+    lost = analyze.signed(b.seq - a.seq, 16) - 1
+    same = b.ssrc == a.ssrc and 0 <= lost <= SEQ_LOST_MAX
+    detail = (
+        f"silent around it; next RTP {(u - ok) / 1e9:.1f} s after the 2xx: "
+        f"ssrc {a.ssrc:#x}->{b.ssrc:#x}, seq {a.seq}->{b.seq}"
+    )
+    r.checks.append(Check(name, same, detail, (t - SILENT_NS, u)))
 
 
 def check_carried(w: Wire) -> Result:
@@ -1496,9 +1529,13 @@ def pacing(calls: list[tuple[str, Path]]) -> str:
     directory) that have one: `analyze.pacing` of each, median [min, max] over the calls; empty
     if none has."""
     by: dict[str, list[tuple[float, float]]] = {}
+    paused: dict[str, list[list[tuple[float, float, bool]]]] = {}
     for profile, run in calls:
-        if (paced := analyze.pacing(load(run, profile).down)) is not None:
+        down = load(run, profile).down
+        if (paced := analyze.pacing(down)) is not None:
             by.setdefault(profile, []).append(paced)
+        if not run.name.startswith("hold"):  # in a hold, stopping is what the case asks for
+            paused.setdefault(profile, []).append(analyze.pauses(down, SEQ_LOST_MAX))
     if not by:
         return ""
     rows = [
@@ -1512,6 +1549,32 @@ def pacing(calls: list[tuple[str, Path]]) -> str:
         "RFC 3550 interarrival jitter estimate, its median over each call. On a clean network "
         "both are the agent's own pacing (and a carrier's); a profile adds its own.\n\n"
         + analyze._table(["profile", "calls", "late, p99", "jitter"], rows)
+        + _pauses(paused)
+    )
+
+
+def _pauses(by: dict[str, list[list[tuple[float, float, bool]]]]) -> str:
+    """Where the agent stopped sending RTP and went on with the same stream, per profile over
+    calls (each a list of `analyze.pauses`); a sentence if it never did."""
+    if not any(p for calls in by.values() for p in calls):
+        return (
+            "\nPauses: none; outside a hold the agent's RTP never stopped for a second or more.\n"
+        )
+    rows = []
+    for profile, calls in by.items():
+        each = [p for c in calls for p in c]
+        behind = _spread([b for _, b, _ in each], ".0f") if each else "-"
+        marked = f"{sum(m for _, _, m in each)}/{len(each)}"
+        counts = _spread([float(len(c)) for c in calls], ".0f")
+        rows.append([profile, str(len(calls)), counts, behind, marked])
+    return (
+        "\nPauses: where the agent stopped sending RTP for a second or more and went on with the "
+        "same stream, outside a hold (silence suppression, RFC 3551 4.1), median [min, max]: per "
+        "call; how far the RTP clock fell behind across each, ms (the pause less what the "
+        "timestamps advanced: 0 if they kept time, as RFC 3550 5.1 requires); and how many "
+        "packets after one carry the marker bit, as 4.1 asks. A carrier that hangs up on RTP "
+        "inactivity may hang up on these.\n\n"
+        + analyze._table(["profile", "calls", "pauses", "clock behind", "marker"], rows)
     )
 
 

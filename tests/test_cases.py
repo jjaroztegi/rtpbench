@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from rtpbench import cases, g711, rtp, sip
+from rtpbench import analyze, cases, g711, rtp, sip
 from rtpbench.agent import BUSY, OPERATOR, Responder, operator
 from rtpbench.caller import Session
 from rtpbench.cases import FLOOR_PACKETS, Check, Result, Script, Wire, _floor, check_cancel
@@ -284,6 +284,30 @@ def test_refresh_media_must_go_on(stops_at: float | None, calm: bool) -> None:
     assert cases._refreshed(w, r, (s, refresh)) == s + 10**6
     media = next(c for c in r.checks if c.name == "media undisturbed by the refresh")
     assert media.ok is calm, media.detail
+
+
+@pytest.mark.parametrize(("speaks", "calm"), [(True, True), (False, False)])
+def test_silent_refresh_is_judged_on_the_next_speech(speaks: bool, calm: bool) -> None:
+    """An agent that sends RTP only while it speaks, silent around the refresh: its next RTP
+    goes on with the stream (next seq, whatever its clock did). One whose stream never pauses
+    and goes on has stopped."""
+    via = [("Via", "SIP/2.0/UDP x;branch=b1"), ("CSeq", "2 INVITE")]
+    refresh = sip.Message("INVITE sip:a SIP/2.0", via, sip.sdp("10.0.0.1", 4000, [0]))
+    ok = sip.Message("SIP/2.0 200 OK", via, sip.sdp("10.0.0.2", 5000, [0]))
+    s = 1_000_000_000
+    greeting = [(n * 20_000_000, rtp.Packet(0, n, n * 160, 7, False, b"")) for n in range(100)]
+    reply = [
+        (6 * s + n * 20_000_000, rtp.Packet(0, 100 + n, (100 + n) * 160, 7, False, b""))
+        for n in range(50)
+    ]  # 4 s later by arrival, its clock 20 ms on
+    down = greeting + (reply if speaks else [])
+    w = Wire({"pt": 0}, None, [(3 * s, True, refresh), (3 * s + 10**6, False, ok)], [], down)
+    r = Result()
+    cases._refreshed(w, r, (3 * s, refresh))
+    media = next(c for c in r.checks if c.name == "media undisturbed by the refresh")
+    assert media.ok is calm, media.detail
+    pauses = analyze.pauses(down, cases.SEQ_LOST_MAX)
+    assert pauses == ([(4020.0, 4000.0, False)] if speaks else [])
 
 
 def test_digit_whose_end_packets_were_all_lost() -> None:

@@ -42,6 +42,15 @@ for a second and answers, or answers 486 for `refer-fail`.
 | `codec-change` | a re-INVITE offers the other G.711 law alone and the caller switches on the 2xx: the answer has that law alone, the agent's RTP switches, a reply within 10 s |
 | `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record |
 
+An agent may send RTP only while it speaks (silence suppression, RFC 3551 4.1). When it sent
+nothing for a second before a hold or a refresh, its silence afterwards is not the request's
+doing: after a resume, nothing from it makes the check inconclusive. Around a refresh, when its
+stream pauses elsewhere in the call (the same stream going on after a second or more, which a
+loss burst cannot fake), its next RTP must go on with the same stream (SSRC, next sequence
+number), or the check is inconclusive if none came. The summary's RTP section reports each pause
+outside a hold: how many per call, and whether the RTP clock kept time across it (RFC 3550 5.1)
+and marked the restart.
+
 ## Through the carrier
 
 With `--carrier`, four more cases are what real trunks send; the carrier rewrites the call and

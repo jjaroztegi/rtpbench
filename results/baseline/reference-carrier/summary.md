@@ -148,3 +148,5 @@ The agent's RTP as the caller received it, ms, median [min, max] over calls: lat
 | clean | 150 | 0.7 [0.1, 2.0] | 0.04 [0.01, 0.16] |
 | lte | 150 | 15.7 [12.0, 19.3] | 3.30 [2.33, 3.89] |
 | lte-bad | 150 | 106.3 [79.3, 135.6] | 20.19 [14.90, 22.08] |
+
+Pauses: none; outside a hold the agent's RTP never stopped for a second or more.

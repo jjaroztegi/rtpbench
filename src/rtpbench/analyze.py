@@ -15,6 +15,7 @@ Truth uses event positions from the agent and caller logs (which packet and samp
 the caller pcap. The agent pcap splits truth - delay into agent scheduling error and network.
 """
 
+import itertools
 import json
 import math
 import re
@@ -272,6 +273,20 @@ def pacing(packets: Timed) -> tuple[float, float] | None:
     if len(jitter) < 50:
         return None
     return statistics.median(jitter), _pct(late, 0.99)
+
+
+def pauses(packets: Timed, lost_max: int) -> list[tuple[float, float, bool]]:
+    """Where a sender stopped sending and went on with the same stream (silence suppression):
+    a second or more between two packets of one SSRC that arrive in turn, at most `lost_max`
+    sequence numbers apart. Per pause: its length, how far the RTP clock fell behind it (the
+    pause less what the timestamps advanced; RFC 3551 4.1 has them advance by the pause, so
+    about 0), ms; and whether the packet after it carries the marker bit, as 4.1 asks."""
+    out = []
+    for (t0, a), (t1, b) in itertools.pairwise(p for p in packets if p[1].pt in g711.NAMES):
+        if a.ssrc == b.ssrc and t1 - t0 >= 1e9 and 1 <= signed(b.seq - a.seq, 16) <= lost_max + 1:
+            gap = (t1 - t0) / 1e6
+            out.append((gap, gap - signed(b.ts - a.ts, 32) * S / 1e6, b.marker))
+    return out
 
 
 def _pct(values: list[float], q: float) -> float:

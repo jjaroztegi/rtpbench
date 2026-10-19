@@ -212,7 +212,8 @@ and stays 20 ms late to the end. It does so in every call long enough, except in
 (30 ms packets). A receiver needs a 21.1 ms jitter buffer for it on a clean network, or fills
 a 20 ms gap 4 s into every call; the jitter estimate barely shows it. On a mobile path the slip
 adds to what the network needs (34 ms against 16 under `lte`). AI Voice Connector CE
-needs 1.2 ms on a clean network.
+needs 1.2 ms on a clean network. Neither stops sending RTP for a second or more outside a
+hold: both send silence between replies.
 
 ## Raw runs
 
