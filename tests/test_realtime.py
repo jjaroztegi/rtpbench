@@ -145,6 +145,17 @@ def test_answers_as_the_real_api_does(engine: tuple[int, Path]) -> None:
     assert (answer["line"], answer["answer"]) == ("transfer", realtime.TOOL)
     assert t0 < answer["speech_end_ns"] < answer["end_ns"]
     assert answer["end_ns"] - answer["speech_end_ns"] >= realtime.HANGOVER_NS + realtime.DELAY_NS
+    # what arrived is recorded as it arrived
+    got = realtime.recording(out, answer["session"])
+    assert got is not None
+    pcm, starts, pcm24, each = got
+    sent = g711.encode(g711.PCMA, speech.read_wav(LINES / "transfer.wav") + [0] * 16000)
+    assert pcm == [float(s) for s in g711.decode(g711.PCMA, sent)]
+    assert len(starts) == len(pcm)
+    assert starts == sorted(starts)
+    assert t0 < starts[0]
+    assert pcm24 == []
+    assert each == 20  # one RTP packet per append
 
 
 async def _barge(port: int) -> list[dict[str, Any]]:

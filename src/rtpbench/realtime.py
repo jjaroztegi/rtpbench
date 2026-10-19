@@ -13,7 +13,9 @@ VAD does. Audio goes out in 100 ms deltas, kept LEAD_NS ahead of real time.
 
 Every answer is logged (`/out/realtime.jsonl`) with when the caller's speech ended as heard
 here and when the first audio went out, on the clock captures stamp: a target's turn latency
-then splits into its uplink, this engine's known share and its downlink (`decompose`).
+then splits into its uplink, this engine's known share and its downlink (`decompose`). What
+arrives is recorded as it arrived (`/out/realtime/<session>.raw`, `.idx`), so the summary can
+say what a target did to the caller's audio (`uplink`) as to the engine's (`downlink`).
 """
 
 import asyncio
@@ -22,10 +24,12 @@ import hashlib
 import json
 import math
 import secrets
+import statistics
 import struct
 from array import array
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO, TextIO
 
 from rtpbench import g711, speech
 from rtpbench.clock import CLOCK
@@ -197,6 +201,7 @@ class Session:
         self.user_item = ""
         self.last_item = ""
         self.tools: list[str] = []
+        self.kept: tuple[BinaryIO, TextIO] | None = None  # realtime/<id>.raw and .idx
 
     # outgoing
 
@@ -217,7 +222,9 @@ class Session:
             self.configure(event.get("session", {}))
             await self.send({"type": "session.updated", "session": self.session})
         elif kind == "input_audio_buffer.append":
-            await self.hear(base64.b64decode(event["audio"]), CLOCK.now())
+            audio, now = base64.b64decode(event["audio"]), CLOCK.now()
+            await self.hear(audio, now)
+            self.keep(audio, now)
         elif kind == "response.create":
             asked, now = event.get("response", {}), CLOCK.now()
             self.start(self.reply(self.lines.answer(""), "create", asked, now, {"asked_ns": now}))
@@ -241,6 +248,25 @@ class Session:
             await self.send(
                 {"type": kind.replace("clear", "cleared").replace("commit", "committed")}
             )
+
+    def keep(self, audio: bytes, arrival: int) -> None:
+        """Record what arrived as it arrived: the bytes to realtime/<id>.raw, and the arrival
+        time, byte count and format (pcmu, pcma or pcm16 at 24 kHz) to realtime/<id>.idx."""
+        if self.kept is None:
+            where = self.log.parent / "realtime"
+            where.mkdir(exist_ok=True)
+            raw, idx = where / f"{self.id}.raw", where / f"{self.id}.idx"
+            self.kept = raw.open("ab"), idx.open("a")
+        fmt = "pcm16" if self.pt is None else g711.NAMES[self.pt].lower()
+        self.kept[0].write(audio)
+        self.kept[1].write(f"{arrival} {len(audio)} {fmt}\n")
+        for f in self.kept:
+            f.flush()  # whole appends on disk, however the engine is stopped
+
+    def close(self) -> None:
+        if self.kept is not None:
+            for f in self.kept:
+                f.close()
 
     def configure(self, update: dict[str, Any]) -> None:
         self.session |= update
@@ -477,6 +503,7 @@ def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
             pass
         finally:
             await s.cancel()
+            s.close()
             s.note({"event": "close", "at_ns": CLOCK.now()})
             writer.close()
 
@@ -607,10 +634,14 @@ def sent(clip: list[int], fmt: str | None) -> list[float]:
     law = {"audio/pcmu": g711.PCMU, "audio/pcma": g711.PCMA}.get(fmt or "")
     if law is not None:
         return [float(s) for s in g711.decode(law, g711.encode(law, clip))]
-    up = np.frombuffer(_upsample(clip), dtype="<i2").astype(np.float64)
-    spectrum = np.fft.rfft(up)
-    spectrum[len(up) // 6 + 1 :] = 0  # above 4 kHz
-    return [float(s) for s in np.fft.irfft(spectrum, len(up))[::3]]
+    return [float(s) for s in _to8k(np, np.frombuffer(_upsample(clip), dtype="<i2"))]
+
+
+def _to8k(np: Any, pcm: Any) -> Any:
+    """24 kHz samples through an ideal 8 kHz converter."""
+    spectrum = np.fft.rfft(np.asarray(pcm, dtype=np.float64))
+    spectrum[len(pcm) // 6 + 1 :] = 0  # above 4 kHz
+    return np.fft.irfft(spectrum, len(pcm))[::3]
 
 
 def _lag(np: Any, ref: Any, rx: Any) -> int:
@@ -620,13 +651,15 @@ def _lag(np: Any, ref: Any, rx: Any) -> int:
     return int(np.argmax(c[: len(rx) - len(ref) + 1]))
 
 
-def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | None:
+def heard(ref: Sequence[float], rx: Sequence[float], ok: Sequence[bool]) -> dict[str, Any] | None:
     """What a path did to `ref` (8 kHz), received as `rx` from where it may start up to 1.5 s
     late, `ok` false for samples the network lost. Each piece of speech is aligned on its own,
     near the one before: gain (dB, least squares), what no linear filter of ±TAPS explains (dB
     below the audio; inf if unchanged), 3.4-4 kHz against 300-3400 Hz relative to `ref`'s (dB),
-    the moves of 5 ms or more between pieces (ms, positive later), and whether every sample is
-    unchanged. None if under half the speech could be aligned."""
+    the moves of 5 ms or more between pieces (ms, positive later), whether every sample is
+    unchanged, where in `rx` `ref` starts (the median piece's offset), and its voiced 20 ms with
+    nothing like them nearby in `rx`, by what came instead. None if under half the speech could
+    be aligned."""
     import numpy as np
 
     r_all, x_all, m_all = np.asarray(ref), np.asarray(rx, dtype=np.float64), np.asarray(ok)
@@ -635,6 +668,7 @@ def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | N
         return None
     lag = _lag(np, r_all[:16000], x_all[:28000])
     xs, rs, lags, band, fit = [], [], [], np.zeros((2, 2)), np.zeros(2)
+    placed: list[tuple[int, int, int]] = []
     for a, b in spans:
         r = r_all[a:b]
         lo = max(0, lag + a - SEARCH)
@@ -646,6 +680,7 @@ def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | N
             continue
         lag = found
         lags.append(found)
+        placed.append((a, b, found))
         xs.append(x[m])
         rs.append(r[m])
         if m.all():
@@ -667,6 +702,30 @@ def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | N
     g = float(np.sum(x * r) / np.sum(r * r))
     unchanged = bool(np.array_equal(x, r))
     steps = np.diff(lags)
+    # each voiced 20 ms of `ref` looked for within ±25 ms of its piece; where none matches, what
+    # came in its place: next to nothing, the 20 ms before it again, or something else
+    missing = {"frames": 0, "silence": 0, "repeat": 0, "other": 0}
+    for a, b, found in placed:
+        for f0 in range(a, b - PACKET + 1, PACKET):
+            r, pos = r_all[f0 : f0 + PACKET], f0 + found
+            if (
+                np.sum(r * r) < PACKET * (GATE / 2) ** 2
+                or not m_all[max(0, pos - 400) : pos + 560].all()
+            ):
+                continue
+            missing["frames"] += 1
+            seg = x_all[max(0, pos - 200) : pos + 360]
+            c = np.correlate(seg, r, "valid")
+            e = np.convolve(seg * seg, np.ones(PACKET), "valid")
+            if np.max(c / np.sqrt(e * np.sum(r * r) + 1e-9)) >= 0.5:
+                continue
+            x, before = x_all[pos : pos + PACKET], x_all[pos - PACKET : pos]
+            if np.sum(x * x) < 1e-3 * g * g * np.sum(r * r):
+                missing["silence"] += 1
+            elif np.sum(x * before) >= 0.9 * np.sqrt(np.sum(x * x) * np.sum(before**2)):
+                missing["repeat"] += 1
+            else:
+                missing["other"] += 1
     return {
         "gain_db": 20 * math.log10(abs(g)),
         "left_db": math.inf
@@ -679,7 +738,26 @@ def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | N
         else None,
         "moves_ms": [float(s) / 8 for s in steps if abs(s) >= SHIFT],
         "unchanged": unchanged,
+        "at": int(np.median(lags)),
+        "missing": missing,
     }
+
+
+def _audio_cells(hs: list[dict[str, Any]]) -> list[str]:
+    """unchanged, distortion, moved, gain and 3.4-4 kHz over `heard` results."""
+    from rtpbench import cases
+
+    left = [h["left_db"] for h in hs if h["left_db"] is not None]
+    bands = [h["band_db"] for h in hs if h["band_db"] is not None]
+    moved = [h for h in hs if h["moves_ms"]]
+    largest = max((abs(m) for h in moved for m in h["moves_ms"]), default=0)
+    return [
+        str(sum(h["unchanged"] for h in hs)),
+        cases._spread(left, ".1f").replace("inf", "exact") if left else "",
+        f"{len(moved)}, up to {largest:.0f} ms" if moved else "0",
+        cases._spread([h["gain_db"] for h in hs], "+.1f"),
+        cases._spread(bands, "+.1f") if bands else "",
+    ]
 
 
 def downlink(out: Path) -> str:
@@ -718,24 +796,7 @@ def downlink(out: Path) -> str:
                 by.setdefault(path.parts[-4], []).append(h)
     if not by:
         return ""
-    rows = []
-    for profile, hs in by.items():
-        left = [h["left_db"] for h in hs if h["left_db"] is not None]
-        left_cell = cases._spread(left, ".1f").replace("inf", "exact") if left else ""
-        bands = [h["band_db"] for h in hs if h["band_db"] is not None]
-        moved = [h for h in hs if h["moves_ms"]]
-        largest = max((abs(m) for h in moved for m in h["moves_ms"]), default=0)
-        rows.append(
-            [
-                profile,
-                str(len(hs)),
-                str(sum(h["unchanged"] for h in hs)),
-                left_cell,
-                f"{len(moved)}, up to {largest:.0f} ms" if moved else "0",
-                cases._spread([h["gain_db"] for h in hs], "+.1f"),
-                cases._spread(bands, "+.1f") if bands else "",
-            ]
-        )
+    rows = [[p, str(len(hs)), *_audio_cells(hs)] for p, hs in by.items()]
     head = [
         "profile",
         "answers",
@@ -756,4 +817,127 @@ def downlink(out: Path) -> str:
         "5 ms or more later or earlier than the one before (a pause lengthened or shortened, "
         "audio inserted or dropped), and the largest move. gain: least squares. 3.4-4 kHz: that "
         "band against 300-3400 Hz, relative to what was sent.\n\n" + analyze._table(head, rows)
+    )
+
+
+def recording(out: Path, session: str) -> tuple[list[float], list[int], list[int], float] | None:
+    """What a session received (`Session.keep`), at 8 kHz: samples, the arrival time of the
+    append each sample came in, the 24 kHz samples if it came as pcm16 (else empty), and the
+    median audio per append, ms. None without a recording or with appends in more than one
+    format."""
+    import numpy as np
+
+    idx = out / "realtime" / f"{session}.idx"
+    if not idx.exists():
+        return None
+    rows = [line.split() for line in idx.read_text().splitlines()]
+    if not rows or len({r[2] for r in rows}) != 1:
+        return None
+    fmt, raw = rows[0][2], (out / "realtime" / f"{session}.raw").read_bytes()
+    per = 6 if fmt == "pcm16" else 1  # bytes per 8 kHz sample
+    starts, n = [], 0
+    for r in rows:
+        starts += [int(r[0])] * (int(r[1]) // per)
+        n += int(r[1])
+    each = statistics.median(int(r[1]) / per / 8 for r in rows)
+    if fmt == "pcm16":
+        pcm24 = np.frombuffer(raw[: n // 2 * 2], dtype="<i2")
+        return [float(s) for s in _to8k(np, pcm24)], starts, pcm24.tolist(), each
+    law = g711.PCMU if fmt == "pcmu" else g711.PCMA
+    return [float(s) for s in g711.decode(law, raw[:n])], starts, [], each
+
+
+def uplink(out: Path) -> str:
+    """The caller's lines in the latency and barge-in calls as this engine received them
+    (`heard` against what the caller sent, from its capture), per profile."""
+    import numpy as np
+
+    from rtpbench import analyze, cases
+
+    records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
+    sessions = [r["session"] for r in records if r.get("event") == "connect"]
+    got = {s: rec for s in sessions if (rec := recording(out, s)) is not None}
+    by: dict[str, list[dict[str, Any]]] = {}
+    for path in sorted(out.glob("*/*/*/caller.json")):
+        if path.parent.name not in ("latency", "barge-in"):
+            continue
+        w = cases.load(path.parent, path.parts[-4])
+        up = [(t, p) for t, p in w.up if (p.pt, p.ssrc) == (w.log["pt"], w.log["ssrc"])]
+        if not up:
+            continue
+        st = analyze.stream(up, w.log["pt"])
+        for turn in w.log["turns"]:
+            for spans in (turn.get("prompt_speech"), turn["speech"]):
+                if not spans:
+                    continue
+                a, b = st.index(w.log["seq0"], spans[0][0]), st.index(w.log["seq0"], spans[-1][1])
+                said = st.time(a, True)
+                if said is None:
+                    continue
+                rec = next((r for r in got.values() if r[1][0] <= said <= r[1][-1]), None)
+                if rec is None:
+                    continue
+                pcm, starts, pcm24, each = rec
+                k = max(0, int(np.searchsorted(starts, said)) - 1600)  # from 200 ms before
+                rx = pcm[k : k + b - a + 24000]
+                h = heard([float(s) for s in st.pcm[a:b]], rx, [True] * len(rx))
+                if h is None:
+                    continue
+                at = k + h["at"]
+                if pcm24:
+                    x = np.asarray(pcm24[3 * at : 3 * (at + b - a)], dtype=np.float64)
+                    f = np.fft.rfftfreq(len(x), 1 / 24000)
+                    p = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+                    mid = p[(f >= 300) & (f < 3400)].sum()
+                    h["above_db"] = 10 * math.log10(p[f >= 4000].sum() / mid)
+                    h["full"] = int(np.sum(np.abs(x) >= 32767))
+                else:
+                    x = np.asarray(pcm[at : at + b - a])
+                    h["full"] = int(np.sum(np.abs(x) >= 32000))
+                h["append_ms"] = each
+                by.setdefault(path.parts[-4], []).append(h)
+    if not by:
+        return ""
+    rows = []
+    for profile, hs in by.items():
+        above = [h["above_db"] for h in hs if "above_db" in h]
+        full = [h["full"] for h in hs if h["full"]]
+        miss = {k: sum(h["missing"][k] for h in hs) for k in hs[0]["missing"]}
+        lost = miss["silence"] + miss["repeat"] + miss["other"]
+        kinds = ", ".join(f"{miss[k]} {k}" for k in ("silence", "repeat", "other") if miss[k])
+        rows.append(
+            [
+                profile,
+                str(len(hs)),
+                *_audio_cells(hs),
+                cases._spread(above, "+.1f") if above else "",
+                f"{len(full)}, up to {max(full)} samples" if full else "0",
+                f"{100 * lost / max(1, miss['frames']):.1f}%" + (f": {kinds}" if kinds else ""),
+                cases._spread([h["append_ms"] for h in hs], ".0f"),
+            ]
+        )
+    head = [
+        "profile",
+        "lines",
+        "unchanged",
+        "distortion, dB",
+        "moved",
+        "gain, dB",
+        "3.4-4 kHz, dB",
+        "above 4 kHz, dB",
+        "full scale",
+        "missing 20 ms",
+        "appends, ms",
+    ]
+    return (
+        "The caller's lines in the latency and barge-in calls as the mock engine received them, "
+        "aligned piece by piece with what the caller sent (its own capture, before the network), "
+        "median [min, max] over lines; the columns as for the engine's audio above. Lost packets "
+        "are the target's to fill: what it filled them with counts as distortion, and what it "
+        "left out as moved. above 4 kHz: energy above 4 kHz against 300-3400 Hz in 24 kHz audio "
+        "(the caller sends none). full scale: lines with samples at full scale. missing 20 ms: the "
+        "caller's voiced 20 ms with nothing like them within 25 ms in what the engine got, and "
+        "what came in their place: silence, the 20 ms before again (repeat), or other (also "
+        "the next audio, where a packet was left out: see moved). appends: the audio each "
+        "append carried, the median of each call's.\n\n" + analyze._table(head, rows)
     )

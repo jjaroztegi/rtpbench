@@ -686,6 +686,9 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     if (out / "realtime.jsonl").exists() and (heard := realtime.downlink(out)):
         sections.append(("Engine audio as the caller received it", heard))
         summary += "\n## Engine audio as the caller received it\n\n" + heard
+    if (out / "realtime").is_dir() and (said := realtime.uplink(out)):
+        sections.append(("Caller audio as the engine received it", said))
+        summary += "\n## Caller audio as the engine received it\n\n" + said
     (out / "results.json").write_text(json.dumps(records, indent=1))
     (out / "summary.md").write_text(summary)
     (out / "report.html").write_text(report.render(out, sections))
