@@ -52,6 +52,10 @@ MOCK = {
 }
 
 
+# digest credentials the caller answers challenges with (and the carrier then demands)
+CREDENTIALS = ("RTPBENCH_SIP_USER", "RTPBENCH_SIP_PASSWORD")
+
+
 def _engine(settings: dict[str, str]) -> dict[str, str]:
     """A target's engine settings as the conditions record them: no account names, no keys."""
     out = {}
@@ -162,7 +166,9 @@ class Stack:
 
     def caller(self, *args: str, lines: Callable[[str], None] | None = None) -> str:
         """`rtpbench args` in the caller container."""
-        env = [a for name in self.passed for a in ("-e", name)]
+        # by name: their values (credentials among them) never appear in a command line
+        passed = [*self.passed, *(k for k in CREDENTIALS if self.env.get(k))]
+        env = [a for name in passed for a in ("-e", name)]
         cmd = ["exec", "-T", *env, "caller", "python", "-m", "rtpbench", *args]
         return self.compose(*cmd, lines=lines)
 
@@ -254,6 +260,7 @@ def conditions(sh: Callable[[str], str], seed: int) -> dict[str, Any]:
         "cpu_governor": governor.read_text().strip() if governor.exists() else "",
         "load_start": _load(),
         "seed": seed,
+        "sip_auth": all(os.environ.get(k) for k in CREDENTIALS),  # whether, never what
         "netem_per_direction": PROFILES,
     }
 

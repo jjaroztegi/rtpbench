@@ -57,7 +57,9 @@ your agent's language, under the same file names: `turn-NN.wav` for the latency 
 cases. Each is 8 kHz mono 16-bit with silence around the speech, as the corpus processes its
 clips: the labeller finds where speech ends from it, and refuses a file without. `--proxy HOST`
 is where a transfer's INVITE goes (by default the Refer-To host, as the caller resolves it: give
-`--proxy` when it is a name on the agent's Docker network).
+`--proxy` when it is a name on the agent's Docker network). An agent that demands digest
+authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
+([below](#digest-authentication)).
 
 The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
 loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
@@ -103,3 +105,18 @@ legs. The caller's leg crosses the netem router; the carrier-agent leg does not.
 legs are captured (`carrier.pcap`), and the calibration adds the carrier's own transit time per
 packet: 0.1 ms or less at the median. Which cases change through it is in
 [cases](cases.md#through-the-carrier).
+
+## Digest authentication
+
+```sh
+export RTPBENCH_SIP_USER=... RTPBENCH_SIP_PASSWORD=...
+uv run --extra vad rtpbench cases --carrier
+```
+
+With both variables set, the caller answers a 401 or 407 to any request it sends with digest
+credentials (RFC 7616: MD5 or SHA-256, qop auth or none) and sends it again, once; the carrier
+demands them, MD5 on the INVITE and SHA-256 inside the dialog. A challenged request, its
+challenge and their ACK are left out when a case is judged, so verdicts and timings read as
+without credentials. `conditions.json` records `sip_auth`, never the values; the captures hold
+the user name and, per request, a digest of the password that a dictionary attack can test, so
+publish captures only from a throwaway password.

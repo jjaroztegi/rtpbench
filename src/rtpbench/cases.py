@@ -632,6 +632,10 @@ def load(run: Path, profile: str = "clean") -> Wire:
             continue
         me = me or src  # the caller sends the first message, its INVITE
         msgs.append((t, src == me, msg))
+    # a request answered with a digest challenge (and its 100, challenge and ACK, which share its
+    # branch) left the agent as it was: judge the sequence as it would be without credentials
+    challenged = {m.branch for _, _, m in msgs if m.status in (401, 407)}
+    msgs = [x for x in msgs if x[2].branch not in challenged]
     for g in grams:
         if not g.tcp and port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
             (up if g.sport == port else down).append((g.t_ns, p))
