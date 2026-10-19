@@ -469,15 +469,13 @@ def _reach(
     Returns the agent's address as the router resolves it and the advertised HOST:PORT."""
     from rtpbench.caller import ADVERTISE_PORT, ADVERTISE_PORTS
 
-    found = stack.sh("router", f"getent ahostsv4 {shlex.quote(host)}", check=False).split()
-    if not found:
-        raise RuntimeError(f"{host} does not resolve from the stack")
-    stack.env["RTPBENCH_RESOLVE"] = f"{host}={found[0]}"
+    ip = _resolve(stack, host)
+    stack.env["RTPBENCH_RESOLVE"] = f"{host}={ip}"
     stack.passed.append("RTPBENCH_RESOLVE")
     callnet = stack.dev(caller_ip)
     stack.sh("router", f"iptables -t nat -A POSTROUTING ! -o {callnet} -j MASQUERADE")
     if network and not advertise:
-        route = stack.sh("router", f"ip -o route get {found[0]}").split()
+        route = stack.sh("router", f"ip -o route get {ip}").split()
         advertise = f"{route[route.index('src') + 1]}:{ADVERTISE_PORT}"
     if advertise:
         first = int(advertise.rpartition(":")[2])
@@ -488,7 +486,16 @@ def _reach(
             stack.sh("router", f"iptables -t nat -A PREROUTING {match} {dnat}")
         stack.env["RTPBENCH_ADVERTISE"] = advertise
         stack.passed.append("RTPBENCH_ADVERTISE")
-    return found[0], advertise
+    return ip, advertise
+
+
+def _resolve(stack: Stack, host: str) -> str:
+    """`host`'s address as the router finds it: a name on the agent's Docker network resolves
+    only there."""
+    found = stack.sh("router", f"getent ahostsv4 {shlex.quote(host)}", check=False).split()
+    if not found:
+        raise RuntimeError(f"{host} does not resolve from the stack")
+    return found[0]
 
 
 def target(
@@ -560,6 +567,9 @@ def target(
             if name.startswith("sip:"):
                 target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
                 uri, sip = name, tuple(dict.fromkeys((port, 5060)))
+                if proxy:  # where a transfer goes, as the router resolves it
+                    proxy_host, proxy_port = parse_uri(proxy)
+                    proxy = f"{_resolve(stack, proxy_host)}:{proxy_port}"
                 conds |= {"network": network, "advertise": advertise}
             else:
                 user, settings = TARGETS[name]

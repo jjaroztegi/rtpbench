@@ -52,8 +52,14 @@ def _target_args(args: argparse.Namespace) -> str | None:
     host, _ = parse_uri(args.name)
     if host == "localhost" or host.startswith("127."):
         return f"{host}: the caller runs in Docker; give this host's own address, or --network"
-    if args.advertise and not args.advertise.rpartition(":")[2].isdigit():
-        return "--advertise: HOST:PORT"
+    if args.advertise:
+        from rtpbench.caller import ADVERTISE_PORTS
+
+        adv_host, _, adv_port = args.advertise.rpartition(":")
+        if not adv_host or not adv_port.isdigit():
+            return "--advertise: HOST:PORT"
+        if not 1 <= int(adv_port) <= 65536 - ADVERTISE_PORTS:
+            return f"--advertise: PORT 1-{65536 - ADVERTISE_PORTS}, the first of {ADVERTISE_PORTS}"
     return None
 
 

@@ -17,9 +17,10 @@ verdict changes between repeats reads "flips: pass 7, fail 3", and fails the ref
 Timings read median [min, max]. `report.html` draws, per call, the SIP messages, speech and RTP
 of both sides on one time axis; `rtpbench report DIR` judges a finished run again.
 
-The caller speaks `prompt.wav` (a question) and `transfer.wav` (asking for a person) from
-[`corpus/lines`](../corpus/README.md). Transfers go to `sip:operator@operator`, a service on the
-agent's side of the router that rings for a second and answers, or answers 486 for `refer-fail`.
+Against the reference agent the caller says a corpus utterance; against a target, `prompt.wav`
+(a question) and `transfer.wav` (asking for a person) from [`corpus/lines`](../corpus/README.md).
+Transfers go to `sip:operator@operator`, a service on the agent's side of the router that rings
+for a second and answers, or answers 486 for `refer-fail`.
 
 | case | what passes |
 | --- | --- |

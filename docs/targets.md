@@ -56,7 +56,8 @@ your agent's language, under the same file names: `turn-NN.wav` for the latency 
 `prompt-NN.wav` and `interrupt-NN.wav` for barge-in, `prompt.wav` and `transfer.wav` for the
 cases. Each is 8 kHz mono 16-bit with silence around the speech, as the corpus processes its
 clips: the labeller finds where speech ends from it, and refuses a file without. `--proxy HOST`
-is where a transfer's INVITE goes (by default the Refer-To host).
+is where a transfer's INVITE goes (by default the Refer-To host, as the caller resolves it: give
+`--proxy` when it is a name on the agent's Docker network).
 
 The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
 loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
