@@ -1,0 +1,16 @@
+# AI Voice Connector CE on the mock engine, with the limits it meets on GitHub's runners. In the
+# baseline it fails hold and refer-fail.
+[cases]
+hold = "fail"
+refer-fail = "fail"
+
+[latency.clean]
+p50 = 1700
+p95 = 1900
+
+[barge-in.clean.interrupt]
+stopped = 0.8
+p95 = 400
+
+[regression]
+latency = 50

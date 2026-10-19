@@ -1,0 +1,56 @@
+name: Action
+
+# action.yml against a bundled target on the mock: one run, checked against a policy it meets,
+# one it breaks, and itself as the previous run (about 15 minutes).
+on:
+  pull_request:
+    paths:
+      - action.yml
+      - src/rtpbench/check.py
+      - .github/rtpbench/**
+      - .github/workflows/action.yml
+  push:
+    branches: [main]
+    paths:
+      - action.yml
+      - src/rtpbench/check.py
+      - .github/rtpbench/**
+      - .github/workflows/action.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: Action
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: rtpbench
+        uses: ./
+        with:
+          target: aivc
+          mock: true
+          only: greeting,bye,hold,refer-fail,latency,barge-in
+          policy: .github/rtpbench/aivc.toml
+          upload: report  # the path list; all is the whole directory
+
+      - name: A policy the run breaks fails it
+        env:
+          RESULTS: ${{ steps.rtpbench.outputs.results }}
+        run: |
+          code=0
+          uv run rtpbench check "$RESULTS" --policy .github/rtpbench/aivc-broken.toml || code=$?
+          if [ "$code" != 1 ]; then echo "::error::exit $code, not 1"; exit 1; fi
+
+      - name: Against itself, no regression
+        env:
+          RESULTS: ${{ steps.rtpbench.outputs.results }}
+        run: |
+          cp "$RESULTS/check.json" previous.json
+          uv run rtpbench check "$RESULTS" --policy .github/rtpbench/aivc.toml --previous previous.json
