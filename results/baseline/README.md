@@ -208,12 +208,14 @@ carrier add by themselves.
 
 LiveKit's stream falls 20 ms behind its own timestamps once in a call: at its 210th packet,
 4.2-4.3 s after its 200 OK, it leaves a 20 ms slot empty without advancing the RTP timestamp,
-and stays 20 ms late to the end. It does so in every call long enough, except in `ptime-30`
-(30 ms packets). A receiver needs a 21.1 ms jitter buffer for it on a clean network, or fills
-a 20 ms gap 4 s into every call; the jitter estimate barely shows it. On a mobile path the slip
-adds to what the network needs (34 ms against 16 under `lte`). AI Voice Connector CE
-needs 1.2 ms on a clean network. Neither stops sending RTP for a second or more outside a
-hold: both send silence between replies.
+and stays 20 ms late to the end. It does so in every call long enough. In `ptime-30` the caller
+does not see it: LiveKit still sends 20 ms packets and slips on its own leg (`carrier.pcap`),
+but rtpengine, repacketizing the call for the 30 ms the carrier offered LiveKit, sends them on
+to the caller on its own clock. A receiver needs a 21.1 ms jitter buffer for LiveKit's stream on a
+clean network, or fills a 20 ms gap 4 s into every call; the jitter estimate barely shows it.
+On a mobile path the slip adds to what the network needs (34 ms against 16 under `lte`). AI
+Voice Connector CE needs 1.2 ms on a clean network. Neither stops sending RTP for a
+second or more outside a hold: both send silence between replies.
 
 ## The connectors' audio
 
