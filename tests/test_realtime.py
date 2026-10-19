@@ -238,8 +238,11 @@ def test_heard_measures_the_path_and_leaves_lost_packets_out() -> None:
     assert h is not None
     assert h["gain_db"] == pytest.approx(-6.02, abs=0.01)
     assert h["moves_ms"] == [-20.0]
-    assert h["left_db"] > 60 and not h["unchanged"]
+    assert h["left_db"] > 60
+    assert not h["unchanged"]
     # G.711 alone leaves the distortion the summary quotes as its own
     law = g711.decode(g711.PCMU, g711.encode(g711.PCMU, ref)) + [0] * 12000
     h = realtime.heard(sent, law, [True] * len(law))
-    assert h is not None and 34 < h["left_db"] < 40 and h["moves_ms"] == []
+    assert h is not None
+    assert 34 < h["left_db"] < 40
+    assert h["moves_ms"] == []
