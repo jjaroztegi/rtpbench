@@ -386,19 +386,17 @@ def call(
     # an agent that has not sent a packet by the end of the first turn's reply time never will
     silent_ns = tick0 + (spans[0][1] if spans else 0) * SAMPLE_NS + REPLY_TIMEOUT_NS
     announce = Turns(len(spans))
-    heard, silent = threading.Event(), False
+    heard = threading.Event()
 
     def until(now: int) -> bool:
-        nonlocal silent
         announce(bisect.bisect_right(starts, now))
-        silent = not heard.is_set() and now >= silent_ns
-        return silent or now >= hangup_ns
+        return (not heard.is_set() and now >= silent_ns) or now >= hangup_ns
 
     remote_bye = s.run(
         lambda n, _t: frames[n] if n < len(frames) else silence, lambda _a, _p: heard.set(), until
     )
-    if silent:
-        raise s.no_media((silent_ns - tick0) / 1e9)
+    if not heard.is_set():  # by the deadline, or the agent hung up first
+        raise s.no_media((CLOCK.now() - tick0) / 1e9)
     return s.meta(seed, remote_bye) | {"turns": last}
 
 
@@ -586,21 +584,19 @@ def converse(
     conv = Conversation(s.pt, lines, round(lead * 1e9))
     announce = Turns(turns)
     # as in `call`: no packet by the end of the first prompt's reply time, none at all
-    wait_ns = round(lead * 1e9) + len(lines[0][0][1]) * SAMPLE_NS + REPLY_TIMEOUT_NS
-    silent_ns = CLOCK.now() + PTIME_NS + wait_ns
-    heard, silent = threading.Event(), False
+    t0 = CLOCK.now() + PTIME_NS
+    silent_ns = t0 + round(lead * 1e9) + len(lines[0][0][1]) * SAMPLE_NS + REPLY_TIMEOUT_NS
+    heard = threading.Event()
 
     def until(now: int) -> bool:
-        nonlocal silent
         announce(len(conv.turns))
-        silent = not heard.is_set() and now >= silent_ns
-        return silent or conv.done
+        return (not heard.is_set() and now >= silent_ns) or conv.done
 
     def sink(arrival: int, pkt: Packet) -> None:
         heard.set()
         conv.on_packet(arrival, pkt)
 
     remote_bye = s.run(conv.source, sink, until)
-    if silent:
-        raise s.no_media(wait_ns / 1e9)
+    if not heard.is_set():  # by the deadline, or the agent hung up first
+        raise s.no_media((CLOCK.now() - t0) / 1e9)
     return s.meta(seed, remote_bye) | {"turns": conv.turns}
