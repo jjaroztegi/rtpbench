@@ -56,20 +56,24 @@ def _policy(tmp_path: Path, text: str) -> Path:
     ("text", "error"),
     [
         ("[latncy.clean]\np50 = 1\n", "latncy unknown"),
-        ("[cases]\nholdd = 'fail'\n", "holdd: not a case"),
+        ("[cases]\nholdd = 'fail'\n", "holdd unknown"),
         ("[cases]\nhold = 'flaky'\n", "pass or fail"),
-        ("[latency.wifi]\np50 = 1\n", "wifi: not a profile"),
+        ("[latency.wifi]\np50 = 1\n", "wifi unknown"),
         ("[latency.clean]\np90 = 1\n", "p90 unknown"),
-        ("[latency.clean]\np50 = '1'\n", "a number"),
+        ("[latency.clean]\np50 = '1'\n", "a finite number"),
         ("[barge-in.clean.interrupt]\nstopped = 2\n", "a share"),
         ("[barge-in.clean.sneeze]\np50 = 1\n", "sneeze unknown"),
-        ("[regression]\nlatency = -1\n", "a number"),
+        ("[regression]\nlatency = -1\n", "a finite number"),
+        ("[regression]\nlatency = inf\n", "a finite number"),
+        ("[latency.clean]\np95 = nan\n", "a finite number"),
+        ("cases = 'fail'\n", r"\[cases\]: a table"),
+        ("latency = 2000\n", r"\[latency\]: a table"),
     ],
 )
 def test_a_policy_with_an_unknown_name_or_value_is_refused(
     tmp_path: Path, text: str, error: str
 ) -> None:
-    with pytest.raises(check.PolicyError, match=error):
+    with pytest.raises(check.InputError, match=error):
         check.load(_policy(tmp_path, text))
 
 
@@ -168,6 +172,14 @@ def test_cli_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     assert json.loads((d / "check.json").read_text())["verdicts"]["clean"]["hold"] == ["fail"]
     with pytest.raises(SystemExit) as e:
         cli.main(["check", str(d), "--policy", str(_policy(tmp_path, "[cases]\nx = 'fail'\n"))])
+    assert e.value.code == 2
+    (tmp_path / "previous.json").write_text("[]")
+    for args in (["--previous", str(tmp_path / "previous.json")], ["--previous", "missing.json"]):
+        with pytest.raises(SystemExit) as e:
+            cli.main(["check", str(d), *args])
+        assert e.value.code == 2
+    with pytest.raises(SystemExit) as e:
+        cli.main(["check", str(tmp_path / "no-run")])
     assert e.value.code == 2
 
 

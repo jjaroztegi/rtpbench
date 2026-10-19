@@ -21,13 +21,14 @@ from rtpbench import analyze, bargein, cases, clock
 
 PROFILE_KEYS = {"p50": 0.5, "p95": 0.95}
 RESAMPLES = 2000
-# fewer turns a side and the interval is too narrow to hold the noise: on the baseline, single
-# barge-in calls (2-5 of each interjection) failed up to 7% of unchanged comparisons
+# fewer turns a side and the interval is too narrow for the noise: compared on the baseline,
+# single barge-in calls (2-5 of each interjection) failed often with nothing changed
 MIN_TURNS = 10
+KEYS = ("verdicts", "latency", "barge-in")  # what --previous must hold
 
 
-class PolicyError(ValueError):
-    pass
+class InputError(ValueError):
+    """A policy, run directory or previous check.json that cannot be used: exit 2, not 1."""
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -37,46 +38,40 @@ def load(path: Path) -> dict[str, Any]:
 
     try:
         policy = tomllib.loads(path.read_text())
-    except tomllib.TOMLDecodeError as e:
-        raise PolicyError(f"{path}: {e}") from e
-    _known(policy, {"cases", "latency", "barge-in", "regression"}, "")
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
+        raise InputError(f"{path}: {e}") from e
+    _known(policy, {"cases", "latency", "barge-in", "regression"}, "policy")
+    _known(policy.get("cases", {}), set(cases.CASES), "[cases]")
     for case, want in policy.get("cases", {}).items():
-        if case not in cases.CASES:
-            raise PolicyError(f"[cases] {case}: not a case ({', '.join(cases.CASES)})")
         if want not in ("pass", "fail"):
-            raise PolicyError(f"[cases] {case} = {want!r}: pass or fail")
+            raise InputError(f"[cases] {case} = {want!r}: pass or fail")
+    _known(policy.get("latency", {}), set(PROFILES), "[latency]")
     for profile, limits in policy.get("latency", {}).items():
-        _profile(profile, PROFILES)
         _limits(limits, PROFILE_KEYS, f"[latency.{profile}]")
+    _known(policy.get("barge-in", {}), set(PROFILES), "[barge-in]")
     for profile, kinds in policy.get("barge-in", {}).items():
-        _profile(profile, PROFILES)
         _known(kinds, set(bargein.KINDS), f"[barge-in.{profile}]")
         for kind, limits in kinds.items():
             _limits(limits, {**PROFILE_KEYS, "stopped": 1}, f"[barge-in.{profile}.{kind}]")
             if not 0 <= limits.get("stopped", 0) <= 1:
-                raise PolicyError(f"[barge-in.{profile}.{kind}] stopped: a share, 0 to 1")
+                raise InputError(f"[barge-in.{profile}.{kind}] stopped: a share, 0 to 1")
     _limits(policy.get("regression", {}), {"latency": 1, "barge-in": 1}, "[regression]")
     return policy
 
 
 def _known(table: Any, names: set[str], where: str) -> None:
     if not isinstance(table, dict):
-        raise PolicyError(f"{where or 'policy'}: a table")
+        raise InputError(f"{where}: a table")
     if unknown := sorted(set(table) - names):
         known = ", ".join(sorted(names))
-        raise PolicyError(f"{where or 'policy'}: {', '.join(unknown)} unknown (known: {known})")
-
-
-def _profile(profile: str, profiles: dict[str, str]) -> None:
-    if profile not in profiles:
-        raise PolicyError(f"{profile}: not a profile ({', '.join(profiles)})")
+        raise InputError(f"{where}: {', '.join(unknown)} unknown (known: {known})")
 
 
 def _limits(limits: Any, keys: dict[str, float], where: str) -> None:
     _known(limits, set(keys), where)
     for key, v in limits.items():
-        if isinstance(v, bool) or not isinstance(v, int | float) or v < 0:
-            raise PolicyError(f"{where} {key} = {v!r}: a number, 0 or more")
+        if isinstance(v, bool) or not isinstance(v, int | float) or not 0 <= v < math.inf:
+            raise InputError(f"{where} {key} = {v!r}: a finite number, 0 or more")
 
 
 def _lines(path: Path) -> Iterator[dict[str, Any]]:
@@ -90,7 +85,7 @@ def measure(out: Path) -> dict[str, Any]:
     conds = json.loads((out / "conditions.json").read_text())
     records = json.loads((out / "results.json").read_text())
     if any(r["behaviour"] for r in records):
-        raise PolicyError(f"{out}: a cases run (the reference agent); check judges a target run")
+        raise InputError(f"{out}: a cases run (the reference agent); check judges a target run")
     steps = clock.steps(out) or []
     verdicts: dict[str, dict[str, list[str]]] = {}
     for r in sorted(records, key=lambda r: r["repeat"]):
@@ -289,8 +284,17 @@ def check(out: Path, policy: Path | None, previous: Path | None) -> tuple[str, b
     check.json `previous`: writes check.md and check.json in `out`; returns check.md and
     whether it passed."""
     rules = load(policy) if policy else {}
-    now = measure(out)
-    before = json.loads(previous.read_text()) if previous else None
+    try:
+        now = measure(out)
+        before = json.loads(previous.read_text()) if previous else None
+        if before is not None and not (
+            isinstance(before, dict) and all(isinstance(before.get(k), dict) for k in KEYS)
+        ):
+            raise InputError(f"{previous}: not a check.json")
+    except InputError:
+        raise
+    except (OSError, ValueError, KeyError) as e:
+        raise InputError(f"{type(e).__name__}: {e}") from e
     rows, ok = evaluate(now, rules, before)
     failed = sum(r[2] == "FAIL" for r in rows)
     text = "## Check\n\n" + f"Policy: {policy.name if policy else 'every case passes'}"

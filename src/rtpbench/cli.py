@@ -233,7 +233,8 @@ example:
 Judge a finished target run against a policy, without placing calls: the cases that may fail,
 limits on turn latency and barge-in, and how far they may grow from an earlier run's
 check.json. Writes check.md and check.json in DIR; exits 1 if the run fails the policy, 2 if
-the policy is invalid. Without --policy, every case must pass.""",
+the policy, DIR or the previous check.json cannot be used. Without --policy, every case must
+pass.""",
         epilog="""\
 example:
   uv run --extra vad rtpbench check results/20260101-120000 --policy rtpbench.toml \\
@@ -416,11 +417,11 @@ example:
         print(judge(args.out)[0])
         print(f"report in {args.out / 'report.html'}")
     elif args.cmd == "check":
-        from rtpbench.check import PolicyError, check
+        from rtpbench.check import InputError, check
 
         try:
             text, ok = check(args.out, args.policy, args.previous)
-        except PolicyError as e:
+        except InputError as e:
             parser.error(str(e))
         print(text)
         if not ok:

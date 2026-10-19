@@ -6,7 +6,8 @@ uv run rtpbench check run --policy rtpbench.toml --previous baseline/check.json
 ```
 
 `rtpbench check` judges a finished target run against a policy and exits 1 when the run fails
-it (2 when the policy is invalid), without placing calls: change the policy and check the same
+it (2 when the policy, the run or the previous `check.json` cannot be read), without placing
+calls: change the policy and check the same
 run again. It writes `check.md`, the table of what held and what did not, and `check.json`, a
 few kilobytes holding what the policy reads (verdicts, and every latency and barge-in turn).
 
@@ -42,14 +43,14 @@ a typo cannot turn a limit off.
   its whole 95% interval (resampling calls, then the turns within them). The error bars are the
   same on both sides and cancel; what the interval holds is how the agent varies from turn to
   turn and call to call. Runs with other caller lines, another rtpbench or another codec are
-  not compared, nor is a side with fewer than 10 turns: a barge-in call has about 5
-  interruptions and 2 or 3 backchannels and coughs, so comparing them takes `--runs 2` and
-  `--runs 4`.
+  not compared, nor is a side with fewer than 10 turns (for barge-in, interjections the agent
+  stopped for). A barge-in call has 10 interjections,
+  drawn as about half interruptions and a quarter each backchannels and coughs, so comparing
+  interruptions takes `--runs 2` or more, the others about 5; `check.md` says when a side has
+  too few.
 
-On the baseline, with repeats split into disjoint groups of 1 to 5 calls and nothing changed,
-a tolerance of 0 failed about 2% of latency comparisons, as a one-sided 97.5% bound should, and
-one of 50 ms none of 1440. Past the tolerance, one clean call against another catches a change
-of 10 ms on AI Voice Connector CE and 40 ms on LiveKit, whose turns vary more.
+A tolerance of 0 fails about 1 in 40 runs of an unchanged agent: the interval's lower end is
+over 0 that often by chance. Give each regression a tolerance.
 
 Keep a reviewed `check.json` as the baseline (in the repository, say) and replace it on
 purpose. Compared with the last deploy instead, latency can grow by just under the tolerance
