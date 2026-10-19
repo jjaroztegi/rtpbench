@@ -101,12 +101,25 @@ def test_lines_are_told_apart_through_packet_loss() -> None:
             assert lines.recognise(heard)[0] == name
 
 
-async def _aivc(port: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+AVA_TOOL = {  # AVA's transfer tool: the destination is required
+    "type": "function",
+    "name": "blind_transfer",
+    "parameters": {
+        "type": "object",
+        "properties": {"destination": {"type": "string"}},
+        "required": ["destination"],
+    },
+}
+
+
+async def _aivc(
+    port: int, tool: dict[str, Any] | None = None
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """As AI Voice Connector CE: G.711, a greeting asked for, then the transfer line."""
     c = await Client.connect(port, "/v1/realtime?model=mock")
     assert (await c.recv())["type"] == "session.created"
     fmt = {"type": "audio/pcma"}
-    tools = [{"type": "function", "name": realtime.TOOL}]
+    tools = [tool or {"type": "function", "name": realtime.TOOL}]
     session = {"audio": {"input": {"format": fmt}, "output": {"format": fmt}}, "tools": tools}
     await c.send({"type": "session.update", "session": session})
     await c.send({"type": "response.create", "response": {"instructions": "greet"}})
@@ -145,6 +158,19 @@ def test_answers_as_the_real_api_does(engine: tuple[int, Path]) -> None:
     assert (answer["line"], answer["answer"]) == ("transfer", realtime.TOOL)
     assert t0 < answer["speech_end_ns"] < answer["end_ns"]
     assert answer["end_ns"] - answer["speech_end_ns"] >= realtime.HANGOVER_NS + realtime.DELAY_NS
+
+
+def test_required_text_arguments_name_the_operator(engine: tuple[int, Path]) -> None:
+    port, out = engine
+    _, turn = asyncio.run(_aivc(port, AVA_TOOL))
+    item = next(e for e in turn if e["type"] == "response.output_item.done")["item"]
+    assert (item["name"], json.loads(item["arguments"])) == (
+        "blind_transfer",
+        {"destination": "operator"},
+    )
+    records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
+    answer = [r for r in records if r.get("trigger") == "turn"][-1]
+    assert answer["tool"] == "blind_transfer"
 
 
 async def _barge(port: int) -> list[dict[str, Any]]:

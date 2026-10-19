@@ -75,8 +75,9 @@ target expects its engine ([`realtime.py`](../src/rtpbench/realtime.py)). The ta
 unchanged, and the target has no route out, so no paid engine can be reached.
 
 The mock ends a turn after 1 s of silence and answers 500 ms later: with a fixed clip, a longer
-one to the long question, or a call to the transfer tool to the transfer line. Speech while it
-answers cancels the answer. It logs when it heard each turn end and when it sent its first
+one to the long question, or a call to the transfer tool to the transfer line (`transfer_call`
+or `blind_transfer`, with `operator` in every required text argument, the name each bundled
+target gives where a transfer goes). Speech while it answers cancels the answer. It logs when it heard each turn end and when it sent its first
 audio, on the captures' clock, so the summary splits turn latency and greeting time into the
 target's uplink, the engine's fixed share and the target's downlink.
 
