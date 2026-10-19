@@ -1311,7 +1311,7 @@ CASES = {
         check_large_invite,
         Behaviour(greet_s=0.5, reply_s=1.0),
         {"udp-only": Behaviour(greet_s=0.5, reply_s=1.0, tcp=False)},
-        route="direct",  # the carrier takes SIP over UDP only
+        route="direct",  # the carrier takes SIP over UDP (or TLS), not TCP
     ),
     "reinvite": Case(
         reinvite,

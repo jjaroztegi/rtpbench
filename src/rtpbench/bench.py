@@ -176,6 +176,8 @@ class Stack:
         if tls:
             where = out / "tls"
             certificates(where, TLS_NAMES)
+            if carrier:  # which takes the caller's leg over TLS
+                self.files.append(ROOT / "carrier" / "tls.yaml")
             if ca or not uri:
                 shutil.copyfile(ca or where / "stack-ca.pem", where / "ca.pem")
             self.env["RTPBENCH_TLS"] = "/out/tls"
@@ -498,9 +500,13 @@ def _reference(
     stack: Stack, agent_ip: str, tls: bool, agent_args: list[str]
 ) -> tuple[str, tuple[int, ...], list[str]]:
     """The reference agent's URI, its SIP ports (exempt from netem) and its arguments: over TLS
-    by name, as its certificate has it."""
+    by name, as its certificate has it (the carrier's, through the carrier, which takes TLS on
+    the caller's leg only)."""
     if not tls:
         return f"sip:agent@{agent_ip}", (5060,), agent_args
+    if stack.carrier:
+        stack.resolve("carrier")
+        return "sips:agent@carrier", (5060, TLS_PORT), agent_args
     stack.resolve("agent")
     return "sips:agent@agent", (5060, TLS_PORT), [*agent_args, "--tls", "/out/tls"]
 
@@ -608,6 +614,7 @@ def target(
     advertise: str | None = None,
     ca: Path | None = None,
     srtp: list[str] | None = None,
+    tls: bool = False,
     *,
     progress: Progress,
 ) -> str:
@@ -621,7 +628,8 @@ def target(
     `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
     next few to it), else with `network` its router's address there; over TLS (a sips: URI, or
     transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp` the caller
-    offers SRTP with these suites."""
+    offers SRTP with these suites. A compose target takes `tls` and `srtp` with `carrier` only,
+    which takes them on the caller's leg."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
@@ -649,7 +657,7 @@ def target(
 
     done: list[cs.Run] = []
     with clock.watch() as steps:
-        tls = is_uri(name) and secure(name)
+        tls = secure(name) if is_uri(name) else tls
         if is_uri(name):
             host, port = parse_uri(name)
             ports = None
@@ -658,7 +666,7 @@ def target(
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
             stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca, srtp=srtp)
         else:
-            stack = Stack(out, name, "target" if carrier else None, mock)
+            stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
         try:
             stack.up(progress.phase)
             caller_ip = stack.ip("caller")
@@ -676,13 +684,16 @@ def target(
                 conds |= {"network": network, "advertise": advertise}
             else:
                 user, settings = TARGETS[name]
-                target_ip, sip = stack.entry("target"), (5060,)
+                target_ip, sip = stack.entry("target"), (5060, TLS_PORT) if tls else (5060,)
                 router_ip = stack.sh("target", "getent hosts router").split()[0]
                 stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
                 conds["engine"] = realtime.conditions() if mock else _engine(settings)
                 if mock and (own := {k: v for k, v in settings.items() if k not in MOCK[name]}):
                     conds["settings"] = _engine(own)  # the target's own, such as AVA's pacer
                 uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")
+                if tls:  # through the carrier, by the name its certificate has
+                    stack.resolve("carrier")
+                    uri = f"sips:{user}@carrier"
             if lines:
                 conds["lines"] = {
                     f.name: hashlib.sha256(f.read_bytes()).hexdigest()
