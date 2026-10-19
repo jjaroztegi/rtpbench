@@ -345,3 +345,16 @@ def test_a_streams_first_speech_takes_the_first_onset_bar() -> None:
     w.__dict__["speech"] = [(100, 200), (500, 600)]  # detected agent speech, capture times
     assert w.onset(100) == cases.ONSET_FIRST["lte", g711.PCMA]
     assert w.onset(500) == cases.ONSET["lte", g711.PCMA]
+
+
+def test_no_media_names_the_offered_address() -> None:
+    invite = sip.Message("INVITE sip:agent@x SIP/2.0", body=sip.sdp("172.20.0.3", 4000, [0]))
+    ok = sip.Message("SIP/2.0 200 OK", [("CSeq", "1 INVITE")])
+    pkt = rtp.Packet(0, 1, 160, 7, False, b"\xff" * 160)
+    msgs = [(1, True, invite), (2, False, ok)]
+    silent = cases.no_media(Wire({"pt": 0}, None, msgs, [(3, pkt)], []))
+    assert silent is not None
+    assert "c=IN IP4 172.20.0.3" in silent.detail
+    assert cases.no_media(Wire({"pt": 0}, None, msgs, [(3, pkt)], [(4, pkt)])) is None
+    assert cases.no_media(Wire({"pt": 0}, None, msgs[:1], [(3, pkt)], [])) is None  # unanswered
+    assert cases.no_media(Wire({"pt": 0}, {}, msgs, [(3, pkt)], [])) is None  # reference agent

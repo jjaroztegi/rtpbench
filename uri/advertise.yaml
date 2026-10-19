@@ -1,0 +1,7 @@
+# `rtpbench target URI --advertise HOST:PORT`, merged over ../compose.yaml: the host publishes the
+# caller's port range on the router, which forwards it to the caller (RTPBENCH_PORTS: first-last).
+services:
+  router:
+    ports:
+      - "${RTPBENCH_PORTS:?}:${RTPBENCH_PORTS:?}/udp"
+      - "${RTPBENCH_PORTS:?}:${RTPBENCH_PORTS:?}/tcp"

@@ -2,6 +2,7 @@
 barge-in, reacts to the agent: prompt, wait for the reply, cut in, wait for quiet."""
 
 import bisect
+import os
 import random
 import secrets
 import socket
@@ -21,6 +22,14 @@ GAP_SECONDS = 2.8  # longest delay (1.3 s) + response (0.8 s) + room for netem
 QUIET_NS = 3_000_000_000  # agent silence that ends its turn (a real agent answers a barge-in)
 REPLY_TIMEOUT_NS = 15_000_000_000
 TURN_TIMEOUT_NS = 60_000_000_000
+# The caller binds its SIP and RTP sockets from the advertised port on (RTPBENCH_ADVERTISE,
+# HOST:PORT), so the router can forward them: a transfer's two calls take four. ADVERTISE_PORT is
+# the first when the router's own address on the agent's network is advertised.
+ADVERTISE_PORT, ADVERTISE_PORTS = 40000, 8
+NO_MEDIA = (
+    "an agent that sends its audio to the address in our offer, not back to where ours comes "
+    "from, needs that address reachable: see rtpbench target --network and --advertise"
+)
 
 Clip = tuple[str, list[int]]
 Source = Callable[[int, int], bytes | Frame | None]
@@ -68,6 +77,26 @@ def script(
     return pcm, spans
 
 
+def _udp(port: int) -> socket.socket:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.bind(("0.0.0.0", port))
+    except OSError:
+        sock.close()
+        raise
+    return sock
+
+
+def _bind[S](make: Callable[[int], S], ports: range) -> S:
+    """A socket from `make` on the first of `ports` it can bind."""
+    for port in ports:
+        try:
+            return make(port)
+        except OSError:
+            continue
+    raise sip.SipError(f"no free port in {ports.start}-{ports.stop - 1}")
+
+
 def parse_uri(uri: str) -> tuple[str, int]:
     hostport = uri.split("@", 1)[-1].split(";", 1)[0].removeprefix("sip:")
     host, _, port = hostport.partition(":")
@@ -91,18 +120,22 @@ class Session:
         proxy: str | None = None,
         tcp: bool = False,
     ) -> None:
-        peer = parse_uri(proxy or uri)  # an outbound proxy takes the request whatever its URI
-        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        probe.connect(peer)
-        local_ip = probe.getsockname()[0]
-        sock: socket.socket | sip.Tcp
-        if tcp:  # raises ConnectionRefusedError at the INVITE if the far end takes no TCP
-            sock = sip.Tcp()
+        host, port = parse_uri(proxy or uri)  # an outbound proxy takes it whatever its URI
+        # the agent's host as the router resolved it (RTPBENCH_RESOLVE, HOST=IP): a name on the
+        # agent's Docker network resolves only there, and netem needs the same address
+        name, _, ip = os.environ.get("RTPBENCH_RESOLVE", "").partition("=")
+        peer = (ip if host == name else host, port)
+        if advertise := os.environ.get("RTPBENCH_ADVERTISE"):
+            local_ip, _, first = advertise.rpartition(":")
+            ports = range(int(first), int(first) + ADVERTISE_PORTS)
         else:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.bind(("0.0.0.0", 0))
-        self.rtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.rtp.bind(("0.0.0.0", 0))
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            probe.connect(peer)
+            local_ip, ports = probe.getsockname()[0], range(1)  # port 0: any
+        sock: socket.socket | sip.Tcp
+        # sip.Tcp raises ConnectionRefusedError at the INVITE if the far end takes no TCP
+        sock = _bind(sip.Tcp, ports) if tcp else _bind(_udp, ports)
+        self.rtp = _bind(_udp, ports)
         self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
         self.origin = (secrets.randbelow(1 << 31), 0)  # SDP session id, version
         self.held = False
@@ -299,6 +332,12 @@ class Session:
         self.hangup()
         return self.remote_bye
 
+    def no_media(self, seconds: float) -> sip.SipError:
+        return sip.SipError(
+            f"no RTP from the agent in {seconds:.0f} s; our offer gave"
+            f" c=IN IP4 {self.dialog.local_ip}: {NO_MEDIA}"
+        )
+
     def meta(self, seed: int, remote_bye: bool) -> dict[str, Any]:
         return {"pt": self.pt, "ssrc": self.ssrc, "seq0": self.seq0, "seed": seed} | {
             "remote_bye": remote_bye,
@@ -344,15 +383,20 @@ def call(
     tick0 = CLOCK.now() + PTIME_NS  # as `Session.start` schedules it
     hangup_ns = tick0 + len(frames) * PTIME_NS
     starts = [tick0 + start * SAMPLE_NS for start, _ in spans]
+    # an agent that has not sent a packet by the end of the first turn's reply time never will
+    silent_ns = tick0 + (spans[0][1] if spans else 0) * SAMPLE_NS + REPLY_TIMEOUT_NS
     announce = Turns(len(spans))
+    heard = threading.Event()
 
     def until(now: int) -> bool:
         announce(bisect.bisect_right(starts, now))
-        return now >= hangup_ns
+        return (not heard.is_set() and now >= silent_ns) or now >= hangup_ns
 
     remote_bye = s.run(
-        lambda n, _t: frames[n] if n < len(frames) else silence, lambda _a, _p: None, until
+        lambda n, _t: frames[n] if n < len(frames) else silence, lambda _a, _p: heard.set(), until
     )
+    if not heard.is_set():  # by the deadline, or the agent hung up first
+        raise s.no_media((CLOCK.now() - tick0) / 1e9)
     return s.meta(seed, remote_bye) | {"turns": last}
 
 
@@ -539,10 +583,20 @@ def converse(
     s.answer()
     conv = Conversation(s.pt, lines, round(lead * 1e9))
     announce = Turns(turns)
+    # as in `call`: no packet by the end of the first prompt's reply time, none at all
+    t0 = CLOCK.now() + PTIME_NS
+    silent_ns = t0 + round(lead * 1e9) + len(lines[0][0][1]) * SAMPLE_NS + REPLY_TIMEOUT_NS
+    heard = threading.Event()
 
-    def until(_now: int) -> bool:
+    def until(now: int) -> bool:
         announce(len(conv.turns))
-        return conv.done
+        return (not heard.is_set() and now >= silent_ns) or conv.done
 
-    remote_bye = s.run(conv.source, conv.on_packet, until)
+    def sink(arrival: int, pkt: Packet) -> None:
+        heard.set()
+        conv.on_packet(arrival, pkt)
+
+    remote_bye = s.run(conv.source, sink, until)
+    if not heard.is_set():  # by the deadline, or the agent hung up first
+        raise s.no_media((CLOCK.now() - t0) / 1e9)
     return s.meta(seed, remote_bye) | {"turns": conv.turns}

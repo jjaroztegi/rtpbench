@@ -48,7 +48,7 @@ Needs Linux (WSL2 works), Docker 28 or later with Compose, and
 uv run rtpbench calibrate --profiles clean --turns 5      # how exactly this host times the wire
 uv run --extra vad rtpbench cases                         # prove every case against the reference agent
 uv run --extra vad rtpbench target livekit --mock         # a bundled target, no AI account needed
-sudo .venv/bin/rtpbench cases sip:agent@host              # your agent (after uv sync --extra vad)
+uv run --extra vad rtpbench target sip:agent@host         # your agent, the same way
 ```
 
 From a fresh clone the first three take about 1, 14 and 11 minutes, building or pulling about
@@ -63,7 +63,7 @@ defaults and valid names.
 
 - [Calibration](docs/calibration.md): error bars, clock steps, network profiles and their sources
 - [Conformance cases](docs/cases.md): what each case checks
-- [Targets, the mock engine and the carrier](docs/targets.md)
+- [Targets, your own agent, the mock engine and the carrier](docs/targets.md)
 
 ## Development
 

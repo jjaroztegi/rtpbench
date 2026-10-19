@@ -1,4 +1,4 @@
-# Targets, the mock engine and the carrier
+# Targets, your own agent, the mock engine and the carrier
 
 ## Targets
 
@@ -24,6 +24,47 @@ target's own logs.
 Images are pinned by digest. Upstream ships no SIP + Realtime compose for LiveKit, so its agent
 is rtpbench's own, on LiveKit's documented settings. LiveKit converts the call audio for the
 engine; AI Voice Connector CE passes G.711 through.
+
+## Your own agent
+
+```sh
+uv run --extra vad rtpbench target sip:agent@203.0.113.7:5080 --profiles clean,lte
+uv run --extra vad rtpbench target sip:agent@agent --network myagent_default   # in Docker here
+```
+
+`rtpbench target URI` places the same calls from the same caller container, through the netem
+router, and judges them the same way. Only the router's setup differs: it masquerades the
+caller, so replies come back through it and netem holds both ways. The profile adds to the real
+path beyond the router, which the error bars do not cover.
+
+Our offer carries the caller's address inside Docker. An agent that sends its audio back to
+where ours comes from (symmetric RTP, as AI Voice Connector CE does) needs nothing more; one
+that sends it to the offered address (LiveKit) needs an address that reaches the caller:
+- `--network NAME`: the agent runs in Docker on this host, on that network (Docker drops traffic
+  between its networks otherwise). The router joins it, and the caller advertises the router's
+  address there.
+- `--advertise HOST:PORT`: an address of this host the agent can reach. The host publishes PORT
+  and the next 7 (UDP and TCP), the caller's SIP and RTP ports; forward them to it if a NAT is in
+  between.
+
+When the agent's audio never arrives, a latency or barge-in call ends after its first turn's
+reply time and the summary says so, and a failed case gets the check `agent RTP arrived`, both
+with the address our offer gave.
+
+`--lines DIR` replaces the caller's lines ([`corpus/lines/en`](../corpus/README.md)) with ones in
+your agent's language, under the same file names: `turn-NN.wav` for the latency call,
+`prompt-NN.wav` and `interrupt-NN.wav` for barge-in, `prompt.wav` and `transfer.wav` for the
+cases. Each is 8 kHz mono 16-bit with silence around the speech, as the corpus processes its
+clips: the labeller finds where speech ends from it, and refuses a file without. `--proxy HOST`
+is where a transfer's INVITE goes (by default the Refer-To host, as the caller resolves it: give
+`--proxy` when it is a name on the agent's Docker network).
+
+The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
+loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
+captures name the URI and the addresses on the path. SIP over TLS (`sips:`) and SRTP are not
+supported: TLS hides SIP from the capture, so judging would need its session keys (a key log)
+to read it; SRTP needs AES counter mode and HMAC-SHA1 (a new dependency) and its keys kept with
+the captures to judge the audio.
 
 ## Mock engine
 

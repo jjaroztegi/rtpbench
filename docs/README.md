@@ -3,7 +3,7 @@
 - [Calibration](calibration.md): how close each measurement is to the truth, error bars, clock
   steps, network profiles and their sources
 - [Conformance cases](cases.md): what each case checks, and which run through the carrier
-- [Targets, the mock engine and the carrier](targets.md)
+- [Targets, your own agent, the mock engine and the carrier](targets.md)
 
 ## Published results
 

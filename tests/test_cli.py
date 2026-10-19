@@ -20,3 +20,20 @@ def test_no_arguments_list_the_commands_and_help_the_valid_names(
     text = " ".join(capsys.readouterr().out.split())
     for name in [*PROFILES, *cases.CASES, *TARGETS]:
         assert f" {name}," in text or f" {name} " in text
+
+
+@pytest.mark.parametrize(
+    ("argv", "error"),
+    [
+        (["sip:agent@203.0.113.7", "--mock"], "--mock, --carrier"),
+        (["sip:agent:secret@203.0.113.7"], "password"),
+        (["sip:agent@127.0.0.1"], "own address"),
+        (["sip:agent@203.0.113.7", "--advertise", "40000"], "HOST:PORT"),
+        (["sip:agent@203.0.113.7", "--advertise", "198.51.100.1:65530"], "PORT 1-65528"),
+        (["livekit", "--network", "n"], "with a URI only"),
+    ],
+)
+def test_target_refuses(argv: list[str], error: str, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["target", *argv])
+    assert error in capsys.readouterr().err
