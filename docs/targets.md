@@ -83,15 +83,14 @@ authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
 The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
 loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
 captures name the URI and the addresses on the path. A `sips:` URI, or one with
-`;transport=tls`, puts SIP on TLS ([below](#sip-over-tls)). SRTP is not supported: it needs AES
-counter mode and HMAC-SHA1, and its keys kept with the captures to judge the audio.
+`;transport=tls`, puts SIP on TLS, and `--srtp` the media on SRTP ([below](#tls-and-srtp)).
 
-## SIP over TLS
+## TLS and SRTP
 
 ```sh
-uv run --extra vad rtpbench target 'sip:agent@agent.example.com;transport=tls'
+uv run --extra vad rtpbench target 'sip:agent@agent.example.com;transport=tls' --srtp
 uv run --extra vad rtpbench target sips:agent@agent --network myagent_default --ca agent-ca.pem
-uv run --extra vad rtpbench cases --tls
+uv run --extra vad rtpbench cases --tls --srtp
 ```
 
 On port 5061 unless the URI gives one: TLS 1.3, or 1.2 with an AES-GCM or ChaCha20 suite (the
@@ -115,6 +114,17 @@ CA the stack makes for the run (both kept in the results' `tls/`). `large-invite
 over TLS: the case is about switching from UDP. `conditions.json` records `tls` and what the
 caller trusted (`tls_trust`); each call's `caller.json`, the TLS version and cipher suite, which
 the summary counts.
+
+`--srtp` offers SRTP keyed in the SDP (SDES, RFC 4568: `RTP/SAVP` with an `a=crypto` line per
+suite): AES_CM_128_HMAC_SHA1_80, AES_CM_128_HMAC_SHA1_32 and AEAD_AES_128_GCM (RFC 7714), in that
+order; `--srtp SUITE,...` offers those instead. That is what trunks and hosted agents use, OpenAI's
+among them; DTLS-SRTP (WebRTC's keying) is not supported. An answer without SRTP, or with an MKI
+or session parameters, ends the call. The keys travel in the SDP, so judging reads them from the
+captured SIP and opens each side's packets with that side's key, its rollover counter guessed
+per SSRC (RFC 3711 3.3.1); packets that none authenticates are left out, and the summary counts
+them. Over plain SIP the keys are in the capture in the clear, and with TLS anyone with
+`keys.log` reads them: they protect only that test call. `conditions.json` records the suites
+offered (`srtp`); each call's `caller.json`, the one taken.
 
 ## Mock engine
 

@@ -137,7 +137,8 @@ class Stack:
     the stack: the router also joins the Docker network `network`, and with `ports` (first-last)
     the host publishes that range on the router. With `tls`, out/tls holds a test certificate
     for the stack's TLS servers, and ca.pem, what the caller trusts: `ca`, or with no `uri` the
-    stack's test CA; else the caller trusts the system's certificates."""
+    stack's test CA; else the caller trusts the system's certificates. With `srtp`, the caller
+    offers SRTP with these suites."""
 
     def __init__(
         self,
@@ -150,6 +151,7 @@ class Stack:
         ports: str | None = None,
         tls: bool = False,
         ca: Path | None = None,
+        srtp: list[str] | None = None,
     ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
@@ -178,6 +180,9 @@ class Stack:
                 shutil.copyfile(ca or where / "stack-ca.pem", where / "ca.pem")
             self.env["RTPBENCH_TLS"] = "/out/tls"
             self.passed.append("RTPBENCH_TLS")
+        if srtp:
+            self.env["RTPBENCH_SRTP"] = ",".join(srtp)
+            self.passed.append("RTPBENCH_SRTP")
 
     def resolve(self, *services: str) -> None:
         """The caller reaches these services by name (SIP over TLS checks the name)."""
@@ -293,9 +298,11 @@ def _host(cmd: str) -> str:
     return subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=ROOT).stdout.strip()
 
 
-def conditions(sh: Callable[[str], str], seed: int, tls: Path | None = None) -> dict[str, Any]:
+def conditions(
+    sh: Callable[[str], str], seed: int, tls: Path | None = None, srtp: list[str] | None = None
+) -> dict[str, Any]:
     """Versions and host; `sh` runs a command in the stack (where the capture runs); `tls`, the
-    results' tls/ directory when SIP goes over TLS."""
+    results' tls/ directory when SIP goes over TLS; `srtp`, the SRTP suites offered."""
     ca = tls / "ca.pem" if tls else None
     trust = (
         f"ca sha256:{hashlib.sha256(ca.read_bytes()).hexdigest()}"
@@ -319,6 +326,7 @@ def conditions(sh: Callable[[str], str], seed: int, tls: Path | None = None) -> 
         "sip_auth": all(os.environ.get(k) for k in CREDENTIALS),  # whether, never what
         "tls": tls is not None,
         **({"tls_trust": trust} if tls else {}),
+        "srtp": srtp,  # the suites offered; the keys are in each call's SDP
         "netem_per_direction": PROFILES,
     }
 
@@ -344,12 +352,13 @@ def calibrate(
     barge: bool = False,
     carrier: bool = False,
     tls: bool = False,
+    srtp: list[str] | None = None,
     *,
     progress: Progress,
 ) -> str:
     """Timing calibration; with `real` the speech-detection one (the agent replies with corpus
     clips, or the WAVs in `replies`); with `barge` the barge-in one; with `carrier` through the
-    carrier; with `tls` SIP over TLS. Each profile runs once per codec."""
+    carrier; with `tls` SIP over TLS; with `srtp` SRTP. Each profile runs once per codec."""
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     agent_args, clips = [], None
@@ -371,12 +380,12 @@ def calibrate(
     runs = [(p, c) for p in profiles for c in codecs or [""]]
     names = {(p, c): f"{p}-{c}" if c else p for p, c in runs}
     progress.plan(len(runs))
-    stack = Stack(out, carrier="agent" if carrier else None, tls=tls)
+    stack = Stack(out, carrier="agent" if carrier else None, tls=tls, srtp=srtp)
     try:
         stack.up(progress.phase)
         caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
         uri, sip, agent_args = _reference(stack, agent_ip, tls, agent_args)
-        conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
+        conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp)
         conds |= {"turns_per_profile": turns}
         conds |= {"codecs": codecs, "speech": real, "barge": barge, "carrier": carrier}
         if replies:
@@ -430,13 +439,14 @@ def cases(
     seed: int,
     carrier: bool = False,
     tls: bool = False,
+    srtp: list[str] | None = None,
     *,
     progress: Progress,
 ) -> tuple[str, bool]:
     """Conformance cases against the reference agent: each behaviour of each case, in Docker
     behind the netem router and, with `carrier`, the carrier, `runs` times per profile, with
-    `tls` over TLS. Repeat k uses seed + k - 1. Returns the summary and whether every case was
-    proven in every repeat."""
+    `tls` over TLS, with `srtp` SRTP. Repeat k uses seed + k - 1. Returns the summary and
+    whether every case was proven in every repeat."""
     from rtpbench import cases as cs
 
     out.mkdir(parents=True, exist_ok=True)
@@ -444,13 +454,15 @@ def cases(
     done: list[cs.Run] = []
     progress.plan(len(profiles) * sum(len(cs.CASES[n].behaviours()) for n in names) * runs)
     with clock.watch() as steps:
-        stack = Stack(out, carrier="agent" if carrier else None, tls=tls)
+        stack = Stack(out, carrier="agent" if carrier else None, tls=tls, srtp=srtp)
         try:
             stack.up(progress.phase)
             caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
             proxy = stack.entry("operator")  # the transferee's next hop for a transfer
             uri, sip, agent_args = _reference(stack, agent_ip, tls, [])
-            conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
+            conds = conditions(
+                partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
+            )
             conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
             if carrier:
                 conds["images"] = stack.compose("images")
@@ -595,6 +607,7 @@ def target(
     network: str | None = None,
     advertise: str | None = None,
     ca: Path | None = None,
+    srtp: list[str] | None = None,
     *,
     progress: Progress,
 ) -> str:
@@ -607,7 +620,8 @@ def target(
     transfer's INVITE goes (else the Refer-To host); the router joins the Docker network
     `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
     next few to it), else with `network` its router's address there; over TLS (a sips: URI, or
-    transport=tls) it trusts the certificates in `ca`, else the system's."""
+    transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp` the caller
+    offers SRTP with these suites."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
@@ -642,13 +656,15 @@ def target(
             if advertise:  # the host publishes the range
                 first = int(advertise.rpartition(":")[2])
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
-            stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca)
+            stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca, srtp=srtp)
         else:
             stack = Stack(out, name, "target" if carrier else None, mock)
         try:
             stack.up(progress.phase)
             caller_ip = stack.ip("caller")
-            conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None)
+            conds = conditions(
+                partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
+            )
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
             if is_uri(name):
@@ -727,18 +743,30 @@ def _last_line(path: Path) -> str:
     return (path.read_text().strip().splitlines() or [""])[-1]
 
 
-def _tls_note(out: Path) -> str:
-    """How many calls went over each TLS version and cipher suite, if any did."""
-    seen: dict[str, int] = {}
+def _secure_note(out: Path) -> str:
+    """How many calls went over each TLS version and cipher suite and each SRTP suite, if any
+    did, and how many captured SRTP packets no key in their call's SDP opened."""
+    from rtpbench import cases as cs
+
+    tls: dict[str, int] = {}
+    srtp: dict[str, int] = {}
+    unopened = 0
     for path in sorted(out.glob("**/caller.json")):
-        if t := json.loads(path.read_text()).get("tls"):
+        log = json.loads(path.read_text())
+        if t := log.get("tls"):
             key = f"{t['version']} {t['cipher']}"
-            seen[key] = seen.get(key, 0) + 1
-    return (
-        "\nSIP over TLS: " + ", ".join(f"{k} ({n} calls)" for k, n in seen.items()) + "\n"
-        if seen
-        else ""
-    )
+            tls[key] = tls.get(key, 0) + 1
+        if "srtp" in log:
+            key = log["srtp"] or "none"
+            srtp[key] = srtp.get(key, 0) + 1
+            unopened += cs.load(path.parent).unopened if "error" not in log else 0
+    text = ""
+    for title, seen in (("SIP over TLS", tls), ("SRTP", srtp)):
+        if seen:
+            text += f"\n{title}: " + ", ".join(f"{k} ({n} calls)" for k, n in seen.items()) + "\n"
+    if srtp:
+        text += f"SRTP packets that did not authenticate: {unopened}\n"
+    return text
 
 
 def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
@@ -753,7 +781,7 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         recs = json.loads((out / "results.json").read_text())
         runs = [cs.Run(*(r[f] for f in cs.Run._fields)) for r in recs]
     summary, records, ok = cs.summarize(out, runs)
-    summary += _tls_note(out)
+    summary += _secure_note(out)
     sections: list[tuple[str, str]] = []
     # the agent's stream in every call where it behaves as it should
     agent = [(r.profile, out / r.run) for r in runs if r.behaviour in (None, "good")]

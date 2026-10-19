@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from rtpbench.clock import CLOCK, Clock
+from rtpbench.srtp import Context
 
 FRAME = 160  # samples per 20 ms packet at 8 kHz
 PTIME_NS = 20_000_000
@@ -59,7 +60,7 @@ class Sender(threading.Thread):
 
     `source(n, tick_ns)` returns tick n's payload (timestamp n * 160, marker on the first packet
     after a pause), a full `Frame`, or None to send nothing. Seq counts packets sent (RFC 3550),
-    so with no pauses tick n carries seq `seq0 + n`.
+    so with no pauses tick n carries seq `seq0 + n`. With `srtp`, packets go out protected.
     """
 
     def __init__(
@@ -72,9 +73,11 @@ class Sender(threading.Thread):
         seq0: int,
         ssrc: int,
         clock: Clock = CLOCK,
+        srtp: Context | None = None,
     ) -> None:
         super().__init__(daemon=True)
         self.sock, self.addr, self.pt, self.source, self.clock = sock, addr, pt, source, clock
+        self.srtp = srtp
         self.start_ns, self.seq0, self.ssrc = start_ns, seq0, ssrc
         self.stop = threading.Event()
         self.ts0 = 0  # added to every timestamp
@@ -92,19 +95,20 @@ class Sender(threading.Thread):
         while not self.stop.is_set():
             tick = self.start_ns + n * PTIME_NS
             out = self.source(n, tick)
+            # SRTP is protected before the tick, so encrypting does not delay the send; a switch
+            # set meanwhile (from another thread) has it packed again
+            early = None
+            if self.srtp and out is not None and self.new is None:
+                early = self._packet(out, n, sent, paused)
             self.clock.sleep_until(tick)
             if self.new is not None:
                 (self.ssrc, self.seq0, ts), self.new = self.new, None
                 self.ts0, sent, paused, self.switched = ts - n * FRAME, 0, True, n
+                early = None
             if out is not None:
-                if not isinstance(out, Frame):
-                    out = Frame(self.pt, out, n * FRAME, paused)
-                seq = (self.seq0 + sent) & 0xFFFF
-                ts = (out.ts + self.ts0) & 0xFFFFFFFF
+                data = early or self._packet(out, n, sent, paused)
                 try:
-                    self.sock.sendto(
-                        pack(out.pt, seq, ts, self.ssrc, out.payload, out.marker), self.addr
-                    )
+                    self.sock.sendto(data, self.addr)
                 except OSError as e:
                     # refused by the host (a conntrack clash when both ends start at once
                     # gives EPERM): lost before the wire; its seq is spent, the stream goes on
@@ -113,18 +117,32 @@ class Sender(threading.Thread):
             paused = out is None
             n += 1
 
+    def _packet(self, out: bytes | Frame, n: int, sent: int, paused: bool) -> bytes:
+        """Tick n's packet, the `sent`th of this source."""
+        if not isinstance(out, Frame):
+            out = Frame(self.pt, out, n * FRAME, paused)
+        seq = (self.seq0 + sent) & 0xFFFF
+        ts = (out.ts + self.ts0) & 0xFFFFFFFF
+        packet = pack(out.pt, seq, ts, self.ssrc, out.payload, out.marker)
+        # its index counts on from seq0: the rollover counter starts at 0 (RFC 3711 3.3.1)
+        return self.srtp.protect(packet, self.seq0 + sent) if self.srtp else packet
+
 
 class Receiver(threading.Thread):
     """Calls `sink(arrival_ns, packet)` for each RTP packet, stamped by the kernel on arrival
-    (CLOCK_REALTIME) and put on `clock`."""
+    (CLOCK_REALTIME) and put on `clock`; with `srtp`, each that it opens (it may change)."""
 
     def __init__(
-        self, sock: socket.socket, sink: Callable[[int, Packet], None], clock: Clock = CLOCK
+        self,
+        sock: socket.socket,
+        sink: Callable[[int, Packet], None],
+        clock: Clock = CLOCK,
+        srtp: Context | None = None,
     ) -> None:
         super().__init__(daemon=True)
         sock.setsockopt(socket.SOL_SOCKET, SO_TIMESTAMPNS, 1)
         sock.settimeout(0.2)
-        self.sock, self.sink, self.clock = sock, sink, clock
+        self.sock, self.sink, self.clock, self.srtp = sock, sink, clock, srtp
         self.stop = threading.Event()
 
     def run(self) -> None:
@@ -140,5 +158,9 @@ class Receiver(threading.Thread):
                 if level == socket.SOL_SOCKET and kind == SO_TIMESTAMPNS:
                     sec, nsec = struct.unpack("qq", raw[:16])
                     arrival = self.clock.steady(sec * 1_000_000_000 + nsec)
+            if self.srtp:
+                if (opened := self.srtp.open(data)) is None:
+                    continue
+                data = opened
             if (pkt := parse(data)) is not None:
                 self.sink(arrival, pkt)
