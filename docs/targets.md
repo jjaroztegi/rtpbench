@@ -35,7 +35,8 @@ uv run --extra vad rtpbench target sip:agent@agent --network myagent_default   #
 `rtpbench target URI` places the same calls from the same caller container, through the netem
 router, and judges them the same way. Only the router's setup differs: it masquerades the
 caller, so replies come back through it and netem holds both ways. The profile adds to the real
-path beyond the router, which the error bars do not cover.
+path beyond the router, which the error bars do not cover. `rtpbench check` passes or fails
+the run against a policy, for CI ([CI](ci.md)).
 
 Our offer carries the caller's address inside Docker. An agent that sends its audio back to
 where ours comes from (symmetric RTP, as AI Voice Connector CE does) needs nothing more; one

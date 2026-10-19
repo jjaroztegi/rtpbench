@@ -64,6 +64,7 @@ defaults and valid names.
 - [Calibration](docs/calibration.md): error bars, clock steps, network profiles and their sources
 - [Conformance cases](docs/cases.md): what each case checks
 - [Targets, your own agent, the mock engine and the carrier](docs/targets.md)
+- [CI](docs/ci.md): pass or fail your agent's run against a policy
 
 ## Development
 

@@ -11,7 +11,7 @@ def test_no_arguments_list_the_commands_and_help_the_valid_names(
         cli.main([])
     assert e.value.code == 2
     listing = capsys.readouterr().out
-    for command in ("calibrate", "cases", "target", "report", "analyze", "index"):
+    for command in ("calibrate", "cases", "target", "report", "check", "analyze", "index"):
         assert f"    {command} " in listing
     assert "    agent " not in listing  # run inside containers, not by hand
 
