@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from rtpbench import g711, realtime, speech
+from rtpbench import g711, realtime, speech, voice
 from rtpbench.clock import CLOCK
 
 LINES = speech.CORPUS / "lines" / "en"
@@ -178,3 +178,26 @@ def test_speech_while_answering_cancels_the_answer(engine: tuple[int, Path]) -> 
     answer = [r for r in records if r.get("answer") == realtime.LONG][-1]
     assert (answer["line"], answer["status"]) == ("prompt-02", "cancelled")
     assert any(r["event"] == "barge" for r in records)
+
+
+def test_heard_measures_the_path_and_leaves_lost_packets_out() -> None:
+    pause = [0] * 2400
+    ref = voice.voice(1.0, 140) + pause + voice.voice(1.0, 180)
+    sent = [float(s) for s in ref]
+    # half the level, 20 ms of the pause dropped, one packet of the second stretch lost
+    rx = [0] * 300 + [round(s / 2) for s in ref[:8000] + pause[160:] + ref[10400:]]
+    ok = [True] * len(rx)
+    lost = 300 + 8000 + 2240 + 4000
+    rx[lost : lost + 160] = [0] * 160
+    ok[lost : lost + 160] = [False] * 160
+    rx += [0] * 12000
+    ok += [True] * 12000
+    h = realtime.heard(sent, rx, ok)
+    assert h is not None
+    assert h["gain_db"] == pytest.approx(-6.02, abs=0.01)
+    assert h["moves_ms"] == [-20.0]
+    assert h["left_db"] > 60 and not h["unchanged"]
+    # G.711 alone leaves the distortion the summary quotes as its own
+    law = g711.decode(g711.PCMU, g711.encode(g711.PCMU, ref)) + [0] * 12000
+    h = realtime.heard(sent, law, [True] * len(law))
+    assert h is not None and 34 < h["left_db"] < 40 and h["moves_ms"] == []

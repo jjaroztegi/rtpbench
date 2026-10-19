@@ -170,6 +170,14 @@ def _id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(8)}"
 
 
+def _upsample(pcm: list[int]) -> bytes:
+    """8 kHz samples as 24 kHz PCM16, by linear interpolation."""
+    up = array("h")
+    for a, b in zip(pcm, [*pcm[1:], pcm[-1]], strict=True):
+        up.extend((a, round(a + (b - a) / 3), round(a + 2 * (b - a) / 3)))
+    return up.tobytes()
+
+
 class Session:
     """One WebSocket connection: a conversation."""
 
@@ -260,12 +268,7 @@ class Session:
 
     def encode(self, pcm: list[int]) -> bytes:
         """8 kHz samples as this session sends audio."""
-        if self.pt is not None:
-            return g711.encode(self.pt, pcm)
-        up = array("h")
-        for a, b in zip(pcm, [*pcm[1:], pcm[-1]], strict=True):
-            up.extend((a, round(a + (b - a) / 3), round(a + 2 * (b - a) / 3)))
-        return up.tobytes()
+        return g711.encode(self.pt, pcm) if self.pt is not None else _upsample(pcm)
 
     async def hear(self, audio: bytes, arrival: int) -> None:
         """Audio that arrived at `arrival`: turns start and end, by the audio itself (a turn ends
@@ -568,3 +571,189 @@ def decompose(out: Path) -> str:
             "(webrtcvad onset bar).\n\n" + analyze._table(head, rows)
         )
     return text
+
+
+# --- what reached the caller of the audio sent here ---
+
+PAUSE = 800  # 100 ms below the gate: a pause between stretches of speech
+PIECE = 8000  # at most 1 s of speech aligned as one piece
+SEARCH = 480  # how far a piece may sit from the one before it, 60 ms
+SHIFT = 40  # 5 ms: a piece moved by less is a resampler's fraction of a sample, not a timing change
+TAPS = 31  # a filter of ±4 ms explains any resampler's or band filter's change to a piece
+
+
+def pieces(pcm: list[int]) -> list[tuple[int, int]]:
+    """The speech in `pcm` as [start, end) sample spans between pauses, split to at most PIECE."""
+    spans: list[list[int]] = []
+    for i, s in enumerate(pcm):
+        if abs(s) >= GATE:
+            if spans and i - spans[-1][1] < PAUSE:
+                spans[-1][1] = i + 1
+            else:
+                spans.append([i, i + 1])
+    out = []
+    for a, b in spans:
+        n = -(-(b - a) // PIECE)
+        out += [(a + (b - a) * k // n, a + (b - a) * (k + 1) // n) for k in range(n)]
+    return out
+
+
+def sent(clip: list[int], fmt: str | None) -> list[float]:
+    """A clip as this engine sends it in `fmt`, at 8 kHz: G.711 decoded again, or the 24 kHz
+    interpolation through an ideal 8 kHz converter (none of this engine's resampling counted
+    against a target)."""
+    import numpy as np
+
+    law = {"audio/pcmu": g711.PCMU, "audio/pcma": g711.PCMA}.get(fmt or "")
+    if law is not None:
+        return [float(s) for s in g711.decode(law, g711.encode(law, clip))]
+    up = np.frombuffer(_upsample(clip), dtype="<i2").astype(np.float64)
+    spectrum = np.fft.rfft(up)
+    spectrum[len(up) // 6 + 1 :] = 0  # above 4 kHz
+    return [float(s) for s in np.fft.irfft(spectrum, len(up))[::3]]
+
+
+def _lag(np: Any, ref: Any, rx: Any) -> int:
+    """Offset of `ref` in `rx` (no shorter) that correlates best."""
+    n = 1 << (len(ref) + len(rx) - 1).bit_length()
+    c = np.fft.irfft(np.fft.rfft(rx, n) * np.conj(np.fft.rfft(ref, n)), n)
+    return int(np.argmax(c[: len(rx) - len(ref) + 1]))
+
+
+def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | None:
+    """What a path did to `ref` (8 kHz), received as `rx` from where it may start up to 1.5 s
+    late, `ok` false for samples the network lost. Each piece of speech is aligned on its own,
+    near the one before: gain (dB, least squares), what no linear filter of ±TAPS explains (dB
+    below the audio; inf if unchanged), 3.4-4 kHz against 300-3400 Hz relative to `ref`'s (dB),
+    the moves of 5 ms or more between pieces (ms, positive later), and whether every sample is
+    unchanged. None if under half the speech could be aligned."""
+    import numpy as np
+
+    r_all, x_all, m_all = np.asarray(ref), np.asarray(rx, dtype=np.float64), np.asarray(ok)
+    spans = pieces([round(s) for s in ref])
+    if not spans or len(x_all) < len(r_all) + 12000:
+        return None
+    lag = _lag(np, r_all[:16000], x_all[:28000])
+    xs, rs, lags, band, fit = [], [], [], np.zeros((2, 2)), np.zeros(2)
+    for a, b in spans:
+        r = r_all[a:b]
+        lo = max(0, lag + a - SEARCH)
+        found = lo + _lag(np, r, x_all[lo : lag + b + SEARCH]) - a
+        x, m = x_all[a + found : b + found], m_all[a + found : b + found]
+        if m.mean() < 0.8:
+            continue
+        if np.sum(x[m] * r[m]) < 0.5 * np.sqrt(np.sum(x[m] ** 2) * np.sum(r[m] ** 2)):
+            continue
+        lag = found
+        lags.append(found)
+        xs.append(x[m])
+        rs.append(r[m])
+        if m.all():
+            f = np.fft.rfftfreq(b - a, 1 / 8000)
+            mid, hi = (f >= 300) & (f < 3400), f >= 3400
+            for k, v in enumerate((x, r)):
+                p = np.abs(np.fft.rfft(v * np.hanning(b - a))) ** 2
+                band[k] += p[mid].sum(), p[hi].sum()
+            # least squares filter from r to x (normal equations: r's autocorrelation, r by x)
+            rp = np.pad(r, TAPS)
+            c = np.correlate(rp, x, "valid")
+            acf = np.correlate(np.pad(r, (0, 2 * TAPS)), r, "valid")
+            i = np.arange(2 * TAPS + 1)
+            explained = float(np.sum(c * np.linalg.solve(acf[abs(i[:, None] - i)], c)))
+            fit += explained, float(np.sum(x * x)) - explained
+    if sum(map(len, rs)) < 0.5 * sum(b - a for a, b in spans):
+        return None
+    x, r = np.concatenate(xs), np.concatenate(rs)
+    g = float(np.sum(x * r) / np.sum(r * r))
+    unchanged = bool(np.array_equal(x, r))
+    steps = np.diff(lags)
+    return {
+        "gain_db": 20 * math.log10(abs(g)),
+        "left_db": math.inf
+        if unchanged
+        else 10 * math.log10(fit[0] / fit[1])
+        if fit.all()
+        else None,
+        "band_db": 10 * math.log10(band[0, 1] * band[1, 0] / (band[0, 0] * band[1, 1]))
+        if band.all()
+        else None,
+        "moves_ms": [float(s) / 8 for s in steps if abs(s) >= SHIFT],
+        "unchanged": unchanged,
+    }
+
+
+def downlink(out: Path) -> str:
+    """The engine's completed answers as the caller received them in the latency and barge-in
+    calls (`heard`), per profile."""
+    from rtpbench import analyze, cases
+
+    records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
+    formats = {r["session"]: r["format"] for r in records if r.get("format")}
+    answers = [
+        r
+        for r in records
+        if r.get("event") == "answer" and r.get("clip") and r.get("status") == "completed"
+    ]
+    lines = Lines()
+    refs: dict[tuple[str, str | None], list[float]] = {}
+    by: dict[str, list[dict[str, Any]]] = {}
+    for path in sorted(out.glob("*/*/*/caller.json")):
+        if path.parent.name not in ("latency", "barge-in"):
+            continue
+        st = cases.load(path.parent, path.parts[-4]).audio
+        if st is None:
+            continue
+        times = [t for t in st.times if t is not None]
+        ok = [t is not None for t in st.times for _ in range(160)]
+        for a in answers:
+            if not times[0] <= a["first_audio_ns"] <= times[-1]:
+                continue
+            k = next(
+                i for i, t in enumerate(st.times) if t is not None and t >= a["first_audio_ns"]
+            )
+            key = a["clip"], formats.get(a["session"])
+            if key not in refs:
+                refs[key] = sent(lines.clips[key[0]], key[1])
+            if (h := heard(refs[key], st.pcm[k * 160 :], ok[k * 160 :])) is not None:
+                by.setdefault(path.parts[-4], []).append(h)
+    if not by:
+        return ""
+    rows = []
+    for profile, hs in by.items():
+        left = [h["left_db"] for h in hs if h["left_db"] is not None]
+        left_cell = cases._spread(left, ".1f").replace("inf", "exact") if left else ""
+        bands = [h["band_db"] for h in hs if h["band_db"] is not None]
+        moved = [h for h in hs if h["moves_ms"]]
+        largest = max((abs(m) for h in moved for m in h["moves_ms"]), default=0)
+        rows.append(
+            [
+                profile,
+                str(len(hs)),
+                str(sum(h["unchanged"] for h in hs)),
+                left_cell,
+                f"{len(moved)}, up to {largest:.0f} ms" if moved else "0",
+                cases._spread([h["gain_db"] for h in hs], "+.1f"),
+                cases._spread(bands, "+.1f") if bands else "",
+            ]
+        )
+    head = [
+        "profile",
+        "answers",
+        "unchanged",
+        "distortion, dB",
+        "moved",
+        "gain, dB",
+        "3.4-4 kHz, dB",
+    ]
+    return (
+        "The mock engine's answers as the caller received them (completed answers in the "
+        "latency and barge-in calls), median [min, max] over answers. Each piece of speech is "
+        "aligned with what the mock sent; for 24 kHz audio, that is its interpolation through an "
+        "ideal 8 kHz converter, so the mock's own resampling is not counted. Samples in packets "
+        "the network lost are left out. unchanged: answers with every sample as sent. "
+        "distortion: the audio against what no linear filter of ±4 ms explains; a resampler or "
+        "band filter would leave G.711's own, about 37 dB. moved: answers where a piece came out "
+        "5 ms or more later or earlier than the one before (a pause lengthened or shortened, "
+        "audio inserted or dropped), and the largest move. gain: least squares. 3.4-4 kHz: that "
+        "band against 300-3400 Hz, relative to what was sent.\n\n" + analyze._table(head, rows)
+    )
