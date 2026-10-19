@@ -40,6 +40,14 @@ TARGETS = {
         "agent",
         {"AZURE_OPENAI_ENDPOINT": "", "AZURE_OPENAI_DEPLOYMENT": "gpt-realtime-2.1"},
     ),
+    "ava": (
+        "agent",
+        {
+            "OPENAI_BASE_URL": "wss://api.openai.com/v1/realtime",
+            "OPENAI_MODEL": "gpt-realtime-2.1",
+            "AVA_EGRESS_PACER": "true",
+        },
+    ),
 }
 # the same variables pointing at the mock engine (mock/compose.yaml), which takes any key
 MOCK = {
@@ -48,6 +56,11 @@ MOCK = {
         "AZURE_OPENAI_ENDPOINT": "http://realtime:8000",
         "AZURE_OPENAI_API_KEY": "mock",
         "AZURE_OPENAI_DEPLOYMENT": "mock",
+    },
+    "ava": {
+        "OPENAI_BASE_URL": "ws://realtime:8000/v1/realtime",
+        "OPENAI_MODEL": "mock",
+        "OPENAI_API_KEY": "mock",
     },
 }
 
@@ -584,6 +597,8 @@ def target(
                 router_ip = stack.sh("target", "getent hosts router").split()[0]
                 stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
                 conds["engine"] = realtime.conditions() if mock else _engine(settings)
+                if mock and (own := {k: v for k, v in settings.items() if k not in MOCK[name]}):
+                    conds["settings"] = _engine(own)  # the target's own, such as AVA's pacer
                 uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")
             if lines:
                 conds["lines"] = {
