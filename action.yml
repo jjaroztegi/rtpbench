@@ -43,10 +43,10 @@ inputs:
     default: rtpbench-results
   upload:
     description: >-
-      Artifact: all (with the captures), report (summary, report.html, results, check, conditions)
-      or none. With digest credentials in a public repository, use report: the captures hold the
-      user name and a digest of the password a dictionary attack can test.
-    default: all
+      Artifact: report (summary, report.html, results, check, conditions), all (the whole results
+      directory, with the captures) or none. The captures of a run with digest credentials hold
+      the user name and a digest of the password a dictionary attack can test.
+    default: report
   artifact-name:
     description: Name of the uploaded artifact
     default: rtpbench

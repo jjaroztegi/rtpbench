@@ -38,7 +38,6 @@ jobs:
           mock: true
           only: greeting,bye,hold,refer-fail,latency,barge-in
           policy: .github/rtpbench/aivc.toml
-          upload: report  # the path list; all is the whole directory
 
       - name: A policy the run breaks fails it
         env:

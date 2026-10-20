@@ -78,17 +78,18 @@ jobs:
           profiles: clean,lte
           policy: rtpbench.toml
           previous: rtpbench-baseline.json
-          upload: report
 ```
 
 The [action](../action.yml) runs `rtpbench target` and `rtpbench check` with its inputs, adds
-`summary.md` and `check.md` to the job summary, uploads the results directory as an artifact,
-and fails the job when the run fails the policy; its outputs are `results` (the directory) and
-`passed`. It takes as long as `target` does: every case, the latency call and the barge-in call
-on one profile about 11 minutes, plus a few minutes building images on a fresh runner.
-Credentials go in the step's `env`, from secrets. In a public repository anyone can download
-the artifacts, and the captures hold the SIP user name and a digest of the password that a
-dictionary attack can test: there, use `upload: report`, which leaves the captures out.
+`summary.md` and `check.md` to the job summary, uploads the report files (`summary.md`,
+`report.html`, `results.json`, `conditions.json`, `check.*`) as an artifact, and fails the job
+when the run fails the policy; its outputs are `results` (the directory) and `passed`. A job
+takes as long as `rtpbench target`: this repository's [Action
+workflow](../.github/workflows/action.yml), six calls on one profile, takes about 8 minutes on
+`ubuntu-24.04`, building images included. Credentials go in the step's `env`, from secrets.
+`upload: all` uploads the whole results directory, captures included; in a public repository
+anyone can download it, and the captures of a run with credentials hold the SIP user name and
+a digest of the password that a dictionary attack can test.
 
 ### Where the agent runs
 
