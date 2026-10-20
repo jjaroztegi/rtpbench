@@ -1,6 +1,6 @@
 import pytest
 
-from rtpbench import analyze, g711
+from rtpbench import analyze, detect, g711
 from rtpbench.agent import HANGOVER_NS, Responder
 from rtpbench.analyze import Capture, Timed, latencies, stream_stats
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet
@@ -121,6 +121,18 @@ def test_reordered_onset_counts_from_the_onset_packet() -> None:
     (t1, p1), (t2, p2) = cap.down[i], cap.down[i + 1]
     cap.down[i], cap.down[i + 1] = (t2 - 25_000_000, p2), (t1, p1)
     assert latencies(cap, PT, "wire") == want
+
+
+def test_speech_after_a_pause_starts_at_its_first_packet() -> None:
+    """An agent that sends RTP only while it speaks: a second of speech, 3 s of nothing, and its
+    next answer on the next sequence number, the timestamps not advanced."""
+    down = stream(voice(1, 210) + voice(1, 210), 0)
+    down[50:] = [(t + 3_000_000_000, p) for t, p in down[50:]]
+    wire = analyze.stream(down, PT)
+    (_, end), (start, _) = wire.detect(detect.gate)
+    assert end <= start == 50 * FRAME
+    assert wire.time(start, True) == down[50][0]
+    assert len(analyze.stream(down, PT, "rtp").detect(detect.gate)) == 1  # no pause by its clock
 
 
 def test_onset_in_the_last_half_sample_goes_to_the_next_packet() -> None:

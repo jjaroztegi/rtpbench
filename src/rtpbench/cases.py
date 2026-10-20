@@ -587,7 +587,7 @@ class Wire:
         st = self.audio
         if st is None:
             return []
-        spans = [(st.time(a, True), st.time(b - 1, False)) for a, b in detect.webrtc(st.pcm)]
+        spans = [(st.time(a, True), st.time(b - 1, False)) for a, b in st.detect(detect.webrtc)]
         return [(a, b) for a, b in spans if a is not None and b is not None]
 
     def speech_after(self, t: int) -> int | None:

@@ -85,10 +85,14 @@ def turns(run: Path, detectors: tuple[str, ...] = detect.DETECTORS) -> list[dict
     cap = analyze.load(run / "caller.pcap")
     pt = caller_log["pt"]
     up, down = analyze.stream(cap.up, pt), analyze.stream(cap.down, pt)
-    found = {d: (detect.DETECT[d](up.pcm), detect.DETECT[d](down.pcm)) for d in detectors}
+    found = {d: (up.detect(detect.DETECT[d]), down.detect(detect.DETECT[d])) for d in detectors}
     rtp, concat = analyze.stream(cap.down, pt, "rtp"), analyze.stream(cap.down, pt, "concat")
     heard = {  # the agent's channel per recording; rtp has the wire's audio on its own clock
-        d: {"wire": (down, fd), "rtp": (rtp, fd), "concat": (concat, detect.DETECT[d](concat.pcm))}
+        d: {
+            "wire": (down, fd),
+            "rtp": (rtp, rtp.detect(detect.DETECT[d])),  # its pauses where the clock has them
+            "concat": (concat, detect.DETECT[d](concat.pcm)),
+        }
         for d, (_, fd) in found.items()
     }
 

@@ -80,7 +80,7 @@ def turns(run: Path) -> list[dict[str, Any]]:
         mode = "wire" if m == "packet" else m
         up, down = analyze.stream(cap.up, pt, mode), analyze.stream(cap.down, pt, mode)
         for d in detect.DETECTORS if m == "wire" else (METHOD_DETECTOR,):
-            segs[f"{m}/{d}"] = up, _segments(down, detect.DETECT[d](down.pcm), m == "packet")
+            segs[f"{m}/{d}"] = up, _segments(down, down.detect(detect.DETECT[d]), m == "packet")
     up, down = analyze.stream(cap.up, pt), analyze.stream(cap.down, pt)
     out = []
     for i, c in enumerate(caller_log["turns"]):
