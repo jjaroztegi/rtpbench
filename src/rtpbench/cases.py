@@ -13,7 +13,6 @@ agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per 
 import functools
 import itertools
 import json
-import re
 import statistics
 import struct
 import time
@@ -58,7 +57,6 @@ PTIME_MS = rtp.FRAME / 8
 DTMF_MAX_MS = 5000  # an agent that heard the digit says something within this
 RETAKE_MAX_MS = 5000  # likewise an agent taking the call back after a failed transfer
 REPLY_MAX_MS = 10000  # an agent that heard the question replies by then (AIVC CE slowest: 8.2 s)
-_SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")
 
 
 class Bar(NamedTuple):
@@ -627,7 +625,7 @@ def load(run: Path, profile: str = "clean") -> Wire:
     down: analyze.Timed = []
     me, port = "", log.get("rtp_port")
     grams = pcap.read(run / "caller.pcap")
-    for t, src, data in sorted([*_sip_over_tcp(grams), *_sip_over_udp(grams)]):
+    for t, src, data in sip.captured(grams, run / "keys.log"):
         msg = sip.parse(data)
         if msg.get("call-id") != log.get("call_id"):
             continue
@@ -641,31 +639,6 @@ def load(run: Path, profile: str = "clean") -> Wire:
         if not g.tcp and port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
             (up if g.sport == port else down).append((g.t_ns, p))
     return Wire(log, agent, msgs, up, down, profile)
-
-
-def _sip_over_udp(grams: list[pcap.Datagram]) -> list[tuple[int, str, bytes]]:
-    return [(g.t_ns, g.src, g.payload) for g in grams if not g.tcp and _SIP.match(g.payload)]
-
-
-def _sip_over_tcp(grams: list[pcap.Datagram]) -> list[tuple[int, str, bytes]]:
-    """SIP messages in the TCP streams, framed by Content-Length (RFC 3261 18.3), each at the
-    capture time of the segment that brought its first byte."""
-    out = []
-    flows: dict[tuple[str, int, str, int], tuple[bytes, int]] = {}  # bytes not yet a message
-    for g in pcap.streams(grams):
-        flow = (g.src, g.sport, g.dst, g.dport)
-        buf, t = flows.get(flow, (b"", g.t_ns))
-        buf, t = buf + g.payload, t if buf.strip(b"\r\n") else g.t_ns
-        while True:
-            buf = buf.lstrip(b"\r\n")  # keep-alive CRLFs
-            head, sep, rest = buf.partition(b"\r\n\r\n")
-            length = int(sip.parse(head + sep).get("content-length") or 0) if sep else 0
-            if not sep or len(rest) < length or not _SIP.match(buf):
-                break
-            out.append((t, g.src, head + sep + rest[:length]))
-            buf, t = rest[length:], g.t_ns
-        flows[flow] = (buf, t)
-    return out
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:
@@ -1362,10 +1335,13 @@ CASES = {
 }
 
 
-def names(carrier: bool) -> list[str]:
-    """The cases to run by default with or without the carrier."""
+def names(carrier: bool, tls: bool = False) -> list[str]:
+    """The cases to run by default with or without the carrier, and over TLS or not (without
+    `large-invite`: its INVITE goes over TCP because UDP cannot take it)."""
     skip = "direct" if carrier else "carrier"
-    return [name for name, case in CASES.items() if case.route != skip]
+    return [
+        n for n, case in CASES.items() if case.route != skip and not (tls and n == "large-invite")
+    ]
 
 
 def run(

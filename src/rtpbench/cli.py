@@ -2,15 +2,18 @@
 
 import argparse
 import json
+import os
 import textwrap
 from datetime import datetime
 from pathlib import Path
 
 from rtpbench import analyze, cases
-from rtpbench.bench import PROFILES, TARGETS
+from rtpbench.bench import PROFILES, TARGETS, is_uri
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 
 CODECS = {"pcmu": 0, "pcma": 8}
+LARGE_INVITE_TLS = "large-invite: not over TLS (it checks the switch from UDP to TCP)"
+TLS_HELP = "SIP over TLS to the reference agent, its certificate from the stack's test CA"
 QUICK_START = """\
 quick start, from a clone (Linux, Docker 28 or later, uv):
   uv run rtpbench calibrate --profiles clean --turns 5   # how exactly this host times the wire
@@ -36,8 +39,13 @@ def _target_args(args: argparse.Namespace) -> str | None:
     """What is wrong with `rtpbench target`'s arguments, if anything."""
     from rtpbench.caller import parse_uri
 
-    uri_only = {"--proxy": args.proxy, "--network": args.network, "--advertise": args.advertise}
-    if not args.name.startswith("sip:"):
+    uri_only = {
+        "--proxy": args.proxy,
+        "--network": args.network,
+        "--advertise": args.advertise,
+        "--ca": args.ca,
+    }
+    if not is_uri(args.name):
         if args.name not in TARGETS:
             return f"NAME|URI: {args.name!r} is neither {', '.join(TARGETS)} nor a sip: URI"
         if given := [k for k, v in uri_only.items() if v]:
@@ -47,11 +55,13 @@ def _target_args(args: argparse.Namespace) -> str | None:
         return None
     if args.mock or args.carrier:
         return "--mock, --carrier: with a bundled target only"
-    if ":" in args.name.removeprefix("sip:").split("@")[0] and "@" in args.name:
+    if ":" in args.name.split(":", 1)[1].split("@")[0] and "@" in args.name:
         return "the URI has a password: give credentials in the environment, not the URI"
     host, _ = parse_uri(args.name)
     if host == "localhost" or host.startswith("127."):
         return f"{host}: the caller runs in Docker; give this host's own address, or --network"
+    if args.ca and not args.ca.is_file():
+        return f"--ca: {args.ca} is not a file"
     if args.advertise:
         from rtpbench.caller import ADVERTISE_PORTS
 
@@ -109,6 +119,7 @@ examples:
     p.add_argument("--turns", type=int, help="default 20; --speech: one per reply; --barge-in: 60")
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
+    p.add_argument("--tls", action="store_true", help=TLS_HELP)
 
     p = sub.add_parser(
         "cases",
@@ -141,6 +152,7 @@ examples:
     p.add_argument("--out", type=Path, metavar="DIR", help="default: results/<timestamp>")
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
+    p.add_argument("--tls", action="store_true", help=TLS_HELP)
 
     p = sub.add_parser(
         "target",
@@ -156,13 +168,15 @@ examples:
   uv run --extra vad rtpbench target aivc --mock --only latency,barge-in --profiles clean,lte
   uv run --extra vad rtpbench target sip:agent@203.0.113.7 --profiles clean,lte
   uv run --extra vad rtpbench target sip:agent@agent --network myagent_default
+  uv run --extra vad rtpbench target 'sip:agent@agent.example.com;transport=tls'
 """,
         formatter_class=Help,
     )
     p.add_argument(
         "name",
         metavar="NAME|URI",
-        help=f"{', '.join(TARGETS)}, or the agent's sip: URI (sip:user@host[:port])",
+        help=f"{', '.join(TARGETS)}, or the agent's URI: sip:user@host[:port], over TLS with"
+        " sips: or ;transport=tls",
     )
     p.add_argument(
         "--only",
@@ -194,6 +208,12 @@ examples:
         "--advertise",
         metavar="HOST:PORT",
         help="URI: an address where the agent reaches this host; it publishes PORT and the next 7",
+    )
+    p.add_argument(
+        "--ca",
+        type=Path,
+        metavar="FILE",
+        help="URI over TLS: trust the certificates in FILE (PEM) instead of the system's",
     )
 
     p = sub.add_parser("case", description="run one case's caller side (inside a container)")
@@ -298,6 +318,7 @@ example:
             p.add_argument("--replies", type=Path, help="with --speech: reply with these WAVs")
             p.add_argument("--case", help="behave as this conformance case needs")
             p.add_argument("--behaviour", default="good", help="with --case: which behaviour")
+            p.add_argument("--tls", type=Path, help="SIP over TLS too, with server.crt here")
         else:
             p.add_argument("uri")
             p.add_argument("--turns", type=int, default=20)
@@ -323,6 +344,8 @@ example:
     if args.cmd is None:
         parser.print_help()
         raise SystemExit(2)
+    if args.cmd in ("calibrate", "cases") and args.tls and args.carrier:
+        parser.error("--tls: not with --carrier yet")
     if args.cmd in ("calibrate", "cases", "target"):
         from rtpbench.progress import Progress
 
@@ -345,6 +368,7 @@ example:
                 args.replies,
                 args.barge_in,
                 args.carrier,
+                args.tls,
                 progress=progress,
             )
         print(summary)
@@ -353,7 +377,9 @@ example:
         from rtpbench.bench import cases as run_cases
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        names = args.only.split(",") if args.only else cases.names(args.carrier)
+        names = args.only.split(",") if args.only else cases.names(args.carrier, args.tls)
+        if args.tls and "large-invite" in names:
+            parser.error(LARGE_INVITE_TLS)
         with progress:
             summary, proven = run_cases(
                 out,
@@ -362,6 +388,7 @@ example:
                 args.runs,
                 args.seed,
                 args.carrier,
+                args.tls,
                 progress=progress,
             )
         print(summary)
@@ -374,11 +401,16 @@ example:
         if problem := _target_args(args):
             parser.error(problem)
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+        from rtpbench.sip import secure
+
+        tls = is_uri(args.name) and secure(args.name)
         names = (
             args.only.split(",")
             if args.only
-            else [*cases.names(args.carrier), "latency", "barge-in"]
+            else [*cases.names(args.carrier, tls), "latency", "barge-in"]
         )
+        if tls and "large-invite" in names:
+            parser.error(LARGE_INVITE_TLS)
         profiles = args.profiles.split(",")
         with progress:
             summary = target(
@@ -394,6 +426,7 @@ example:
                 args.proxy,
                 args.network,
                 args.advertise,
+                args.ca,
                 progress=progress,
             )
         print(summary)
@@ -443,6 +476,8 @@ example:
         from rtpbench.capture import capture
 
         args.out.mkdir(parents=True, exist_ok=True)
+        if args.cmd != "agent":  # the caller's TLS session keys, which judging decrypts with
+            os.environ["SSLKEYLOGFILE"] = str(args.out / "keys.log")
         with capture(args.out / f"{'agent' if args.cmd == 'agent' else 'caller'}.pcap", args.iface):
             if args.cmd == "agent":
                 from rtpbench.agent import serve
@@ -459,6 +494,7 @@ example:
                     replies=args.replies,
                     barge=args.barge_in,
                     case=behaviour,
+                    tls=args.tls,
                 )
                 if args.case:
                     log |= {"case": args.case, "behaviour": args.behaviour}

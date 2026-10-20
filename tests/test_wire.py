@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from rtpbench import analyze, cases, g711, pcap, rtp, sip
+from rtpbench import analyze, g711, pcap, rtp, sip
 from rtpbench.clock import CLOCK
 
 
@@ -166,7 +166,7 @@ def test_sip_over_tcp_is_framed_from_the_stream(tmp_path: Path) -> None:
             (4_000, *b, *a, 99, trying),
         ],
     )
-    got = cases._sip_over_tcp(pcap.read(tmp_path / "x.pcap"))
+    got = sip.captured(pcap.read(tmp_path / "x.pcap"))
     assert [(t, src, len(m)) for t, src, m in got] == [
         (1_000, "10.0.0.1", len(invite)),
         (4_000, "10.0.0.2", len(trying)),

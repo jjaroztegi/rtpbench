@@ -6,12 +6,14 @@ import os
 import random
 import secrets
 import socket
+import ssl
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-from rtpbench import bargein, g711, sip, speech
+from rtpbench import bargein, g711, sip, speech, tls
 from rtpbench.clock import CLOCK
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, RATE, voice
@@ -98,9 +100,29 @@ def _bind[S](make: Callable[[int], S], ports: range) -> S:
 
 
 def parse_uri(uri: str) -> tuple[str, int]:
-    hostport = uri.split("@", 1)[-1].split(";", 1)[0].removeprefix("sip:")
+    hostport = uri.split("@", 1)[-1].split(";", 1)[0]
+    scheme, sep, rest = hostport.partition(":")
+    if sep and scheme.lower() in ("sip", "sips"):  # no user part; schemes ignore case
+        hostport = rest
     host, _, port = hostport.partition(":")
-    return host, int(port or 5060)
+    return host, int(port or (sip.TLS_PORT if sip.secure(uri) else 5060))
+
+
+def _tls(port: int, hostname: str) -> sip.Tls:
+    """SIP over TLS from `port`, checking `hostname`'s certificate against the system's trusted
+    certificates, or against RTPBENCH_TLS/ca.pem if there is one; with RTPBENCH_TLS/server.crt
+    (and .key) it also takes connections the far end opens. The contexts log their session
+    keys to SSLKEYLOGFILE, which judging needs to read the capture."""
+    where = Path(os.environ.get("RTPBENCH_TLS", "/nonexistent"))
+    ca = where / "ca.pem"
+    client = ssl.create_default_context(cafile=ca if ca.exists() else None)
+    client.minimum_version = ssl.TLSVersion.TLSv1_2
+    client.set_ciphers(tls.CIPHERS_12)
+    server = None
+    if (where / "server.crt").exists():
+        server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        server.load_cert_chain(where / "server.crt", where / "server.key")
+    return sip.Tls(port, client, server, hostname)
 
 
 class Session:
@@ -121,10 +143,11 @@ class Session:
         tcp: bool = False,
     ) -> None:
         host, port = parse_uri(proxy or uri)  # an outbound proxy takes it whatever its URI
-        # the agent's host as the router resolved it (RTPBENCH_RESOLVE, HOST=IP): a name on the
+        # hosts as the router resolved them (RTPBENCH_RESOLVE, HOST=IP,...): a name on the
         # agent's Docker network resolves only there, and netem needs the same address
-        name, _, ip = os.environ.get("RTPBENCH_RESOLVE", "").partition("=")
-        peer = (ip if host == name else host, port)
+        names = os.environ.get("RTPBENCH_RESOLVE", "").split(",")
+        resolved = dict(n.split("=", 1) for n in names if "=" in n)
+        peer = (resolved.get(host, host), port)
         if advertise := os.environ.get("RTPBENCH_ADVERTISE"):
             local_ip, _, first = advertise.rpartition(":")
             ports = range(int(first), int(first) + ADVERTISE_PORTS)
@@ -134,7 +157,10 @@ class Session:
             local_ip, ports = probe.getsockname()[0], range(1)  # port 0: any
         sock: socket.socket | sip.Tcp
         # sip.Tcp raises ConnectionRefusedError at the INVITE if the far end takes no TCP
-        sock = _bind(sip.Tcp, ports) if tcp else _bind(_udp, ports)
+        if sip.secure(uri):
+            sock = _bind(lambda p: _tls(p, host), ports)
+        else:
+            sock = _bind(sip.Tcp, ports) if tcp else _bind(_udp, ports)
         self.rtp = _bind(_udp, ports)
         self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
         self.origin = (secrets.randbelow(1 << 31), 0)  # SDP session id, version
@@ -154,7 +180,12 @@ class Session:
         self.addr, self.pt = ("", 0), 0
         self.seq0, self.ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
         self.media: tuple[Sender, Receiver] | None = None
-        self.dialog.send(self.invite)
+        try:
+            self.dialog.send(self.invite)
+        except OSError as e:  # over TCP the caller may retry over UDP; over TLS it cannot
+            if not sip.secure(uri):
+                raise
+            raise sip.SipError(f"TLS to {peer[0]}:{peer[1]}: {type(e).__name__}: {e}") from e
 
     def pump(self, timeout: float) -> None:
         """Handle the next SIP message, if one comes within `timeout`."""
@@ -378,6 +409,7 @@ class Session:
             "call_id": self.dialog.call_id,
             "rtp_port": self.rtp.getsockname()[1],
             "transport": self.dialog.transport,
+            **({"tls": sock.negotiated()} if isinstance(sock := self.dialog.sock, sip.Tls) else {}),
             "send_errors": self.media[0].send_errors if self.media else [],
         }
 

@@ -40,7 +40,7 @@ for a second and answers, or answers 486 for `refer-fail`.
 | `reinvite-nosdp` | a re-INVITE without SDP, as PBXs send to move or audit media (RFC 3261 14.1): the 2xx offers the call's codec, the caller answers in the ACK, media undisturbed, a reply within 10 s |
 | `hold-zero` | hold the RFC 2543 way, `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4): 2xx, no agent RTP while held, RTP back within 1 s as the same stream |
 | `codec-change` | a re-INVITE offers the other G.711 law alone and the caller switches on the 2xx: the answer has that law alone, the agent's RTP switches, a reply within 10 s |
-| `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record |
+| `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record. Not over TLS |
 
 An agent may send RTP only while it speaks (silence suppression, RFC 3551 4.1). When it sent
 nothing for a second before a hold or a refresh, its silence afterwards is not the request's
