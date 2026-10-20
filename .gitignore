@@ -8,3 +8,4 @@ results/*
 !results/baseline/
 !results/metrology/
 !results/media-path/
+!results/tls-srtp/

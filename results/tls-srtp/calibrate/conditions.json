@@ -1,0 +1,46 @@
+{
+ "date": "2026-10-20T16:23:44+00:00",
+ "commit": "v0.1.0-25-g274e92d",
+ "image": "rtpbench:f026db2ef9a8",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  0.4,
+  0.51,
+  0.65
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "tls": true,
+ "tls_trust": "ca sha256:aaf72df4ef64d7ca72fac3ad05eddf504c7f0bfe976f0f9d48bfaca3437bf77d",
+ "srtp": [
+  "AES_CM_128_HMAC_SHA1_80",
+  "AES_CM_128_HMAC_SHA1_32",
+  "AEAD_AES_128_GCM"
+ ],
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "turns_per_profile": 20,
+ "codecs": null,
+ "speech": false,
+ "barge": false,
+ "carrier": false,
+ "clock_steps": [],
+ "load_end": [
+  1.21,
+  1.25,
+  1.0
+ ]
+}

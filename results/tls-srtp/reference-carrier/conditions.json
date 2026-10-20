@@ -1,0 +1,47 @@
+{
+ "date": "2026-10-20T16:57:56+00:00",
+ "commit": "v0.1.0-25-g274e92d",
+ "image": "rtpbench:f026db2ef9a8",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  1.98,
+  1.08,
+  1.05
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "tls": true,
+ "tls_trust": "ca sha256:ad88917d320f6edb80cc05d0e897ca1bd7f2594fb823314b2c13de9a607cbafb",
+ "srtp": [
+  "AES_CM_128_HMAC_SHA1_80",
+  "AES_CM_128_HMAC_SHA1_32",
+  "AEAD_AES_128_GCM"
+ ],
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean"
+ ],
+ "runs": 1,
+ "carrier": true,
+ "images": "CONTAINER                         REPOSITORY           TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-3322b7-agent-1           rtpbench             f026db2ef9a8        linux/amd64         7a8585367878        165MB               34 minutes ago\nrtpbench-3322b7-caller-1          rtpbench             f026db2ef9a8        linux/amd64         7a8585367878        165MB               34 minutes ago\nrtpbench-3322b7-carrier-1         rtpbench             f026db2ef9a8        linux/amd64         7a8585367878        165MB               34 minutes ago\nrtpbench-3322b7-carrier-media-1   rtpbench-rtpengine   12.5.1.31           linux/amd64         31fc6a10191c        295MB               3 days ago\nrtpbench-3322b7-carrier-sip-1     rtpbench-opensips    3.6.9-1-tls         linux/amd64         482a0417b949        267MB               23 hours ago\nrtpbench-3322b7-operator-1        rtpbench             f026db2ef9a8        linux/amd64         7a8585367878        165MB               34 minutes ago\nrtpbench-3322b7-router-1          rtpbench             f026db2ef9a8        linux/amd64         7a8585367878        165MB               34 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  2.74,
+  2.52,
+  1.8
+ ]
+}

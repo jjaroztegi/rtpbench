@@ -1,0 +1,2294 @@
+[
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "greeting",
+  "behaviour": "good",
+  "run": "clean/01/greeting-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent speaks first",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent speaks within 2000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515482005074195,
+     1792515482834532000
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "200 OK to agent speech",
+    "ms": 829.457805,
+    "bar": [
+     1.0,
+     63.6,
+     "webrtcvad first onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 799.975669,
+    "span": [
+     1792515482005074195,
+     1792515482834532000
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "greeting",
+  "behaviour": "late",
+  "run": "clean/01/greeting-late",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call answered",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent speaks first",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent speaks within 2000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515489579885504,
+     1792515492609524106
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "200 OK to agent speech",
+    "ms": 3029.638602,
+    "bar": [
+     1.0,
+     63.6,
+     "webrtcvad first onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 3000.139096,
+    "span": [
+     1792515489579885504,
+     1792515492609524106
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "greeting",
+  "behaviour": "silent",
+  "run": "clean/01/greeting-silent",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call answered",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent speaks first",
+    "ok": false,
+    "detail": "",
+    "span": null
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "bye",
+  "behaviour": "good",
+  "run": "clean/01/bye-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "agent was talking at the BYE",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "BYE answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent RTP stops within 500 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515515806646764,
+     1792515515823898966
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "BYE to its response",
+    "ms": 1.570382,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515515806646764,
+     1792515515808217146
+    ]
+   },
+   {
+    "name": "BYE to the agent's last RTP",
+    "ms": 17.252202,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515515806646764,
+     1792515515823898966
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "bye",
+  "behaviour": "linger",
+  "run": "clean/01/bye-linger",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent was talking at the BYE",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "BYE answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent RTP stops within 500 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515524087880485,
+     1792515526305314445
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "BYE to its response",
+    "ms": 1.424922,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515524087880485,
+     1792515524089305407
+    ]
+   },
+   {
+    "name": "BYE to the agent's last RTP",
+    "ms": 2217.43396,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515524087880485,
+     1792515526305314445
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "cancel",
+  "behaviour": "good",
+  "run": "clean/01/cancel-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "CANCEL answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 canceling",
+    "span": null
+   },
+   {
+    "name": "INVITE ended 487",
+    "ok": true,
+    "detail": "SIP/2.0 487 Request Terminated",
+    "span": null
+   },
+   {
+    "name": "no agent RTP after the CANCEL",
+    "ok": true,
+    "detail": "0 packets",
+    "span": null
+   }
+  ],
+  "timings": [
+   {
+    "name": "CANCEL to the INVITE's final response",
+    "ms": 1.340462,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515531011361024,
+     1792515531012701486
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "cancel",
+  "behaviour": "answers",
+  "run": "clean/01/cancel-answers",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "CANCEL answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 canceling",
+    "span": null
+   },
+   {
+    "name": "INVITE ended 487",
+    "ok": false,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "no agent RTP after the CANCEL",
+    "ok": false,
+    "detail": "3 packets",
+    "span": [
+     1792515536691321998,
+     1792515540675792717
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "CANCEL to the INVITE's final response",
+    "ms": 3924.819043,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515536691321998,
+     1792515540616141041
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "hold",
+  "behaviour": "good",
+  "run": "clean/01/hold-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "sendonly hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: answer recvonly or inactive",
+    "ok": true,
+    "detail": "recvonly",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: no agent RTP",
+    "ok": true,
+    "detail": "0 packets",
+    "span": [
+     1792515557247937842,
+     1792515560248485262
+    ]
+   },
+   {
+    "name": "resume from sendonly: agent RTP within 1000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515560250066684,
+     1792515560282951256
+    ]
+   },
+   {
+    "name": "resume from sendonly: same RTP stream",
+    "ok": true,
+    "detail": "ssrc 0x3a8a6da3->0x3a8a6da3, seq 45863->45865, clock +0 ms",
+    "span": [
+     1792515556762896886,
+     1792515560762958803
+    ]
+   },
+   {
+    "name": "inactive hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "inactive hold: answer inactive",
+    "ok": true,
+    "detail": "inactive",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "inactive hold: no agent RTP",
+    "ok": true,
+    "detail": "0 packets",
+    "span": [
+     1792515563252100814,
+     1792515566252683188
+    ]
+   },
+   {
+    "name": "resume from inactive: agent RTP within 1000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515566254438400,
+     1792515566282956466
+    ]
+   },
+   {
+    "name": "resume from inactive: same RTP stream",
+    "ok": true,
+    "detail": "ssrc 0x3a8a6da3->0x3a8a6da3, seq 46013->46015, clock -0 ms",
+    "span": [
+     1792515562762944815,
+     1792515566762958143
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "sendonly hold: re-INVITE to 2xx",
+    "ms": 1.662653,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515557246275189,
+     1792515557247937842
+    ]
+   },
+   {
+    "name": "resume from sendonly: re-INVITE to 2xx",
+    "ms": 1.581422,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515560248485262,
+     1792515560250066684
+    ]
+   },
+   {
+    "name": "resume from sendonly: 2xx to agent RTP",
+    "ms": 32.884572,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515560250066684,
+     1792515560282951256
+    ]
+   },
+   {
+    "name": "resume from sendonly: RTP clock drift",
+    "ms": 0.00048828125,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515556762896886,
+     1792515560762958803
+    ]
+   },
+   {
+    "name": "inactive hold: re-INVITE to 2xx",
+    "ms": 1.510252,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515563250590562,
+     1792515563252100814
+    ]
+   },
+   {
+    "name": "resume from inactive: re-INVITE to 2xx",
+    "ms": 1.755212,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515566252683188,
+     1792515566254438400
+    ]
+   },
+   {
+    "name": "resume from inactive: 2xx to agent RTP",
+    "ms": 28.518066,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515566254438400,
+     1792515566282956466
+    ]
+   },
+   {
+    "name": "resume from inactive: RTP clock drift",
+    "ms": -0.064208984375,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515562762944815,
+     1792515566762958143
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "hold",
+  "behaviour": "ignore",
+  "run": "clean/01/hold-ignore",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "sendonly hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: answer recvonly or inactive",
+    "ok": false,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: no agent RTP",
+    "ok": false,
+    "detail": "125 packets",
+    "span": [
+     1792515584108031647,
+     1792515587108562709
+    ]
+   },
+   {
+    "name": "inactive hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "inactive hold: answer inactive",
+    "ok": false,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "inactive hold: no agent RTP",
+    "ok": false,
+    "detail": "125 packets",
+    "span": [
+     1792515590112323720,
+     1792515593112946275
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "sendonly hold: re-INVITE to 2xx",
+    "ms": 1.627382,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515584106404265,
+     1792515584108031647
+    ]
+   },
+   {
+    "name": "resume from sendonly: re-INVITE to 2xx",
+    "ms": 1.616822,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515587108562709,
+     1792515587110179531
+    ]
+   },
+   {
+    "name": "inactive hold: re-INVITE to 2xx",
+    "ms": 1.630652,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515590110693068,
+     1792515590112323720
+    ]
+   },
+   {
+    "name": "resume from inactive: re-INVITE to 2xx",
+    "ms": 1.709442,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515593112946275,
+     1792515593114655717
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "hold",
+  "behaviour": "clock",
+  "run": "clean/01/hold-clock",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "sendonly hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: answer recvonly or inactive",
+    "ok": true,
+    "detail": "recvonly",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from sendonly: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "sendonly hold: no agent RTP",
+    "ok": true,
+    "detail": "0 packets",
+    "span": [
+     1792515610969720379,
+     1792515613970355931
+    ]
+   },
+   {
+    "name": "resume from sendonly: agent RTP within 1000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515613972050453,
+     1792515614004920915
+    ]
+   },
+   {
+    "name": "resume from sendonly: same RTP stream",
+    "ok": false,
+    "detail": "ssrc 0x4c3943f0->0x4c3943f0, seq 23683->23685, clock -3000 ms",
+    "span": [
+     1792515610484877854,
+     1792515614484829203
+    ]
+   },
+   {
+    "name": "inactive hold: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "inactive hold: answer inactive",
+    "ok": true,
+    "detail": "inactive",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "resume from inactive: answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "inactive hold: no agent RTP",
+    "ok": true,
+    "detail": "0 packets",
+    "span": [
+     1792515616974243384,
+     1792515619974799390
+    ]
+   },
+   {
+    "name": "resume from inactive: agent RTP within 1000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515619976314022,
+     1792515620004954027
+    ]
+   },
+   {
+    "name": "resume from inactive: same RTP stream",
+    "ok": false,
+    "detail": "ssrc 0x4c3943f0->0x4c3943f0, seq 23833->23835, clock -3000 ms",
+    "span": [
+     1792515616484825895,
+     1792515620484947474
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "sendonly hold: re-INVITE to 2xx",
+    "ms": 1.749562,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515610967970817,
+     1792515610969720379
+    ]
+   },
+   {
+    "name": "resume from sendonly: re-INVITE to 2xx",
+    "ms": 1.694522,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515613970355931,
+     1792515613972050453
+    ]
+   },
+   {
+    "name": "resume from sendonly: 2xx to agent RTP",
+    "ms": 32.870462,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515613972050453,
+     1792515614004920915
+    ]
+   },
+   {
+    "name": "resume from sendonly: RTP clock drift",
+    "ms": -2999.992431640625,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515610484877854,
+     1792515614484829203
+    ]
+   },
+   {
+    "name": "inactive hold: re-INVITE to 2xx",
+    "ms": 1.639412,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515616972603972,
+     1792515616974243384
+    ]
+   },
+   {
+    "name": "resume from inactive: re-INVITE to 2xx",
+    "ms": 1.514632,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515619974799390,
+     1792515619976314022
+    ]
+   },
+   {
+    "name": "resume from inactive: 2xx to agent RTP",
+    "ms": 28.640005,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515619976314022,
+     1792515620004954027
+    ]
+   },
+   {
+    "name": "resume from inactive: RTP clock drift",
+    "ms": -3000.009033203125,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515616484825895,
+     1792515620484947474
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "dtmf-rfc4733",
+  "behaviour": "good",
+  "run": "clean/01/dtmf-rfc4733-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "telephone-event negotiated",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent reacts within 5000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515637957666863,
+     1792515638785223574
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "digit to agent speech",
+    "ms": 827.556711,
+    "bar": [
+     1.0,
+     63.6,
+     "webrtcvad first onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 800.290797,
+    "span": [
+     1792515637957666863,
+     1792515638785223574
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "dtmf-rfc4733",
+  "behaviour": "deaf",
+  "run": "clean/01/dtmf-rfc4733-deaf",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "telephone-event negotiated",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent reacts within 5000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515657348798965,
+     1792515662348798965
+    ]
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "dtmf-info",
+  "behaviour": "good",
+  "run": "clean/01/dtmf-info-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "INFO answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent reacts within 5000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515680353774521,
+     1792515681180694732
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "INFO to its response",
+    "ms": 1.166352,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515680353774521,
+     1792515680354940873
+    ]
+   },
+   {
+    "name": "digit to agent speech",
+    "ms": 826.920211,
+    "bar": [
+     1.0,
+     63.6,
+     "webrtcvad first onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 801.098297,
+    "span": [
+     1792515680353774521,
+     1792515681180694732
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "dtmf-info",
+  "behaviour": "deaf",
+  "run": "clean/01/dtmf-info-deaf",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "INFO answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent reacts within 5000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515699780021747,
+     1792515704780021747
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "INFO to its response",
+    "ms": 1.042181,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515699780021747,
+     1792515699781063928
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer",
+  "behaviour": "good",
+  "run": "clean/01/refer-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent hangs up within 10 s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515726764457175,
+     1792515726766621447
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1311.349457,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515724423886001,
+     1792515725735235458
+    ]
+   },
+   {
+    "name": "final NOTIFY to agent BYE",
+    "ms": 2.164272,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515726764457175,
+     1792515726766621447
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer",
+  "behaviour": "stays",
+  "run": "clean/01/refer-stays",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent hangs up within 10 s",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515745757328447,
+     1792515755757328447
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1312.385939,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515743413694784,
+     1792515744726080723
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer",
+  "behaviour": "early",
+  "run": "clean/01/refer-early",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": false,
+    "detail": "SIP/2.0 481 Subscription Does Not Exist",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
+    "ok": false,
+    "detail": "SIP/2.0 481 Subscription Does Not Exist",
+    "span": null
+   },
+   {
+    "name": "agent hangs up within 10 s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515774869137734,
+     1792515773839378030
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1309.660167,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515772528384131,
+     1792515773838044298
+    ]
+   },
+   {
+    "name": "final NOTIFY to agent BYE",
+    "ms": -1029.759704,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515774869137734,
+     1792515773839378030
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer-fail",
+  "behaviour": "good",
+  "run": "clean/01/refer-fail-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 486 Busy Here) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent keeps the call for 10 s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515796647849169,
+     1792515806647849169
+    ]
+   },
+   {
+    "name": "agent speaks within 5000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515796647849169,
+     1792515797467876894
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1311.882582,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515795313847080,
+     1792515796625729662
+    ]
+   },
+   {
+    "name": "failure NOTIFY to agent speech",
+    "ms": 820.027725,
+    "bar": [
+     1.0,
+     63.6,
+     "webrtcvad first onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 800.898541,
+    "span": [
+     1792515796647849169,
+     1792515797467876894
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer-fail",
+  "behaviour": "hangs-up",
+  "run": "clean/01/refer-fail-hangs-up",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 486 Busy Here) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent keeps the call for 10 s",
+    "ok": false,
+    "detail": "BYE 2 ms after it",
+    "span": [
+     1792515824865609780,
+     1792515824867332452
+    ]
+   },
+   {
+    "name": "agent speaks within 5000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515824865609780,
+     1792515829865609780
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1310.774211,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515823532671542,
+     1792515824843445753
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer-fail",
+  "behaviour": "silent",
+  "run": "clean/01/refer-fail-silent",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 486 Busy Here) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent keeps the call for 10 s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515842925878492,
+     1792515852925878492
+    ]
+   },
+   {
+    "name": "agent speaks within 5000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792515842925878492,
+     1792515847925878492
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1314.526211,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515841589085365,
+     1792515842903611576
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "timer",
+  "behaviour": "good",
+  "run": "clean/01/timer-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "Session-Expires in the 2xx",
+    "ok": true,
+    "detail": "timers not supported",
+    "span": null
+   },
+   {
+    "name": "refresher=uac kept, Require: timer",
+    "ok": true,
+    "detail": "90;refresher=uac",
+    "span": null
+   },
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC",
+    "span": [
+     1792515901906380544,
+     1792515904907959170
+    ]
+   },
+   {
+    "name": "agent ends the session in (45, 90] s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792515902907959170,
+     1792515962913194655
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.578512,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515902906380658,
+     1792515902907959170
+    ]
+   },
+   {
+    "name": "refresh 2xx to agent BYE",
+    "ms": 60005.235485,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792515902907959170,
+     1792515962913194655
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "timer",
+  "behaviour": "unsupported",
+  "run": "clean/01/timer-unsupported",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "Session-Expires in the 2xx",
+    "ok": false,
+    "detail": "timers not supported",
+    "span": null
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "timer",
+  "behaviour": "no-expiry",
+  "run": "clean/01/timer-no-expiry",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "Session-Expires in the 2xx",
+    "ok": true,
+    "detail": "timers not supported",
+    "span": null
+   },
+   {
+    "name": "refresher=uac kept, Require: timer",
+    "ok": true,
+    "detail": "90;refresher=uac",
+    "span": null
+   },
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved +0 ms, 1 SSRC",
+    "span": [
+     1792516018783135744,
+     1792516021784774441
+    ]
+   },
+   {
+    "name": "agent ends the session in (45, 90] s",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792516019784774441,
+     1792516109784774441
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.638672,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792516019783135769,
+     1792516019784774441
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "compact-headers",
+  "behaviour": "good",
+  "run": "clean/01/compact-headers-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516124380383406,
+     1792516125483885212
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.501806,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1076.01439,
+    "span": [
+     1792516124380383406,
+     1792516125483885212
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "compact-headers",
+  "behaviour": "long-names",
+  "run": "clean/01/compact-headers-long-names",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call completed",
+    "ok": false,
+    "detail": "SIP/2.0 500 Server Internal Error",
+    "span": null
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "sdp-ssrc",
+  "behaviour": "good",
+  "run": "clean/01/sdp-ssrc-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516139532709104,
+     1792516140636368698
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.659594,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1076.147069,
+    "span": [
+     1792516139532709104,
+     1792516140636368698
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "sdp-ssrc",
+  "behaviour": "strict",
+  "run": "clean/01/sdp-ssrc-strict",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call completed",
+    "ok": false,
+    "detail": "SIP/2.0 488 Not Acceptable Here",
+    "span": null
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "late-offer",
+  "behaviour": "good",
+  "run": "clean/01/late-offer-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516154454712573,
+     1792516155556628823
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1101.91625,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1074.500935,
+    "span": [
+     1792516154454712573,
+     1792516155556628823
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "late-offer",
+  "behaviour": "rejects",
+  "run": "clean/01/late-offer-rejects",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call completed",
+    "ok": false,
+    "detail": "SIP/2.0 488 Not Acceptable Here",
+    "span": null
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ptime-30",
+  "behaviour": "good",
+  "run": "clean/01/ptime-30-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516169387554442,
+     1792516170570901738
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1183.347296,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1155.806136,
+    "span": [
+     1792516169387554442,
+     1792516170570901738
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ptime-30",
+  "behaviour": "20ms-only",
+  "run": "clean/01/ptime-30-20ms-only",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792516180593077399,
+     1792516190593077399
+    ]
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "good",
+  "run": "clean/01/ssrc-change-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516206037538756,
+     1792516207141514185
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.975429,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1076.491485,
+    "span": [
+     1792516206037538756,
+     1792516207141514185
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "ssrc-change",
+  "behaviour": "first-ssrc",
+  "run": "clean/01/ssrc-change-first-ssrc",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "caller's RTP switched source",
+    "ok": true,
+    "detail": "2",
+    "span": null
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792516217447026733,
+     1792516227447026733
+    ]
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "good",
+  "run": "clean/01/reinvite-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC",
+    "span": [
+     1792516240175230976,
+     1792516243177560881
+    ]
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516242953062365,
+     1792516244056984801
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 2.329823,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792516241175231058,
+     1792516241177560881
+    ]
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.922436,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1076.363702,
+    "span": [
+     1792516242953062365,
+     1792516244056984801
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite",
+  "behaviour": "one-way",
+  "run": "clean/01/reinvite-one-way",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": false,
+    "detail": "agent RTP stops 0 ms after the 2xx",
+    "span": [
+     1792516251364606720,
+     1792516254367334557
+    ]
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792516254143089592,
+     1792516264143089592
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 2.727881,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792516252364606676,
+     1792516252367334557
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite-nosdp",
+  "behaviour": "good",
+  "run": "clean/01/reinvite-nosdp-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "2xx offers the call's codec",
+    "ok": true,
+    "detail": "0",
+    "span": null
+   },
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC",
+    "span": [
+     1792516276918032128,
+     1792516279919640749
+    ]
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516279695681347,
+     1792516280799107401
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.60857,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792516277918032179,
+     1792516277919640749
+    ]
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.426054,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1075.898679,
+    "span": [
+     1792516279695681347,
+     1792516280799107401
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "reinvite-nosdp",
+  "behaviour": "no-offer",
+  "run": "clean/01/reinvite-nosdp-no-offer",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "2xx offers the call's codec",
+    "ok": false,
+    "detail": "no SDP",
+    "span": null
+   },
+   {
+    "name": "refresh answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "refresh answer sendrecv",
+    "ok": true,
+    "detail": "sendrecv",
+    "span": null
+   },
+   {
+    "name": "media undisturbed by the refresh",
+    "ok": true,
+    "detail": "clock skipped 0 ms, moved -0 ms, 1 SSRC",
+    "span": [
+     1792516288197559552,
+     1792516291199414160
+    ]
+   },
+   {
+    "name": "agent replies within 10000 ms",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792516290975740161,
+     1792516292078872310
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "refresh re-INVITE to 2xx",
+    "ms": 1.854537,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792516289197559623,
+     1792516289199414160
+    ]
+   },
+   {
+    "name": "end of the question to agent speech",
+    "ms": 1103.132149,
+    "bar": [
+     -3.2,
+     44.6,
+     "webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5)"
+    ],
+    "truth_ms": 1075.632519,
+    "span": [
+     1792516290975740161,
+     1792516292078872310
+    ]
+   }
+  ],
+  "stepped": []
+ }
+]
