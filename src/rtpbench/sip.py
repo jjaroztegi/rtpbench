@@ -386,6 +386,7 @@ class Tls(Tcp):
     ) -> None:
         super().__init__(port)
         self.client, self.accepting, self.hostname = client, server, hostname
+        self.first: dict[str, str] = {}  # version and cipher of the first handshake
 
     def _open(self, addr: tuple[str, int]) -> socket.socket:
         if self.client is None:
@@ -397,10 +398,16 @@ class Tls(Tcp):
         try:
             conn.bind(("0.0.0.0", self.getsockname()[1]))
             conn.connect(addr)
-            return self.client.wrap_socket(conn, server_hostname=self.hostname)
+            tls_conn = self.client.wrap_socket(conn, server_hostname=self.hostname)
         except OSError:
             conn.close()
             raise
+        self._note(tls_conn)
+        return tls_conn
+
+    def _note(self, conn: ssl.SSLSocket) -> None:
+        if not self.first and (cipher := conn.cipher()):
+            self.first = {"version": conn.version() or "", "cipher": cipher[0]}
 
     def _accept(self, conn: socket.socket) -> socket.socket | None:
         if self.accepting is None:
@@ -413,14 +420,12 @@ class Tls(Tcp):
             conn.close()
             return None
         tls_conn.settimeout(None)
+        self._note(tls_conn)
         return tls_conn
 
     def negotiated(self) -> dict[str, str]:
-        """TLS version and cipher suite of the first connection."""
-        for conn in self.conns.values():
-            if isinstance(conn, ssl.SSLSocket) and (cipher := conn.cipher()):
-                return {"version": conn.version() or "", "cipher": cipher[0]}
-        return {}
+        """TLS version and cipher suite of the first connection, closed or not."""
+        return self.first
 
 
 _SIP = re.compile(rb"(SIP/2\.0 \d{3} |[A-Z]+ \S+ SIP/2\.0\r\n)")

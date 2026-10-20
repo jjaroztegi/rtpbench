@@ -182,7 +182,7 @@ class Session:
         except OSError as e:  # over TCP the caller may retry over UDP; over TLS it cannot
             if not sip.secure(uri):
                 raise
-            raise sip.SipError(f"TLS to {host}:{port}: {type(e).__name__}: {e}") from e
+            raise sip.SipError(f"TLS to {peer[0]}:{peer[1]}: {type(e).__name__}: {e}") from e
 
     def pump(self, timeout: float) -> None:
         """Handle the next SIP message, if one comes within `timeout`."""

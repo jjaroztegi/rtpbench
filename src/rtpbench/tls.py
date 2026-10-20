@@ -106,10 +106,11 @@ def _connection(
 ) -> tuple[list[tuple[int, bytes]], list[tuple[int, bytes]]]:
     """Application data of each side (stream offset of its record, plaintext)."""
     sent, got = _records(client), _records(server)
-    if not got:  # no ServerHello: nothing was ever encrypted
-        return [], []
+    hello = got[0][3] if got and got[0][1] == _HANDSHAKE else b""
+    if len(hello) < 39 or hello[0] != 2 or len(hello) < 41 + hello[38]:
+        return [], []  # no ServerHello (an alert, or nothing): nothing was ever encrypted
     random = sent[0][3][6:38]  # ClientHello: type, length (3), version (2), random
-    hello = got[0][3]  # ServerHello: likewise, then the session id and the cipher suite
+    # ServerHello (`hello`): likewise, then the session id and the cipher suite
     suite = struct.unpack_from("!H", hello, 39 + hello[38])[0]
     where = f"TLS {flow[0]}:{flow[1]} -> {flow[2]}:{flow[3]}"
     if ("CLIENT_TRAFFIC_SECRET_0", random) in secrets:

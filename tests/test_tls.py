@@ -131,6 +131,7 @@ def test_tls_transport_checks_the_name_and_answers_on_the_connection(tmp_path: P
     client.settimeout(2)
     client.sendto(INVITE.render(), addr)
     accepting.join()
+    assert client.negotiated()["version"] == "TLSv1.3"  # kept once the connection closes
     ((data, peer),) = got
     assert data == INVITE.render()
     server.sendto(TRYING.render() + OK.render(), peer)  # one record, two messages
@@ -158,3 +159,11 @@ def test_tls_uris_and_contacts() -> None:
         == "<sip:rtpbench@10.0.0.1:4000;transport=tls>"
     )
     assert sip.contact("rtpbench", "10.0.0.1", 4000, "UDP") == "<sip:rtpbench@10.0.0.1:4000>"
+
+
+def test_a_refused_handshake_reads_as_no_messages(tmp_path: Path) -> None:
+    """The server answers the ClientHello with an alert: nothing to decrypt, no error."""
+    hello = _session(tmp_path, ssl.TLSVersion.TLSv1_3, None)[0]
+    alert = (False, b"\x15\x03\x03\x00\x02\x02\x28")  # fatal handshake_failure
+    _pcap(tmp_path / "x.pcap", [hello, alert])
+    assert sip.captured(pcap.read(tmp_path / "x.pcap"), tmp_path / "keys.log") == []
