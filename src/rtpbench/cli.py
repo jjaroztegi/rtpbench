@@ -227,6 +227,28 @@ example:
     p.add_argument("out", type=Path, metavar="DIR", help="a cases or target results directory")
 
     p = sub.add_parser(
+        "check",
+        help="pass or fail a target run against a policy; exit 1 if it fails (CI)",
+        description="""\
+Judge a finished target run against a policy, without placing calls: the cases that may fail,
+limits on turn latency and barge-in, and how far they may grow from an earlier run's
+check.json. Writes check.md and check.json in DIR; exits 1 if the run fails the policy, 2 if
+the policy, DIR or the previous check.json cannot be used. Without --policy, every case must
+pass.""",
+        epilog="""\
+example:
+  uv run --extra vad rtpbench check results/20260101-120000 --policy rtpbench.toml \\
+      --previous baseline/check.json
+""",
+        formatter_class=Help,
+    )
+    p.add_argument("out", type=Path, metavar="DIR", help="a target results directory")
+    p.add_argument("--policy", type=Path, metavar="FILE", help="TOML; see docs/ci.md")
+    p.add_argument(
+        "--previous", type=Path, metavar="FILE", help="an earlier run's check.json to compare with"
+    )
+
+    p = sub.add_parser(
         "analyze",
         help="summarise calibration run directories already captured",
         description="""\
@@ -394,6 +416,16 @@ example:
 
         print(judge(args.out)[0])
         print(f"report in {args.out / 'report.html'}")
+    elif args.cmd == "check":
+        from rtpbench.check import InputError, check
+
+        try:
+            text, ok = check(args.out, args.policy, args.previous)
+        except InputError as e:
+            parser.error(str(e))
+        print(text)
+        if not ok:
+            raise SystemExit(1)
     elif args.cmd == "analyze":
         from rtpbench import bargein, speechcal
 
