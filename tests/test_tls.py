@@ -171,3 +171,19 @@ def test_a_refused_handshake_reads_as_no_messages(tmp_path: Path) -> None:
     alert = (False, b"\x15\x03\x03\x00\x02\x02\x28")  # fatal handshake_failure
     _pcap(tmp_path / "x.pcap", [hello, alert])
     assert sip.captured(pcap.read(tmp_path / "x.pcap"), tmp_path / "keys.log") == []
+
+
+def test_uri_schemes_ignore_case() -> None:
+    from rtpbench.caller import parse_uri
+
+    assert parse_uri("SIPS:agent.example.com") == ("agent.example.com", 5061)
+    assert parse_uri("SIP:agent@host:5070") == ("host", 5070)
+
+
+def test_large_invite_is_refused_over_tls() -> None:
+    from rtpbench import cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["cases", "--tls", "--only", "large-invite"])
+    with pytest.raises(SystemExit):
+        cli.main(["target", "sips:agent@host", "--only", "greeting,large-invite"])

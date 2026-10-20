@@ -12,6 +12,7 @@ from rtpbench.bench import PROFILES, TARGETS, is_uri
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 
 CODECS = {"pcmu": 0, "pcma": 8}
+LARGE_INVITE_TLS = "large-invite: not over TLS (it checks the switch from UDP to TCP)"
 TLS_HELP = "SIP over TLS to the reference agent, its certificate from the stack's test CA"
 QUICK_START = """\
 quick start, from a clone (Linux, Docker 28 or later, uv):
@@ -377,6 +378,8 @@ example:
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else cases.names(args.carrier, args.tls)
+        if args.tls and "large-invite" in names:
+            parser.error(LARGE_INVITE_TLS)
         with progress:
             summary, proven = run_cases(
                 out,
@@ -406,6 +409,8 @@ example:
             if args.only
             else [*cases.names(args.carrier, tls), "latency", "barge-in"]
         )
+        if tls and "large-invite" in names:
+            parser.error(LARGE_INVITE_TLS)
         profiles = args.profiles.split(",")
         with progress:
             summary = target(

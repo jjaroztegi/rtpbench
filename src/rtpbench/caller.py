@@ -100,7 +100,10 @@ def _bind[S](make: Callable[[int], S], ports: range) -> S:
 
 
 def parse_uri(uri: str) -> tuple[str, int]:
-    hostport = uri.split("@", 1)[-1].split(";", 1)[0].removeprefix("sips:").removeprefix("sip:")
+    hostport = uri.split("@", 1)[-1].split(";", 1)[0]
+    scheme, sep, rest = hostport.partition(":")
+    if sep and scheme.lower() in ("sip", "sips"):  # no user part; schemes ignore case
+        hostport = rest
     host, _, port = hostport.partition(":")
     return host, int(port or (sip.TLS_PORT if sip.secure(uri) else 5060))
 
