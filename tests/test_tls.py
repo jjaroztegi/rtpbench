@@ -48,11 +48,13 @@ def _session(tmp: Path, version: ssl.TLSVersion, ciphers: str | None) -> list[tu
 
 
 def _pcap(path: Path, wire: list[tuple[bool, bytes]]) -> list[int]:
-    """The session as TCP segments of at most 500 bytes, 1 us apart; each segment's time."""
+    """The session as TCP segments of at most 500 bytes, 1 us apart; the time of each chunk's
+    first segment."""
     a, b = ((10, 0, 0, 1), 40000), ((10, 0, 0, 2), 5061)
     data = struct.pack("<IHHiIII", 0xA1B23C4D, 2, 4, 0, 0, 65535, 101)
-    seqs, times = {True: 1, False: 7}, list[int]()
+    seqs, times, firsts = {True: 1, False: 7}, list[int](), list[int]()
     for from_client, chunk in wire:
+        firsts.append(1000 * (len(times) + 1))
         (src, sport), (dst, dport) = (a, b) if from_client else (b, a)
         for i in range(0, len(chunk), 500):
             seg, t = chunk[i : i + 500], 1000 * (len(times) + 1)
@@ -69,7 +71,7 @@ def _pcap(path: Path, wire: list[tuple[bool, bytes]]) -> list[int]:
             seqs[from_client] += len(seg)
             times.append(t)
     path.write_bytes(data)
-    return times
+    return firsts
 
 
 @pytest.mark.parametrize(
@@ -85,7 +87,8 @@ def test_sip_read_back_from_a_tls_capture(
 ) -> None:
     """Each message in full at the time of the segment carrying its record's first byte, the
     100 and the 200 apart though one record carried both; nothing of the handshake."""
-    _pcap(tmp_path / "x.pcap", _session(tmp_path, version, ciphers))
+    wire = _session(tmp_path, version, ciphers)
+    firsts = _pcap(tmp_path / "x.pcap", wire)
     grams = pcap.read(tmp_path / "x.pcap")
     got = sip.captured(grams, tmp_path / "keys.log")
     assert [(src, data) for _, src, data in got] == [
@@ -94,8 +97,9 @@ def test_sip_read_back_from_a_tls_capture(
         ("10.0.0.2", OK.render()),
     ]
     invite_t, trying_t, ok_t = (t for t, _, _ in got)
-    records = [g for g in pcap.streams(grams) if g.payload[:1] == b"\x17"]
-    assert invite_t == next(g.t_ns for g in records if g.src == "10.0.0.1")
+    # the INVITE went in the client's last write, its record first in it (a segment starting with
+    # an application-data record may also be the TLS 1.3 client's encrypted Finished)
+    assert invite_t == firsts[max(i for i, (client, _) in enumerate(wire) if client)]
     assert trying_t == ok_t > invite_t
     (tmp_path / "keys.log").write_text("")
     with pytest.raises(ValueError, match="no keys"):
