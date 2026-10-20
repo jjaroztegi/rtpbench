@@ -27,6 +27,9 @@ Published:
 
 - [Baseline](../results/baseline): every case on the reference agent and both targets, on a
   mock engine, direct and through a carrier
+- [Media path](../results/media-path): what each target does to the caller's audio on its way
+  to the engine, and to the engine's on its way to the caller, on a mock engine that records
+  what it receives
 - [Metrology](../results/metrology): how far common ways of measuring turn latency (an agent's
   own view, energy and VAD rules on a recording, a mean of gaps) are from the truth, on the
   baseline's calibration calls
