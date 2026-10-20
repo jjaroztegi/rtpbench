@@ -30,6 +30,8 @@ Published:
 - [Media path](../results/media-path): what each target does to the caller's audio on its way
   to the engine, and to the engine's on its way to the caller, on a mock engine that records
   what it receives
+- [Asterisk + AVA](../results/ava): Asterisk and AVA over AudioSocket and over ExternalMedia, with
+  and without AVA's egress pacer, on a mock engine, direct and through a carrier
 - [SIP over TLS and SRTP](../results/tls-srtp): this host's timing error with both, direct and
   through the carrier, the cases proven on the reference agent over them, and AI Voice Connector
   CE behind a carrier that takes them

@@ -1,0 +1,58 @@
+{
+ "date": "2026-10-20T05:29:35+00:00",
+ "commit": "v0.1.0-21-g4161aa1",
+ "image": "rtpbench:0397e3c41635",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  4.46,
+  5.31,
+  5.32
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "ava",
+ "carrier": false,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "settings": {
+  "AVA_EGRESS_PACER": "true",
+  "AVA_TRANSPORT": "audiosocket"
+ },
+ "images": "CONTAINER                    REPOSITORY          TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-25c0db-agent-1      <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago\nrtpbench-25c0db-asterisk-1   <none>              <none>              linux/amd64         ebe295256688        326MB               42 minutes ago\nrtpbench-25c0db-caller-1     <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago\nrtpbench-25c0db-engine-1     <none>              <none>              linux/amd64         19d8d5cde424        459MB               12 hours ago\nrtpbench-25c0db-operator-1   <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago\nrtpbench-25c0db-realtime-1   <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago\nrtpbench-25c0db-router-1     <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago\nrtpbench-25c0db-target-1     <none>              <none>              linux/amd64         d6c40e715c19        138MB               16 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  3.33,
+  2.63,
+  2.6
+ ]
+}

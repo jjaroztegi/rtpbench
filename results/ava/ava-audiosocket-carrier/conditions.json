@@ -1,0 +1,58 @@
+{
+ "date": "2026-10-20T05:29:44+00:00",
+ "commit": "v0.1.0-21-g4161aa1",
+ "image": "rtpbench:0397e3c41635",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  5.22,
+  5.45,
+  5.37
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "ava",
+ "carrier": true,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "settings": {
+  "AVA_EGRESS_PACER": "true",
+  "AVA_TRANSPORT": "audiosocket"
+ },
+ "images": "CONTAINER                         REPOSITORY          TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-6fe92a-agent-1           <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-asterisk-1        <none>              <none>              linux/amd64         1441a2c89725        326MB               42 minutes ago\nrtpbench-6fe92a-caller-1          <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-carrier-1         <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-carrier-media-1   <none>              <none>              linux/amd64         3bce1d5422a7        295MB               2 days ago\nrtpbench-6fe92a-carrier-sip-1     <none>              <none>              linux/amd64         3adb34c11e0f        266MB               30 hours ago\nrtpbench-6fe92a-engine-1          <none>              <none>              linux/amd64         1ecddf2a5731        459MB               12 hours ago\nrtpbench-6fe92a-operator-1        <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-realtime-1        <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-router-1          <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago\nrtpbench-6fe92a-target-1          <none>              <none>              linux/amd64         8c55bca4b803        138MB               16 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  4.61,
+  4.86,
+  4.94
+ ]
+}
