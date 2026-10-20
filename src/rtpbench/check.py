@@ -282,10 +282,25 @@ def _shaped(before: Any) -> bool:
     """Whether `before` holds what `evaluate` reads of a previous run, as `measure` writes it
     (a profile may be missing: it was not run)."""
 
-    def turns(calls: Any) -> bool:
+    def number(v: Any) -> bool:
+        return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+
+    def turns(calls: Any) -> bool:  # None: unanswered, or not stopped
         return isinstance(calls, list) and all(
-            isinstance(c, list) and all(v is None or isinstance(v, int | float) for v in c)
-            for c in calls
+            isinstance(c, list) and all(v is None or number(v) for v in c) for c in calls
+        )
+
+    def entry(e: Any, series: str) -> bool:
+        return (
+            isinstance(e, dict)
+            and isinstance(e.get("codecs"), list)
+            and all(isinstance(pt, int) and not isinstance(pt, bool) for pt in e["codecs"])
+            and (
+                turns(e.get("calls", []))
+                if series == "calls"
+                else isinstance(e.get("kinds", {}), dict)
+                and all(turns(c) for c in e.get("kinds", {}).values())
+            )
         )
 
     if not isinstance(before, dict):
@@ -297,17 +312,10 @@ def _shaped(before: Any) -> bool:
             isinstance(cs, dict) and all(isinstance(v, list) for v in cs.values())
             for cs in verdicts.values()
         )
-        and all(
-            isinstance(e, dict) and isinstance(e.get("codecs"), list) and turns(e.get("calls", []))
-            for e in (latency.values() if isinstance(latency, dict) else [None])
-        )
-        and all(
-            isinstance(e, dict)
-            and isinstance(e.get("codecs"), list)
-            and isinstance(e.get("kinds", {}), dict)
-            and all(turns(c) for c in e.get("kinds", {}).values())
-            for e in (barge.values() if isinstance(barge, dict) else [None])
-        )
+        and isinstance(latency, dict)
+        and all(entry(e, "calls") for e in latency.values())
+        and isinstance(barge, dict)
+        and all(entry(e, "kinds") for e in barge.values())
     )
 
 
@@ -319,7 +327,7 @@ def check(out: Path, policy: Path | None, previous: Path | None) -> tuple[str, b
     try:
         now = measure(out)
         before = json.loads(previous.read_text()) if previous else None
-        if before is not None and not _shaped(before):
+        if previous and not _shaped(before):  # null too: it must not pass as no previous run
             raise InputError(f"{previous}: not a check.json")
     except InputError:
         raise

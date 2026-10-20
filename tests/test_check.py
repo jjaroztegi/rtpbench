@@ -173,10 +173,14 @@ def test_cli_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     with pytest.raises(SystemExit) as e:
         cli.main(["check", str(d), "--policy", str(_policy(tmp_path, "[cases]\nx = 'fail'\n"))])
     assert e.value.code == 2
-    good = json.loads((d / "check.json").read_text()) | {"latency": {"clean": {"calls": []}}}
-    for i, bad in enumerate(("[]", json.dumps(good))):  # not one; a profile without codecs
-        (tmp_path / f"previous{i}.json").write_text(bad)
-    for previous in ("previous0.json", "previous1.json", "missing.json"):
+    no_codecs = json.loads((d / "check.json").read_text()) | {"latency": {"clean": {"calls": []}}}
+    nan = json.loads((d / "check.json").read_text())
+    nan["latency"] = {"clean": {"codecs": [0], "calls": [[float("nan")]]}}
+    codecs = nan | {"latency": {"clean": {"codecs": [[0]], "calls": []}}}
+    bad = ["[]", "null", json.dumps(no_codecs), json.dumps(nan), json.dumps(codecs)]
+    for i, text in enumerate(bad):  # not one; null; no codecs; NaN; codecs not numbers
+        (tmp_path / f"previous{i}.json").write_text(text)
+    for previous in [*(f"previous{i}.json" for i in range(len(bad))), "missing.json"]:
         with pytest.raises(SystemExit) as e:
             cli.main(["check", str(d), "--previous", str(tmp_path / previous)])
         assert e.value.code == 2
