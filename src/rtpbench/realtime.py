@@ -40,6 +40,9 @@ DELTA_MS = 100  # audio per delta
 LEAD_NS = 500_000_000  # how far ahead of real time the audio is sent
 SPAN_DB = 40  # a line runs from its first to its last 20 ms within this of its loudest
 TOOL = "transfer_call"
+# the transfer tool as each target names it: AI Voice Connector CE and LiveKit, AVA
+TOOLS = (TOOL, "blind_transfer")
+DESTINATION = "operator"  # each bundled target's name for where a transfer goes
 SHORT, LONG = "tts-ljspeech-s00", "tts-ljspeech-long"
 _GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -166,6 +169,22 @@ def _pack(opcode: int, data: bytes) -> bytes:
 # --- the engine ---
 
 
+def _arguments(tool: dict[str, Any]) -> dict[str, str] | None:
+    """A transfer tool's arguments: every required one names the operator (AVA requires a
+    destination). None if one is not text or its schema rules the operator out: the mock does
+    not call the tool rather than send a call its schema rejects."""
+    params = tool.get("parameters") or {}
+    props = params.get("properties") or {}
+    required = params.get("required") or []
+    for k in required:
+        prop = props.get(k, {})
+        if prop.get("type") != "string" or DESTINATION not in prop.get("enum", [DESTINATION]):
+            return None
+        if prop.get("const", DESTINATION) != DESTINATION:
+            return None
+    return dict.fromkeys(required, DESTINATION)
+
+
 def _id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(8)}"
 
@@ -188,7 +207,7 @@ class Session:
         self.responding = False  # an answer has been created and is not done
         self.user_item = ""
         self.last_item = ""
-        self.tools: list[str] = []
+        self.tools: list[dict[str, Any]] = []
 
     # outgoing
 
@@ -240,15 +259,18 @@ class Session:
         if fmt:
             self.pt = {"audio/pcmu": g711.PCMU, "audio/pcma": g711.PCMA}.get(fmt)
         if "tools" in update:
-            self.tools = [t.get("name", "") for t in update["tools"]]
-        self.note({"event": "session", "format": fmt or None, "tools": self.tools})
+            self.tools = list(update["tools"])
+        names = [t.get("name", "") for t in self.tools]
+        self.note({"event": "session", "format": fmt or None, "tools": names})
 
-    async def added(self, item: dict[str, Any]) -> None:
+    async def added(self, item: dict[str, Any], done: bool = True) -> None:
+        """conversation.item.added, and with `done` its conversation.item.done."""
         await self.send(
             {"type": "conversation.item.added", "previous_item_id": self.last_item or None}
             | {"item": item}
         )
-        await self.send({"type": "conversation.item.done", "item": item})
+        if done:
+            await self.send({"type": "conversation.item.done", "item": item})
         self.last_item = item["id"]
 
     def decode(self, audio: bytes) -> list[int]:
@@ -361,9 +383,12 @@ class Session:
         since: int,
         heard: dict[str, Any] | None = None,
     ) -> None:
-        """Answer DELAY_NS after `since`: a clip, or a call to TOOL (if the target has it)."""
+        """Answer DELAY_NS after `since`: a clip, or a call to the target's transfer tool."""
         await asyncio.sleep(max(0, since + DELAY_NS - CLOCK.now()) / 1e9)
-        if what == TOOL and TOOL not in self.tools:
+        tool = next(
+            (t for t in self.tools if t.get("name") in TOOLS and _arguments(t) is not None), None
+        )
+        if what == TOOL and tool is None:
             what = SHORT
         rid, item_id = _id("resp"), _id("item")
         response: dict[str, Any] = {
@@ -381,8 +406,9 @@ class Session:
         record = {"event": "answer", "trigger": trigger, "answer": what} | (heard or {})
         status, item = "completed", {}
         try:
-            if what == TOOL:
-                item = await self.call_tool(rid, item_id)
+            if what == TOOL and tool is not None:
+                item = await self.call_tool(rid, item_id, tool)
+                record |= {"tool": item["name"], "arguments": item["arguments"]}
             else:
                 item = await self.speak(rid, item_id, what, record)
         except asyncio.CancelledError:
@@ -395,20 +421,22 @@ class Session:
             done["usage"] = {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0}
             await asyncio.shield(self.send({"type": "response.done", "response": done}))
 
-    async def call_tool(self, rid: str, item_id: str) -> dict[str, Any]:
-        call_id = _id("call")
+    async def call_tool(self, rid: str, item_id: str, tool: dict[str, Any]) -> dict[str, Any]:
+        """Call `tool` with `_arguments`, as a model told where a transfer can go would."""
+        arguments = json.dumps(_arguments(tool))
+        name, call_id = tool["name"], _id("call")
         item = {"id": item_id, "object": "realtime.item", "type": "function_call"}
-        item |= {"status": "in_progress", "name": TOOL, "call_id": call_id, "arguments": ""}
+        item |= {"status": "in_progress", "name": name, "call_id": call_id, "arguments": ""}
         where = {"response_id": rid, "output_index": 0}
         await self.send({"type": "response.output_item.added", "item": item} | where)
-        await self.added(item)
+        await self.added(item, done=False)  # done once its arguments are
         args = {"item_id": item_id, "call_id": call_id} | where
-        await self.send({"type": "response.function_call_arguments.delta", "delta": "{}"} | args)
-        await self.send(
-            {"type": "response.function_call_arguments.done", "name": TOOL, "arguments": "{}"}
-            | args
-        )
-        item |= {"status": "completed", "arguments": "{}"}
+        delta = {"type": "response.function_call_arguments.delta", "delta": arguments}
+        await self.send(delta | args)
+        done = {"type": "response.function_call_arguments.done", "name": name}
+        await self.send(done | {"arguments": arguments} | args)
+        item |= {"status": "completed", "arguments": arguments}
+        await self.send({"type": "conversation.item.done", "item": item})
         await self.send({"type": "response.output_item.done", "item": item} | where)
         return item
 
