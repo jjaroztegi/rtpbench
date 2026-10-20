@@ -749,10 +749,12 @@ def heard(ref: Sequence[float], rx: Sequence[float], ok: Sequence[bool]) -> dict
             e = np.convolve(seg * seg, np.ones(PACKET), "valid")
             if np.max(c / np.sqrt(e * np.sum(r * r) + 1e-9)) >= 0.5:
                 continue
-            x, before = x_all[pos : pos + PACKET], x_all[pos - PACKET : pos]
+            x, before = x_all[pos : pos + PACKET], x_all[max(0, pos - PACKET) : pos]
             if np.sum(x * x) < 1e-3 * g * g * np.sum(r * r):
                 missing["silence"] += 1
-            elif np.sum(x * before) >= 0.9 * np.sqrt(np.sum(x * x) * np.sum(before**2)):
+            elif len(before) == PACKET and np.sum(x * before) >= 0.9 * np.sqrt(
+                np.sum(x * x) * np.sum(before**2)
+            ):
                 missing["repeat"] += 1
             else:
                 missing["other"] += 1
@@ -851,11 +853,11 @@ def downlink(out: Path) -> str:
     )
 
 
-def recording(out: Path, session: str) -> tuple[list[float], list[int], list[int], float] | None:
-    """What a session received (`Session.keep`), at 8 kHz: samples, the arrival time of the
-    append each sample came in, the 24 kHz samples if it came as pcm16 (else empty), and the
-    median audio per append, ms. None without a recording or with appends in more than one
-    format."""
+def recording(out: Path, session: str) -> tuple[Any, Any, Any, float] | None:
+    """What a session received (`Session.keep`), as arrays: the samples at 8 kHz, the arrival
+    time of the append each sample came in, the 24 kHz samples if it came as pcm16 (else
+    empty), and the median audio per append, ms. None without a recording or with appends in
+    more than one format."""
     import numpy as np
 
     idx = out / "realtime" / f"{session}.idx"
@@ -866,16 +868,24 @@ def recording(out: Path, session: str) -> tuple[list[float], list[int], list[int
         return None
     fmt, raw = rows[0][2], (out / "realtime" / f"{session}.raw").read_bytes()
     per = 6 if fmt == "pcm16" else 1  # bytes per 8 kHz sample
-    starts, n = [], 0
-    for r in rows:
-        starts += [int(r[0])] * (int(r[1]) // per)
-        n += int(r[1])
-    each = statistics.median(int(r[1]) / per / 8 for r in rows)
+    sizes = [int(r[1]) for r in rows]
+    starts = np.repeat(
+        np.array([int(r[0]) for r in rows], dtype=np.int64), [n // per for n in sizes]
+    )
+    each = statistics.median(n / per / 8 for n in sizes)
     if fmt == "pcm16":
-        pcm24 = np.frombuffer(raw[: n // 2 * 2], dtype="<i2")
-        return [float(s) for s in _to8k(np, pcm24)], starts, pcm24.tolist(), each
+        pcm24 = np.frombuffer(raw[: sum(sizes) // 2 * 2], dtype="<i2")
+        return _to8k(np, pcm24), starts, pcm24, each
     law = g711.PCMU if fmt == "pcmu" else g711.PCMA
-    return [float(s) for s in g711.decode(law, raw[:n])], starts, [], each
+    pcm = np.array(g711.decode(law, raw[: sum(sizes)]), dtype=np.float64)
+    return pcm, starts, np.zeros(0, dtype="<i2"), each
+
+
+def _arrivals(out: Path, session: str) -> tuple[int, int] | None:
+    """When a session's first and last recorded appends arrived."""
+    idx = out / "realtime" / f"{session}.idx"
+    rows = idx.read_text().splitlines() if idx.exists() else []
+    return (int(rows[0].split()[0]), int(rows[-1].split()[0])) if rows else None
 
 
 def uplink(out: Path) -> str:
@@ -887,7 +897,8 @@ def uplink(out: Path) -> str:
 
     records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
     sessions = [r["session"] for r in records if r.get("event") == "connect"]
-    got = {s: rec for s in sessions if (rec := recording(out, s)) is not None}
+    spans_of = {s: span for s in sessions if (span := _arrivals(out, s)) is not None}
+    held: tuple[str, Any] = ("", None)  # one session decoded at a time: they run to hundreds of MB
     by: dict[str, list[dict[str, Any]]] = {}
     for path in sorted(out.glob("*/*/*/caller.json")):
         if path.parent.name not in ("latency", "barge-in"):
@@ -905,17 +916,21 @@ def uplink(out: Path) -> str:
                 said = st.time(a, True)
                 if said is None:
                     continue
-                rec = next((r for r in got.values() if r[1][0] <= said <= r[1][-1]), None)
-                if rec is None:
+                session = next((s for s, (t0, t1) in spans_of.items() if t0 <= said <= t1), None)
+                if session is None:
                     continue
-                pcm, starts, pcm24, each = rec
+                if held[0] != session:
+                    held = session, recording(out, session)
+                if held[1] is None:
+                    continue
+                pcm, starts, pcm24, each = held[1]
                 k = max(0, int(np.searchsorted(starts, said)) - 1600)  # from 200 ms before
-                rx = pcm[k : k + b - a + 24000]
+                rx = pcm[k : k + b - a + 24000].tolist()
                 h = heard([float(s) for s in st.pcm[a:b]], rx, [True] * len(rx))
                 if h is None:
                     continue
                 at = k + h["at"]
-                if pcm24:
+                if len(pcm24):
                     x = np.asarray(pcm24[3 * at : 3 * (at + b - a)], dtype=np.float64)
                     f = np.fft.rfftfreq(len(x), 1 / 24000)
                     p = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2

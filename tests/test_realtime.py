@@ -163,11 +163,11 @@ def test_answers_as_the_real_api_does(engine: tuple[int, Path]) -> None:
     assert got is not None
     pcm, starts, pcm24, each = got
     sent = g711.encode(g711.PCMA, speech.read_wav(LINES / "transfer.wav") + [0] * 16000)
-    assert pcm == [float(s) for s in g711.decode(g711.PCMA, sent)]
+    assert pcm.tolist() == [float(s) for s in g711.decode(g711.PCMA, sent)]
     assert len(starts) == len(pcm)
-    assert starts == sorted(starts)
+    assert starts.tolist() == sorted(starts.tolist())
     assert t0 < starts[0]
-    assert pcm24 == []
+    assert len(pcm24) == 0
     assert each == 20  # one RTP packet per append
 
 
