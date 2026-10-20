@@ -1,0 +1,54 @@
+{
+ "date": "2026-10-19T17:41:44+00:00",
+ "commit": "v0.1.0-15-g1c161cf",
+ "image": "rtpbench:72e41c264960",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  2.4,
+  2.45,
+  4.11
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "aivc",
+ "carrier": false,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "images": "CONTAINER                    REPOSITORY          TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-46aa16-agent-1      rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago\nrtpbench-46aa16-caller-1     rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago\nrtpbench-46aa16-engine-1     rtpbench-aivc       09e14d0             linux/amd64         bdfe336a1524        1.32GB              2 days ago\nrtpbench-46aa16-opensips-1   opensips/opensips   <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-46aa16-operator-1   rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago\nrtpbench-46aa16-realtime-1   rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago\nrtpbench-46aa16-router-1     rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago\nrtpbench-46aa16-target-1     rtpbench            72e41c264960        linux/amd64         1345d2bf8c9a        138MB               5 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  2.75,
+  2.47,
+  2.62
+ ]
+}
