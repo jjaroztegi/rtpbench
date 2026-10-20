@@ -46,7 +46,7 @@ Every other verdict is the baseline's. Still failing: `hold` (an `inactive` offe
 old codec in the answer), `reinvite-nosdp`, `late-offer` (500), `timer`, and both DTMF cases (an
 INFO now gets 501, where it got no answer at all); `cancel` stays inconclusive.
 
-Timing and audio did not move. Turn latency p50 1511, 1593 and 1604 ms (`clean`, `lte`,
+Timing and audio, measured direct, did not move. Turn latency p50 1511, 1593 and 1604 ms (`clean`, `lte`,
 `lte-bad`) against 1512, 1592 and 1605; the connector's own share 9 ms on a clean network. It
 stopped for all 100 interjections per profile, 23 ms after an interruption at the median against
 24. A receiver needs a 1.1 ms jitter buffer for its RTP on a clean network, against 1.2, and the
