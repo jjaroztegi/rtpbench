@@ -1,0 +1,87 @@
+# Asterisk + AVA (Asterisk AI Voice Agent) as a target, merged over ../../compose.yaml. AVA is an
+# ARI app for an existing Asterisk; its compose runs the engine on the host's network next to
+# it. Here Asterisk and the engine share the network namespace of `target` (agentnet, plus
+# egress to the AI engine), and the engine reaches ARI and ExternalMedia RTP on 127.0.0.1.
+# rtpbench routes the caller via the router, so SIP and RTP cross netem. Needs OPENAI_API_KEY
+# (and OPENAI_BASE_URL for another Realtime endpoint). Paths are relative to the repository
+# root, the first compose file's directory.
+services:
+  target:
+    image: ${RTPBENCH_IMAGE:?}
+    cap_add: [NET_ADMIN]
+    init: true
+    depends_on: [router]
+    networks: [agentnet, egress]
+    command: sleep infinity
+
+  asterisk:
+    image: andrius/asterisk:22.8-cert4_debian-trixie@sha256:f3bd01300f0c36c8a7ea5bd9472c4b906d0f85410c3ea429166a0fedac6ad3ee
+    network_mode: service:target
+    depends_on: [target]
+    volumes:
+      - ./targets/ava/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./targets/ava/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./targets/ava/ari.conf:/etc/asterisk/ari.conf:ro
+      - ./targets/ava/http.conf:/etc/asterisk/http.conf:ro
+    healthcheck:
+      test: [CMD-SHELL, "asterisk -rx 'ari show status' | grep -q Enabled"]
+      interval: 1s
+      retries: 30
+
+  engine:
+    build:
+      context: https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk.git#ba52df92bc1cad2c1f277034e1423b80c8f50be4
+      # upstream's Dockerfile, with the base image and every installed package pinned
+      # (upstream pins some of its direct requirements)
+      additional_contexts: { pins: ./targets/ava }
+      dockerfile_inline: |
+        FROM python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89 AS builder
+        WORKDIR /usr/src/app
+        RUN apt-get -o Acquire::Retries=5 update && apt-get install -y --no-install-recommends \
+            build-essential && rm -rf /var/lib/apt/lists/*
+        RUN python -m venv /opt/venv
+        ENV PATH="/opt/venv/bin:$$PATH"
+        COPY requirements.txt .
+        COPY --from=pins constraints.txt /tmp/constraints.txt
+        RUN pip install --no-cache-dir -r requirements.txt -c /tmp/constraints.txt
+
+        FROM python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89
+        ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+        RUN apt-get -o Acquire::Retries=5 update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata \
+            && rm -rf /var/lib/apt/lists/*
+        WORKDIR /app
+        RUN groupadd -g 995 asterisk || true && useradd --create-home appuser \
+            && usermod -aG 995 appuser
+        COPY --from=builder /opt/venv /opt/venv
+        COPY --chown=appuser:appuser src/ ./src
+        COPY --chown=appuser:appuser config/ ./config
+        COPY --chown=appuser:appuser main.py ./
+        RUN mkdir -p /app/logs /app/data && chown appuser:appuser /app/logs /app/data
+        ENV PATH="/opt/venv/bin:$$PATH"
+        USER appuser
+        CMD ["python", "main.py"]
+    image: rtpbench-ava:ba52df9
+    network_mode: service:target
+    depends_on:
+      asterisk: { condition: service_healthy }
+    volumes: ["./targets/ava/ai-agent.yaml:/app/config/ai-agent.yaml:ro"]
+    environment:
+      ASTERISK_HOST: 127.0.0.1
+      ASTERISK_ARI_PORT: "8088"
+      ASTERISK_ARI_USERNAME: asterisk
+      ASTERISK_ARI_PASSWORD: asterisk
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-wss://api.openai.com/v1/realtime}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-realtime-2.1}
+      # the golden config's egress pacer: on as shipped, false to measure what it costs
+      AVA_EGRESS_PACER: ${AVA_EGRESS_PACER:-true}
+      LOG_LEVEL: debug
+    # ready once the engine serves its health endpoint
+    healthcheck:
+      test: python -c 'import urllib.request as u; u.urlopen("http://127.0.0.1:15000/health")'
+      interval: 1s
+      retries: 60
+
+networks:
+  egress:

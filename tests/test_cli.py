@@ -1,6 +1,6 @@
 import pytest
 
-from rtpbench import cases, cli
+from rtpbench import bench, cases, cli
 from rtpbench.bench import PROFILES, TARGETS
 
 
@@ -37,3 +37,12 @@ def test_target_refuses(argv: list[str], error: str, capsys: pytest.CaptureFixtu
     with pytest.raises(SystemExit):
         cli.main(["target", *argv])
     assert error in capsys.readouterr().err
+
+
+def test_engine_settings_are_recorded_as_compose_resolves_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AVA_EGRESS_PACER", "")  # ${AVA_EGRESS_PACER:-true}: the default
+    monkeypatch.setenv("OPENAI_REASONING_EFFORT", "")  # ${OPENAI_REASONING_EFFORT-low}: empty
+    assert bench._engine(TARGETS["ava"][1])["AVA_EGRESS_PACER"] == "true"
+    assert bench._engine(TARGETS["aivc"][1])["OPENAI_REASONING_EFFORT"] == ""

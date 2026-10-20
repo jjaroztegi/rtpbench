@@ -78,4 +78,5 @@ uv run pytest
 ## Licence
 
 Apache-2.0, except `targets/aivc/opensips.cfg`, derived from AI Voice Connector CE's example and
-under its GPL-3.0-or-later.
+under its GPL-3.0-or-later, and `targets/ava/ai-agent.yaml`, derived from AVA's golden OpenAI
+configuration and under its MIT licence.
