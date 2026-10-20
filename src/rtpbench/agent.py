@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rtpbench import bargein, g711, sip, speech
+from rtpbench import bargein, g711, sip, speech, srtp
 from rtpbench.clock import CLOCK
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, voice
@@ -265,6 +265,21 @@ class Responder:
         return out
 
 
+def _savp(sdp: sip.Sdp) -> bool:
+    return sdp.proto == "RTP/SAVP"
+
+
+def _usable(sdp: sip.Sdp) -> list[tuple[int, str, bytes]]:
+    """The a=crypto lines of `sdp` this agent can take, in the offer's order."""
+    out = []
+    for value in sdp.crypto:
+        try:
+            out.append(srtp.parse(value))
+        except ValueError:
+            continue
+    return out
+
+
 def _local_ip(peer: tuple[str, int]) -> str:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect(peer)
@@ -310,6 +325,12 @@ class Uas:
         self.sender: Sender | None = None
         self.threads: list[Sender | Receiver] = []
         self.meta: dict[str, Any] = {}
+        # SRTP when the caller offers it (SDES): our master key per suite; the suite we took,
+        # what we send with and what we hear with
+        self.keys = srtp.master()
+        self.suite: str | None = None
+        self.tx: srtp.Context | None = None
+        self.rx: srtp.Context | None = None
 
     def _send(self, resp: sip.Message, final: bool = False) -> None:
         data = resp.render()
@@ -349,6 +370,8 @@ class Uas:
                     self.pt = pt
                     self._prepare(answer)
                 self._media(answer)
+            elif msg.body and self.suite:  # the answer to our offer in a 2xx: the caller's key
+                self._crypto(sip.parse_sdp(msg.body))
             self.done |= self.responder is None  # ACK for a 487: the call never was
         elif msg.method == "CANCEL":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
@@ -414,6 +437,7 @@ class Uas:
         elif not self.late and (
             (malformed and not self.case.lenient_sdp)
             or not [pt for pt in sip.parse_sdp(msg.body).pts if pt in g711.NAMES]
+            or (_savp(sip.parse_sdp(msg.body)) and not _usable(sip.parse_sdp(msg.body)))
         ):
             self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
             self.end_at = time.monotonic() + 64 * sip.T1
@@ -445,6 +469,27 @@ class Uas:
         r.clock, r.events = self.case.clock, remote.dtmf
         r.dtmf_ns = None if self.case.dtmf_s is None else round(self.case.dtmf_s * 1e9)
 
+    def _crypto(self, offer: sip.Sdp | None) -> list[str] | None:
+        """a=crypto values for our SDP: the answer to an SRTP `offer` (its first suite we take,
+        or the one in use), our offer of the suite in use when there is no offer, else none."""
+        if offer is None:
+            return [srtp.line(1, self.suite, self.keys[self.suite])] if self.suite else None
+        if not _savp(offer):
+            return None
+        # the suite stays the call's: a re-INVITE without it is refused (`_reinvite`)
+        pick = next((c for c in _usable(offer) if c[1] == (self.suite or c[1])), None)
+        if pick is None:
+            return None
+        tag, suite, key = pick
+        if self.tx is None:
+            self.suite, self.tx = suite, srtp.Context(suite, self.keys[suite])
+        if self.rx is None or self.rx.master != key:
+            self.rx = srtp.Context(suite, key, self.rx.state if self.rx else None)
+            for t in self.threads:
+                if isinstance(t, Receiver):
+                    t.srtp = self.rx
+        return [srtp.line(tag, suite, self.keys[suite])]
+
     def _media(self, remote: sip.Sdp) -> None:
         """Start sending to and hearing the far end of the negotiated session."""
         r = self.responder
@@ -452,13 +497,15 @@ class Uas:
         ssrc = secrets.randbelow(1 << 32)
         start = CLOCK.now() + PTIME_NS
         addr = (remote.ip, remote.port)
-        self.sender = Sender(self.rtp, addr, self.pt, r.source, start, self.seq0, ssrc)
-        self.threads = [self.sender, Receiver(self.rtp, self._hear)]
+        self.sender = Sender(
+            self.rtp, addr, self.pt, r.source, start, self.seq0, ssrc, srtp=self.tx
+        )
+        self.threads = [self.sender, Receiver(self.rtp, self._hear, srtp=self.rx)]
         for t in self.threads:
             t.start()
         if self.case.greet_s is not None:
             r.speak(CLOCK.now() + round(self.case.greet_s * 1e9), self.greeting, "greeting")
-        self.meta = {"pt": self.pt, "ssrc": ssrc, "seq0": self.seq0}
+        self.meta = {"pt": self.pt, "ssrc": ssrc, "seq0": self.seq0, "srtp": self.suite}
 
     def _hear(self, arrival: int, pkt: Packet) -> None:
         """The caller's RTP, as far as this agent's receiver takes it."""
@@ -479,7 +526,10 @@ class Uas:
         extra = [("Contact", contact)]
         origin = (self.origin[0], self.origin[1])
         pts = list(g711.NAMES) if self.late and self.sender is None else [self.pt]
-        body = sip.sdp(local, self.rtp.getsockname()[1], pts, direction, origin, self.dtmf)
+        crypto = self._crypto(sip.parse_sdp(req.body) if req.body else None)
+        body = sip.sdp(
+            local, self.rtp.getsockname()[1], pts, direction, origin, self.dtmf, crypto=crypto
+        )
         self.origin[1] += 1
         if self.case.timer and (expires := req.get("session-expires")):
             # RFC 4028 9: keep the interval and the caller as refresher, so Require: timer
@@ -494,9 +544,12 @@ class Uas:
         """Answer the offered direction (or sendrecv, ignoring hold); pause sending while the
         answer says the agent does not send."""
         offer = sip.parse_sdp(msg.body)
+        self.reinvite = msg.branch  # a retransmission gets the same answer
+        if self.suite and _savp(offer) and all(c[1] != self.suite for c in _usable(offer)):
+            self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
+            return
         direction = sip.ANSWER[offer.direction] if self.case.hold else "sendrecv"
         zero = offer.ip == "0.0.0.0"  # RFC 3264 8.4: send nothing
-        self.reinvite = msg.branch
         law = next((pt for pt in offer.pts if pt in g711.NAMES), self.pt)
         if self.responder:
             if law != self.pt and self.case.recodec:

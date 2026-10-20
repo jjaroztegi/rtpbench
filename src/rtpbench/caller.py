@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from rtpbench import bargein, g711, sip, speech, tls
+from rtpbench import bargein, g711, sip, speech, srtp, tls
 from rtpbench.clock import CLOCK
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Frame, Packet, Receiver, Sender
 from rtpbench.voice import GATE, RATE, voice
@@ -164,10 +164,20 @@ class Session:
         self.rtp = _bind(_udp, ports)
         self.dialog = sip.Dialog.uac(sock, peer, uri, local_ip)
         self.origin = (secrets.randbelow(1 << 31), 0)  # SDP session id, version
+        # SRTP (RTPBENCH_SRTP: the suites to offer, in order): our master key per suite, and
+        # once answered, the suite and the contexts we send and hear with
+        self.offered = [s for s in os.environ.get("RTPBENCH_SRTP", "").split(",") if s]
+        self.keys = srtp.master() if self.offered else {}
+        self.suite: str | None = None
+        self.tx: srtp.Context | None = None
+        self.rx: srtp.Context | None = None
+        self.srtp_error = ""
         self.held = False
         self.dtmf: int | None = None  # telephone-event payload type, if the answer has it
         port = self.rtp.getsockname()[1]
-        offer = sip.sdp(local_ip, port, list(codecs), origin=self.origin, dtmf=dtmf)
+        offer = sip.sdp(
+            local_ip, port, list(codecs), origin=self.origin, dtmf=dtmf, crypto=self._crypto()
+        )
         self.headers = headers
         user, password = (os.environ.get(f"RTPBENCH_SIP_{k}") for k in ("USER", "PASSWORD"))
         self.credentials = (user, password) if user and password else None
@@ -209,6 +219,8 @@ class Session:
             return
         if not initial:
             req = self.invites.get(msg.branch)
+            if req is not None and req.body and self.offered:  # the answer to our re-offer
+                self._srtp(sip.parse_sdp(msg.body))
             self.dialog.ack(msg, self._answer(msg) if req is not None and not req.body else b"")
             return
         self.dialog.confirm(msg)  # every 2xx, retransmissions included
@@ -218,6 +230,47 @@ class Session:
             self.addr = (answer.ip, answer.port)
             self.pt = next((p for p in answer.pts if p in g711.NAMES), -1)  # -1: answer() ends it
             self.dtmf = answer.dtmf
+            if self.offered:
+                try:
+                    self._srtp(answer)
+                except sip.SipError as e:  # answer() ends it
+                    self.srtp_error = str(e)
+
+    def _crypto(self, offer: sip.Sdp | None = None) -> list[str] | None:
+        """a=crypto values for our next SDP, if we use SRTP: as an offer, every suite we offer
+        (the one in use, once there is one); as the answer to `offer`, its line for our suite."""
+        if not self.offered:
+            return None
+        if offer is None:
+            suites = [self.suite] if self.suite else self.offered
+            return [srtp.line(i + 1, s, self.keys[s]) for i, s in enumerate(suites)]
+        tag = self._srtp(offer)
+        assert self.suite is not None
+        return [srtp.line(tag, self.suite, self.keys[self.suite])]
+
+    def _srtp(self, sdp: sip.Sdp) -> int:
+        """Take the agent's key from its SDP for the suite in use (or the first we offered that
+        it gives): we hear with it from now on. Its tag; SipError if it gives none of ours."""
+        usable = []
+        for value in sdp.crypto:
+            try:
+                usable.append(srtp.parse(value))
+            except ValueError:
+                continue
+        wanted = [self.suite] if self.suite else self.offered
+        tag, suite, key = next((c for c in usable if c[1] in wanted), (0, "", b""))
+        if not suite:
+            given = ", ".join(sdp.crypto) or f"no a=crypto, {sdp.proto}"
+            raise sip.SipError(
+                f"the agent's SDP has no SRTP suite of {', '.join(wanted)} ({given})"
+            )
+        if self.tx is None:
+            self.suite, self.tx = suite, srtp.Context(suite, self.keys[suite])
+        if self.rx is None or self.rx.master != key:
+            self.rx = srtp.Context(suite, key, self.rx.state if self.rx else None)
+            if self.media:
+                self.media[1].srtp = self.rx
+        return tag
 
     def _authorize(
         self,
@@ -256,15 +309,23 @@ class Session:
             self.media[0].addr = self.addr
         port = self.rtp.getsockname()[1]
         direction = sip.ANSWER[offer.direction]
-        return sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin)
+        crypto = self._crypto(offer)
+        return sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin, crypto=crypto)
 
     def _incoming(self, req: sip.Message) -> None:
         self.requests.append(req)
         if req.method == "ACK":
+            if self.offered and req.body:  # the answer to our offer in a 2xx: its key
+                self._srtp(sip.parse_sdp(req.body))
             return
         if req.method == "INVITE":  # a refresh, or a change we take as it comes
             port = self.rtp.getsockname()[1]
-            sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], origin=self.origin)
+            try:
+                crypto = self._crypto(sip.parse_sdp(req.body) if req.body else None)
+            except sip.SipError:  # SRTP without the suite in use: the session stays as it is
+                self.dialog.reply(req, 488, "Not Acceptable Here")
+                return
+            sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], origin=self.origin, crypto=crypto)
             self.dialog.reply(req, 200, "OK", sdp)
             return
         self.dialog.reply(req, *((202, "Accepted") if req.method == "REFER" else ()))
@@ -295,6 +356,9 @@ class Session:
             raise sip.SipError("INVITE timed out")
         if self.final.status >= 300:
             raise sip.SipError(self.final.first)
+        if self.srtp_error:
+            self.request("BYE")
+            raise sip.SipError(self.srtp_error)
         if self.pt < 0:
             self.request("BYE")
             pts = " ".join(map(str, sip.parse_sdp(self.final.body).pts))
@@ -345,7 +409,15 @@ class Session:
         self.held = hold
         port = self.rtp.getsockname()[1]
         codec = self.pt if pt is None else pt
-        sdp = sip.sdp(self.dialog.local_ip, port, [codec], direction, self.origin, conn=conn)
+        sdp = sip.sdp(
+            self.dialog.local_ip,
+            port,
+            [codec],
+            direction,
+            self.origin,
+            conn=conn,
+            crypto=self._crypto(),
+        )
         resp = self.request("INVITE", sdp if offer else b"", headers)
         if pt is not None and resp is not None and resp.status < 300:
             self.pt = pt
@@ -356,8 +428,8 @@ class Session:
     def start(self, source: Source, sink: Callable[[int, Packet], None]) -> None:
         start = CLOCK.now() + PTIME_NS
         self.media = (
-            Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc),
-            Receiver(self.rtp, sink),
+            Sender(self.rtp, self.addr, self.pt, source, start, self.seq0, self.ssrc, srtp=self.tx),
+            Receiver(self.rtp, sink, srtp=self.rx),
         )
         for t in self.media:
             t.start()
@@ -409,6 +481,7 @@ class Session:
             "call_id": self.dialog.call_id,
             "rtp_port": self.rtp.getsockname()[1],
             "transport": self.dialog.transport,
+            **({"srtp": self.suite} if self.offered else {}),
             **({"tls": sock.negotiated()} if isinstance(sock := self.dialog.sock, sip.Tls) else {}),
             "send_errors": self.media[0].send_errors if self.media else [],
         }

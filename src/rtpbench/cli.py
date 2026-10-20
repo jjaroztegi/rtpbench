@@ -10,10 +10,16 @@ from pathlib import Path
 from rtpbench import analyze, cases
 from rtpbench.bench import PROFILES, TARGETS, is_uri
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
+from rtpbench.srtp import SUITES
 
 CODECS = {"pcmu": 0, "pcma": 8}
 LARGE_INVITE_TLS = "large-invite: not over TLS (it checks the switch from UDP to TCP)"
 TLS_HELP = "SIP over TLS to the reference agent, its certificate from the stack's test CA"
+SRTP_HELP = (
+    "SRTP keyed in the SDP (SDES), offering these suites in this order (default: "
+    + ", ".join(SUITES)
+    + ")"
+)
 QUICK_START = """\
 quick start, from a clone (Linux, Docker 28 or later, uv):
   uv run rtpbench calibrate --profiles clean --turns 5   # how exactly this host times the wire
@@ -44,6 +50,7 @@ def _target_args(args: argparse.Namespace) -> str | None:
         "--network": args.network,
         "--advertise": args.advertise,
         "--ca": args.ca,
+        "--srtp": args.srtp,
     }
     if not is_uri(args.name):
         if args.name not in TARGETS:
@@ -71,6 +78,10 @@ def _target_args(args: argparse.Namespace) -> str | None:
         if not 1 <= int(adv_port) <= 65536 - ADVERTISE_PORTS:
             return f"--advertise: PORT 1-{65536 - ADVERTISE_PORTS}, the first of {ADVERTISE_PORTS}"
     return None
+
+
+def _suites(value: str | None) -> list[str] | None:
+    return value.split(",") if value else None
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -120,6 +131,7 @@ examples:
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
     p.add_argument("--tls", action="store_true", help=TLS_HELP)
+    p.add_argument("--srtp", nargs="?", const=",".join(SUITES), metavar="SUITE,...", help=SRTP_HELP)
 
     p = sub.add_parser(
         "cases",
@@ -153,6 +165,7 @@ examples:
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
     p.add_argument("--tls", action="store_true", help=TLS_HELP)
+    p.add_argument("--srtp", nargs="?", const=",".join(SUITES), metavar="SUITE,...", help=SRTP_HELP)
 
     p = sub.add_parser(
         "target",
@@ -214,6 +227,9 @@ examples:
         type=Path,
         metavar="FILE",
         help="URI over TLS: trust the certificates in FILE (PEM) instead of the system's",
+    )
+    p.add_argument(
+        "--srtp", nargs="?", const=",".join(SUITES), metavar="SUITE,...", help="URI: " + SRTP_HELP
     )
 
     p = sub.add_parser("case", description="run one case's caller side (inside a container)")
@@ -344,8 +360,12 @@ example:
     if args.cmd is None:
         parser.print_help()
         raise SystemExit(2)
-    if args.cmd in ("calibrate", "cases") and args.tls and args.carrier:
-        parser.error("--tls: not with --carrier yet")
+    if args.cmd in ("calibrate", "cases") and (args.tls or args.srtp) and args.carrier:
+        parser.error("--tls, --srtp: not with --carrier yet")
+    if unknown := [
+        s for s in (getattr(args, "srtp", None) or "").split(",") if s and s not in SUITES
+    ]:
+        parser.error(f"--srtp: {', '.join(unknown)}: not one of {', '.join(SUITES)}")
     if args.cmd in ("calibrate", "cases", "target"):
         from rtpbench.progress import Progress
 
@@ -369,6 +389,7 @@ example:
                 args.barge_in,
                 args.carrier,
                 args.tls,
+                _suites(args.srtp),
                 progress=progress,
             )
         print(summary)
@@ -389,6 +410,7 @@ example:
                 args.seed,
                 args.carrier,
                 args.tls,
+                _suites(args.srtp),
                 progress=progress,
             )
         print(summary)
@@ -427,6 +449,7 @@ example:
                 args.network,
                 args.advertise,
                 args.ca,
+                _suites(args.srtp),
                 progress=progress,
             )
         print(summary)

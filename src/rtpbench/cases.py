@@ -23,7 +23,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from rtpbench import analyze, clock, detect, g711, pcap, rtp, sip, speech, speechcal
+from rtpbench import analyze, clock, detect, g711, pcap, rtp, sip, speech, speechcal, srtp
 from rtpbench.agent import BUSY, DIGITS, Behaviour
 from rtpbench.caller import NO_MEDIA, Media, Session, speech_utterances
 from rtpbench.clock import CLOCK
@@ -554,6 +554,7 @@ class Wire:
     up: analyze.Timed  # RTP the caller sent
     down: analyze.Timed  # RTP the caller received
     profile: str = "clean"  # netem profile, for the error bars
+    unopened: int = 0  # SRTP packets no key in the SDP authenticated
 
     def onset(self, t: int) -> Bar:
         """Error bar of the agent's speech onset at capture time `t`."""
@@ -635,10 +636,16 @@ def load(run: Path, profile: str = "clean") -> Wire:
     # branch) left the agent as it was: judge the sequence as it would be without credentials
     challenged = {m.branch for _, _, m in msgs if m.status in (401, 407)}
     msgs = [x for x in msgs if x[2].branch not in challenged]
+    # SRTP: opened with the keys the captured SDP gave, each side's for its own packets
+    rings = srtp.keyrings([(sent, m.body) for _, sent, m in msgs])
     for g in grams:
-        if not g.tcp and port in (g.sport, g.dport) and (p := rtp.parse(g.payload)) is not None:
+        if g.tcp or port not in (g.sport, g.dport):
+            continue
+        opened = rings[g.sport != port].open(g.payload) if rings else g.payload
+        if opened is not None and (p := rtp.parse(opened)) is not None:
             (up if g.sport == port else down).append((g.t_ns, p))
-    return Wire(log, agent, msgs, up, down, profile)
+    unopened = sum(r.failed for r in rings) if rings else 0
+    return Wire(log, agent, msgs, up, down, profile, unopened)
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:

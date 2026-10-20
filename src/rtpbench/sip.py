@@ -146,10 +146,12 @@ def sdp(
     origin: tuple[int, int] | None = None,
     dtmf: bool = False,
     conn: str | None = None,
+    crypto: list[str] | None = None,
 ) -> bytes:
     """An audio offer or answer; `origin` (session id, version) for a later one; `dtmf` adds
     RFC 4733 telephone-event; `conn` another connection address (0.0.0.0: RFC 2543 hold);
-    `direction` "" leaves the attribute out."""
+    `direction` "" leaves the attribute out; `crypto`, a=crypto values, makes it SRTP
+    (RTP/SAVP, RFC 4568)."""
     sid, version = origin or (secrets.randbelow(1 << 31),) * 2
     events = [TELEPHONE_EVENT] if dtmf else []
     lines = [
@@ -158,10 +160,11 @@ def sdp(
         "s=rtpbench",
         f"c=IN IP4 {conn or ip}",
         "t=0 0",
-        f"m=audio {port} RTP/AVP {' '.join(map(str, [*pts, *events]))}",
+        f"m=audio {port} RTP/{'SAVP' if crypto else 'AVP'} {' '.join(map(str, [*pts, *events]))}",
         *(f"a=rtpmap:{pt} {NAMES[pt]}/8000" for pt in pts),
         *(f"a=rtpmap:{pt} telephone-event/8000" for pt in events),
         *(f"a=fmtp:{pt} 0-16" for pt in events),
+        *(f"a=crypto:{c}" for c in crypto or []),
         "a=ptime:20",
         *([f"a={direction}"] if direction else []),
     ]
@@ -175,6 +178,8 @@ class Sdp:
     pts: list[int] = field(default_factory=list)
     direction: str = "sendrecv"
     dtmf: int | None = None  # telephone-event payload type
+    proto: str = "RTP/AVP"
+    crypto: list[str] = field(default_factory=list)  # a=crypto values (RFC 4568)
 
 
 TELEPHONE_EVENT = 101
@@ -197,7 +202,8 @@ def parse_sdp(body: bytes) -> Sdp:
                 break
             if media := line.startswith("m=audio "):
                 fields = line.split()
-                out.port, out.pts = int(fields[1]), [int(p) for p in fields[3:]]
+                out.port, out.proto = int(fields[1]), fields[2]
+                out.pts = [int(p) for p in fields[3:]]
             other = not media
         elif other:  # a section before the audio one (video, say): not ours
             continue
@@ -207,6 +213,8 @@ def parse_sdp(body: bytes) -> Sdp:
             out.direction = line[2:]
         elif line.lower().startswith("a=rtpmap:") and "telephone-event/8000" in line.lower():
             out.dtmf = int(line[9:].split()[0])
+        elif media and line.startswith("a=crypto:"):
+            out.crypto.append(line[9:].strip())
     return out
 
 
