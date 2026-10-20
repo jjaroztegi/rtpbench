@@ -267,7 +267,7 @@ class Session:
         if self.tx is None:
             self.suite, self.tx = suite, srtp.Context(suite, self.keys[suite])
         if self.rx is None or self.rx.master != key:
-            self.rx = srtp.Context(suite, key)
+            self.rx = srtp.Context(suite, key, self.rx.state if self.rx else None)
             if self.media:
                 self.media[1].srtp = self.rx
         return tag
@@ -315,10 +315,16 @@ class Session:
     def _incoming(self, req: sip.Message) -> None:
         self.requests.append(req)
         if req.method == "ACK":
+            if self.offered and req.body:  # the answer to our offer in a 2xx: its key
+                self._srtp(sip.parse_sdp(req.body))
             return
         if req.method == "INVITE":  # a refresh, or a change we take as it comes
             port = self.rtp.getsockname()[1]
-            crypto = self._crypto(sip.parse_sdp(req.body) if req.body else None)
+            try:
+                crypto = self._crypto(sip.parse_sdp(req.body) if req.body else None)
+            except sip.SipError:  # SRTP without the suite in use: the session stays as it is
+                self.dialog.reply(req, 488, "Not Acceptable Here")
+                return
             sdp = sip.sdp(self.dialog.local_ip, port, [self.pt], origin=self.origin, crypto=crypto)
             self.dialog.reply(req, 200, "OK", sdp)
             return

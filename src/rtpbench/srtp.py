@@ -53,16 +53,20 @@ class Context:
     """One direction's crypto context (RFC 3711 3.2) from its master key and salt, for every SSRC
     it carries: `protect` for the sender, which knows each packet's index; `open` for whoever
     receives (a peer, or judging), which estimates the index with a rollover counter per SSRC
-    (3.3.1)."""
+    (3.3.1). `state` carries those counters over from the context a new key replaces: a rekey
+    does not reset them (RFC 3711 3.3.1)."""
 
-    def __init__(self, suite: str, master: bytes) -> None:
+    def __init__(
+        self, suite: str, master: bytes, state: dict[int, tuple[int, int]] | None = None
+    ) -> None:
         spec = SUITES[suite]
         key, salt = master[:KEY], master[KEY:]
         self.suite, self.master, self.spec = suite, master, spec
         self.key = _prf(key, salt, _ENCRYPTION, KEY)
         self.salt = _prf(key, salt, _SALT, spec.salt)
         self.auth = b"" if spec.gcm else _prf(key, salt, _AUTHENTICATION, 20)
-        self.state: dict[int, tuple[int, int]] = {}  # SSRC: rollover counter, highest seq
+        # SSRC: rollover counter, highest seq
+        self.state: dict[int, tuple[int, int]] = {} if state is None else state
 
     def _iv(self, ssrc: int, index: int) -> bytes:
         if self.spec.gcm:  # RFC 7714 8.1
@@ -151,10 +155,12 @@ def parse(value: str) -> tuple[int, str, bytes]:
 
 class Keyring:
     """Opens the packets of one direction of a captured call with any of the keys its side gave
-    in the SDP: the one that authenticates a packet's SSRC stays with it until one fails."""
+    in the SDP: the one that authenticates a packet's SSRC stays with it until one fails. The
+    keys share one rollover counter per SSRC, as the side's successive keys do."""
 
     def __init__(self, keys: list[tuple[str, bytes]]) -> None:
-        self.contexts = [Context(s, k) for s, k in dict.fromkeys(keys)]
+        state: dict[int, tuple[int, int]] = {}
+        self.contexts = [Context(s, k, state) for s, k in dict.fromkeys(keys)]
         self.bound: dict[int, Context] = {}
         self.failed = 0  # packets that no key opened
 

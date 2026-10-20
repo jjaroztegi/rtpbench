@@ -68,3 +68,24 @@ def test_crypto_attribute() -> None:
     for bad in (lifetime + "|1:4", srtp.line(1, "F8_128_HMAC_SHA1_80", key), "1 X inline:AA KDR=1"):
         with pytest.raises(ValueError, match="not supported"):
             srtp.parse(bad)
+
+
+def test_a_new_key_keeps_the_rollover_counter() -> None:
+    """Past a seq wrap, the peer's new key (a re-INVITE) still opens its packets, live and in
+    a keyring, which judging uses."""
+    suite = "AES_CM_128_HMAC_SHA1_80"
+    old, new = srtp.master()[suite], srtp.master()[suite]
+    seq0 = 65534
+
+    def sent(key: bytes, i: int) -> bytes:
+        packet = rtp.pack(0, (seq0 + i) & 0xFFFF, 160 * i, 7, b"x" * 160)
+        return srtp.Context(suite, key).protect(packet, seq0 + i)
+
+    rx = srtp.Context(suite, old)
+    assert all(rx.open(sent(old, i)) for i in range(4))  # crosses the wrap: ROC 1
+    rekeyed = srtp.Context(suite, new, rx.state)
+    assert rekeyed.open(sent(new, 4)) is not None
+    ring = srtp.Keyring([(suite, old), (suite, new)])
+    assert all(ring.open(sent(old, i)) for i in range(4))
+    assert ring.open(sent(new, 4)) is not None
+    assert ring.failed == 0

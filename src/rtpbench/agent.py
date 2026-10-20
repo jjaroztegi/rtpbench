@@ -370,6 +370,8 @@ class Uas:
                     self.pt = pt
                     self._prepare(answer)
                 self._media(answer)
+            elif msg.body and self.suite:  # the answer to our offer in a 2xx: the caller's key
+                self._crypto(sip.parse_sdp(msg.body))
             self.done |= self.responder is None  # ACK for a 487: the call never was
         elif msg.method == "CANCEL":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
@@ -474,15 +476,15 @@ class Uas:
             return [srtp.line(1, self.suite, self.keys[self.suite])] if self.suite else None
         if not _savp(offer):
             return None
-        usable = _usable(offer)
-        pick = next((c for c in usable if c[1] == self.suite), usable[0] if usable else None)
-        if pick is None:  # refused at the INVITE; a re-INVITE without a usable line is not ours
+        # the suite stays the call's: a re-INVITE without it is refused (`_reinvite`)
+        pick = next((c for c in _usable(offer) if c[1] == (self.suite or c[1])), None)
+        if pick is None:
             return None
         tag, suite, key = pick
         if self.tx is None:
             self.suite, self.tx = suite, srtp.Context(suite, self.keys[suite])
         if self.rx is None or self.rx.master != key:
-            self.rx = srtp.Context(suite, key)
+            self.rx = srtp.Context(suite, key, self.rx.state if self.rx else None)
             for t in self.threads:
                 if isinstance(t, Receiver):
                     t.srtp = self.rx
@@ -542,9 +544,12 @@ class Uas:
         """Answer the offered direction (or sendrecv, ignoring hold); pause sending while the
         answer says the agent does not send."""
         offer = sip.parse_sdp(msg.body)
+        self.reinvite = msg.branch  # a retransmission gets the same answer
+        if self.suite and _savp(offer) and all(c[1] != self.suite for c in _usable(offer)):
+            self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
+            return
         direction = sip.ANSWER[offer.direction] if self.case.hold else "sendrecv"
         zero = offer.ip == "0.0.0.0"  # RFC 3264 8.4: send nothing
-        self.reinvite = msg.branch
         law = next((pt for pt in offer.pts if pt in g711.NAMES), self.pt)
         if self.responder:
             if law != self.pt and self.case.recodec:
