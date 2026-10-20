@@ -21,7 +21,8 @@ uv run --extra vad rtpbench target ava --mock --profiles clean,lte,lte-bad --run
 AVA_TRANSPORT=externalmedia uv run --extra vad rtpbench target ava --mock --profiles clean,lte,lte-bad --runs 10
 uv run --extra vad rtpbench target ava --mock --carrier --profiles clean,lte,lte-bad --runs 10 \
   --only greeting,bye,cancel,hold,dtmf-rfc4733,dtmf-info,refer,refer-fail,timer,ptime-30,ssrc-change,reinvite,reinvite-nosdp,compact-headers,sdp-ssrc,late-offer
-# the same with AVA_TRANSPORT=externalmedia
+AVA_TRANSPORT=externalmedia uv run --extra vad rtpbench target ava --mock --carrier --profiles clean,lte,lte-bad --runs 10 \
+  --only greeting,bye,cancel,hold,dtmf-rfc4733,dtmf-info,refer,refer-fail,timer,ptime-30,ssrc-change,reinvite,reinvite-nosdp,compact-headers,sdp-ssrc,late-offer
 AVA_EGRESS_PACER=false uv run --extra vad rtpbench target ava --mock --only latency,barge-in --profiles clean,lte,lte-bad --runs 10
 uv run --extra vad rtpbench cases --profiles clean,lte,lte-bad --runs 1
 uv run --extra vad rtpbench cases --carrier --profiles clean,lte,lte-bad --runs 1
@@ -29,7 +30,9 @@ uv run rtpbench calibrate
 uv run rtpbench calibrate --carrier
 ```
 
-Conditions: as the [baseline](../baseline)'s, on the same host. The four transport sets ran at
+Conditions: the [baseline](../baseline)'s host, 16 CPUs, kernel 6.8.0-147-generic, CPU governor
+`performance`, Docker 29.9.1; the mock engine waits 1000 ms of silence and answers 500 ms later;
+the carrier is OpenSIPS 3.6.9 and rtpengine, as in the baseline. The four transport sets ran at
 once, then the pacer-off set and the reference agent's proofs, then the calibrations alone: 6 h
 8 min. The load average went from 0.8 to 10.1 (3.9 at the start, from the host's other services);
 0 clock steps. The reference agent got the expected verdict in 117 of 117 calls direct and 111 of
