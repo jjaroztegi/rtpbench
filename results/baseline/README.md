@@ -137,7 +137,11 @@ Every call's SIP, speech and RTP on one timeline: reference [direct](https://jja
   0.7 ms after its REFER and the first NOTIFY 0.2 ms after that; LiveKit logged the REFER as
   "transaction failed to complete (0 intermediate responses)", answered the final NOTIFY (200 OK)
   5 s late, after three retransmissions, and stayed on the call. In the other 29 repeats, and in
-  all 30 of each earlier wave on the mock, it hung up.
+  all 30 of each earlier wave on the mock, it hung up. The cause is a race in LiveKit's SIP
+  stack: the 202 was handled before the REFER's transaction had set its UDP timers, so the
+  transaction was deleted with the 202 unread
+  ([livekit/sip#906](https://github.com/livekit/sip/issues/906), fix proposed in
+  [livekit/sipgo#18](https://github.com/livekit/sipgo/pull/18)).
 - `large-invite`: an INVITE over 1300 bytes, sent over TCP as RFC 3261 18.1.1 requires. LiveKit's
   SIP bridge listens on TCP and takes it. AI Voice Connector CE's example configuration opens a
   UDP socket only, so the connection is refused and the call goes nowhere (the caller's UDP
@@ -208,7 +212,10 @@ carrier add by themselves.
 
 LiveKit's stream falls 20 ms behind its own timestamps once in a call: at its 210th packet,
 4.2-4.3 s after its 200 OK, it leaves a 20 ms slot empty without advancing the RTP timestamp,
-and stays 20 ms late to the end. It does so in every call long enough. In `ptime-30` the caller
+and stays 20 ms late to the end. It does so in every call long enough. The cause is the
+resampler that takes the room's 48 kHz audio to the call's 8 kHz: on the 212th 20 ms frame it
+returns one sample short, and the writer holds the whole frame back
+([livekit/media-sdk#109](https://github.com/livekit/media-sdk/issues/109)). In `ptime-30` the caller
 does not see it: LiveKit still sends 20 ms packets and slips on its own leg (`carrier.pcap`),
 but rtpengine, repacketizing the call for the 30 ms the carrier offered LiveKit, sends them on
 to the caller on its own clock. A receiver needs a 21.1 ms jitter buffer for LiveKit's stream on a
