@@ -12,30 +12,36 @@ Status: early development.
 
 ## What it found
 
-Two open-source SIP connectors for the OpenAI Realtime API, through 21 cases, with and without a
-carrier in front, on a mock engine that holds the AI engine's share of each turn fixed:
+Three open-source ways to put the OpenAI Realtime API on a SIP call, through 21 cases, with and
+without a carrier in front, on a mock engine that holds the AI engine's share of each turn fixed:
 
-| | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) |
-| --- | --- | --- |
-| cases failed of 21 | 7 | 12, and 1 inconclusive |
-| turn latency, clean, p50 | 1833 ms | 1512 ms |
-| the connector's own media path per turn, p50 | 335 ms | 11 ms |
-| stops for an interruption, clean, p50 | 306 ms | 24 ms |
+| | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) | Asterisk + [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) |
+| --- | --- | --- | --- |
+| cases failed of 21 | 7 | 8, and 1 inconclusive | 4, and 3 inconclusive |
+| turn latency, clean, p50 | 1833 ms | 1511 ms | 1588 ms |
+| its own media path per turn, p50 | 335 ms | 9 ms | 88 ms |
+| stops for an interruption, clean, p50 | 306 ms | 23 ms | never |
 
-- Neither handles hold correctly: both keep sending audio to a held caller, and both answer a
-  re-INVITE that changes codec with the old codec.
-- Most of LiveKit's extra latency is its own media path: 324 ms per turn more than AI Voice
+- LiveKit keeps sending audio to a held caller in every kind of hold, AI Voice Connector CE when
+  held with `c=0.0.0.0`, and both answer a re-INVITE that changes codec with the old codec. AVA
+  sends RTP only while it speaks, so whether its media resumes after a hold cannot be judged.
+- Most of LiveKit's extra latency is its own media path: 326 ms per turn more than AI Voice
   Connector CE's.
 - LiveKit's RTP falls 20 ms behind its own timestamps 4 s into every call, so a receiver needs a
-  21 ms jitter buffer for it on a clean network; AI Voice Connector CE's needs 1.2 ms.
+  21 ms jitter buffer for it on a clean network; AI Voice Connector CE's needs 1.1 ms.
 - AI Voice Connector CE delivers the engine's speech sample for sample. LiveKit re-encodes it on
   the way, through its WebRTC room, and in 6% of answers stretches or cuts a pause by 20-40 ms.
-- AI Voice Connector CE fails every signalling variation a carrier sends (compact headers, a bare
-  `a=ssrc`, an INVITE without SDP), hangs up on the caller when a transfer fails, and as
-  configured in its example takes SIP over UDP only, so an INVITE over 1300 bytes is refused.
+- AVA, as its golden configuration ships, cuts the last 0.8 s of every answer, and it never
+  stops for an interruption: it keeps the caller's audio from the engine while it speaks. Over
+  AudioSocket under packet loss, the engine sometimes got silence instead of the caller, so 5 more
+  cases fail now and then.
+- AI Voice Connector CE's main branch fixed 4 of the 12 cases it failed in the baseline (a failed
+  transfer no longer hangs up on the caller; compact headers, a bare `a=ssrc` and SIP over TCP
+  are taken). It still refuses an INVITE without SDP and answers no re-INVITE without one.
 
-The details, commands, conditions and raw runs are in [the baseline](results/baseline), and every
-call's timeline on [the results site](https://jjaroztegi.github.io/rtpbench/).
+The details, commands, conditions and raw runs are in [the baseline](results/baseline),
+[AI Voice Connector CE at b95f5af](results/aivc-b95f5af) and [Asterisk + AVA](results/ava),
+and every call's timeline on [the results site](https://jjaroztegi.github.io/rtpbench/).
 
 Common ways of measuring turn latency have errors of their own: measured inside the agent, a turn
 misses the network (80 ms on an LTE path); an energy rule on a recording reads turns long, by

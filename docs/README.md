@@ -30,6 +30,8 @@ Published:
 - [Media path](../results/media-path): what each target does to the caller's audio on its way
   to the engine, and to the engine's on its way to the caller, on a mock engine that records
   what it receives
+- [AI Voice Connector CE at b95f5af](../results/aivc-b95f5af): the baseline's sets again, with the
+  connector at upstream main, which passes 4 more cases
 - [Asterisk + AVA](../results/ava): Asterisk and AVA over AudioSocket and over ExternalMedia with
   AVA's egress pacer, and over AudioSocket without it, on a mock engine, direct and through a
   carrier
