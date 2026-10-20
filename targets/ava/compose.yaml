@@ -22,7 +22,12 @@ services:
       # from the same source and ABI options (OPTIONAL_API), and added
       dockerfile_inline: |
         FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS modules
-        RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+        # the Debian snapshot this base image was built from, so every package version is fixed
+        RUN sed -i -e 's|^URIs: http://deb.debian.org/debian$$|URIs: http://snapshot.debian.org/archive/debian/20261005T000000Z|' \
+            -e 's|^URIs: http://deb.debian.org/debian-security$$|URIs: http://snapshot.debian.org/archive/debian-security/20261005T000000Z|' \
+            /etc/apt/sources.list.d/debian.sources \
+            && apt-get -o Acquire::Check-Valid-Until=false update \
+            && apt-get install -y --no-install-recommends ca-certificates \
             build-essential curl libedit-dev libjansson-dev libncurses-dev libsqlite3-dev \
             libssl-dev libxml2-dev uuid-dev pkg-config libcurl4-openssl-dev libsrtp2-dev
         WORKDIR /usr/src/asterisk
