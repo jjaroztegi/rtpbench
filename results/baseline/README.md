@@ -215,6 +215,38 @@ adds to what the network needs (34 ms against 16 under `lte`). AI Voice Connecto
 needs 1.2 ms on a clean network. Neither stops sending RTP for a second or more outside a
 hold: both send silence between replies.
 
+## The connectors' audio
+
+The engine's answers as the caller received them (engine audio in the direct sets' summaries:
+220 to 240 completed answers per profile in the latency and barge-in calls), each piece of speech
+aligned with what the mock sent, median over answers. Distortion is the audio against what no
+linear filter of ±4 ms explains (G.711 alone leaves about 37 dB); moved counts answers where a
+piece came out 5 ms or more later or earlier than the one before it.
+
+| target | profile | unchanged | distortion, dB | moved | gain, dB | 3.4-4 kHz, dB |
+| --- | --- | --- | --- | --- | --- | --- |
+| LiveKit | clean | 0 of 240 | 27.5 | 14, up to 40 ms | -0.2 | -8.3 |
+| LiveKit | lte | 0 of 240 | 27.4 | 23, up to 40 ms | -0.2 | -8.3 |
+| LiveKit | lte-bad | 0 of 237 | 26.8 | 17, up to 40 ms | -0.2 | -10.1 |
+| AIVC CE | clean | 222 of 222 | exact | 0 | +0.0 | +0.0 |
+| AIVC CE | lte | 220 of 220 | exact | 0 | +0.0 | +0.0 |
+| AIVC CE | lte-bad | 221 of 221 | exact | 0 | +0.0 | +0.0 |
+
+AI Voice Connector CE delivers the engine's G.711 as it got it: every aligned sample of the
+speech in every answer, under every profile (the network only removed packets). LiveKit takes
+the engine's 24 kHz audio through its room, over WebRTC (Opus, as its log shows), and back to
+8 kHz G.711: the level holds (-0.2 dB), 3.4-4 kHz comes out 8.3 dB lower, as a telephone
+band filter leaves it, and what no filter explains is 27.5 dB below the speech. In 6% of
+answers on a clean network a piece of speech came 20 or 40 ms later or earlier than the one
+before it, each time after the clip's 280 ms of digital silence: LiveKit lengthened or
+shortened the pause. Its [mixer](https://github.com/livekit/media-sdk/blob/bc3eace31b2e/mixer/mixer.go)
+waits for 3 frames when an input runs dry and discards from a full one, and Opus may stop
+sending in silence (`usedtx=1` in LiveKit's SDP); which of these does it was not measured.
+
+The mock sends LiveKit 24 kHz audio interpolated from 8 kHz clips. The comparison is against
+that audio through an ideal 8 kHz converter, so the interpolation's own loss near 4 kHz is not
+counted against LiveKit; what its images above 4 kHz alias back into the band would be.
+
 ## Raw runs
 
 Attached to the [release](../../docs/README.md#published-results) as `.tar.zst`; each unpacks to

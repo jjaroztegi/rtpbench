@@ -28,6 +28,8 @@ carrier in front, on a mock engine that holds the AI engine's share of each turn
   Connector CE's.
 - LiveKit's RTP falls 20 ms behind its own timestamps 4 s into every call, so a receiver needs a
   21 ms jitter buffer for it on a clean network; AI Voice Connector CE's needs 1.2 ms.
+- AI Voice Connector CE delivers the engine's speech sample for sample. LiveKit re-encodes it on
+  the way, through its WebRTC room, and in 6% of answers stretches or cuts a pause by 20-40 ms.
 - AI Voice Connector CE fails every signalling variation a carrier sends (compact headers, a bare
   `a=ssrc`, an INVITE without SDP), hangs up on the caller when a transfer fails, and as
   configured in its example takes SIP over UDP only, so an INVITE over 1300 bytes is refused.

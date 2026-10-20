@@ -14,8 +14,9 @@ A target is a voice agent that runs in Docker next to the reference stack, so th
 it through the same netem router. `rtpbench target NAME` runs every case, a 12-turn latency call
 and a 10-turn barge-in call against it (`--only` picks among them), with `--profiles` and
 `--runs` as for the cases. `summary.md` holds the verdicts, then turn latency and barge-in over
-every turn of every repeat, and how evenly the target's RTP reached the caller; `target.log`, the
-target's own logs.
+every turn of every repeat, how evenly the target's RTP reached the caller and, on the mock
+engine, what of its answers' audio reached the caller as sent; `target.log`, the target's own
+logs.
 
 | target | what |
 | --- | --- |
