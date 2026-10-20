@@ -11,17 +11,21 @@ Methods (caller pcap only):
   rtp     RTP timestamps anchored at the first packet to arrive, as a jitter-buffered recorder
   concat  payloads appended in arrival order, as a naive two-channel recorder does
 
+Each hears a pause in the sender's RTP (silence suppression) as silence where its times show one
+(`Stream.detect`): wire and packet every pause, rtp those the timestamps keep, concat none.
+
 Truth uses event positions from the agent and caller logs (which packet and sample), times from
 the caller pcap. The agent pcap splits truth - delay into agent scheduling error and network.
 """
 
+import bisect
 import itertools
 import json
 import math
 import re
 import statistics
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,6 +36,9 @@ from rtpbench.voice import GATE
 METHODS = ("wire", "packet", "rtp", "concat")
 CALLER_GAP_NS = 1_000_000_000  # pauses inside one caller turn are shorter than this
 AGENT_GAP_NS = 250_000_000
+# a sender that stops this long and goes on with its stream has paused (silence suppression);
+# lte-bad's jitter stops a stream for 0.18 s at most
+PAUSE_NS = 1_000_000_000
 S = rtp.SAMPLE_NS
 
 Timed = list[tuple[int, rtp.Packet]]
@@ -107,6 +114,35 @@ class Stream:
             if (t := self.times[k]) is not None:
                 return t + (0 if later else rtp.FRAME - 1) * S
         return None
+
+    def detect(self, find: Callable[[list[int]], list[tuple[int, int]]]) -> list[tuple[int, int]]:
+        """[start, end) samples of the speech `find` (a detector) hears here, each pause of the
+        sender's heard as a second of silence: PAUSE_NS or more on this stream's clock between
+        packets next by sequence (lost ones between at 20 ms each). Joined by sequence alone,
+        speech after a pause runs on from the speech before it, and its onset may go unheard.
+        Spans end at a pause. (Silence as long as the pause, which a clock that jumps can make
+        hours, gave webrtcvad the same spans.)"""
+        cuts, prev = [0], None  # samples where a pause ends
+        for k, t in enumerate(self.times):
+            if t is None:
+                continue
+            if prev is not None and t - prev[1] >= PAUSE_NS + (k - prev[0] - 1) * rtp.PTIME_NS:
+                cuts.append(k * rtp.FRAME)
+            prev = k, t
+        ends = [*cuts[1:], len(self.pcm)]
+        pcm: list[int] = []
+        starts: list[int] = []  # where each stretch between pauses starts in `pcm`
+        for a, b in zip(cuts, ends, strict=True):
+            if starts:
+                pcm += [0] * (PAUSE_NS // S)
+            starts.append(len(pcm))
+            pcm += self.pcm[a:b]
+
+        def here(i: int) -> int:  # sample i of `pcm` here; in a pause, the end of the one before
+            n = bisect.bisect_right(starts, i) - 1
+            return min(cuts[n] + i - starts[n], ends[n])
+
+        return [(a, b) for a, b in ((here(a), here(b)) for a, b in find(pcm)) if a < b]
 
 
 def stream(packets: Timed, pt: int, method: str = "wire") -> Stream:
@@ -286,7 +322,11 @@ def pauses(packets: Timed, lost_max: int) -> list[tuple[float, float, bool]]:
     about 0), ms; and whether the packet after it carries the marker bit, as 4.1 asks."""
     out = []
     for (t0, a), (t1, b) in itertools.pairwise(p for p in packets if p[1].pt in g711.NAMES):
-        if a.ssrc == b.ssrc and t1 - t0 >= 1e9 and 1 <= signed(b.seq - a.seq, 16) <= lost_max + 1:
+        if (
+            a.ssrc == b.ssrc
+            and t1 - t0 >= PAUSE_NS
+            and 1 <= signed(b.seq - a.seq, 16) <= lost_max + 1
+        ):
             gap = (t1 - t0) / 1e6
             out.append((gap, gap - signed(b.ts - a.ts, 32) * S / 1e6, b.marker))
     return out

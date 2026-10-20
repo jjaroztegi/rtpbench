@@ -49,7 +49,8 @@ stream pauses elsewhere in the call (the same stream going on after a second or 
 loss burst cannot fake), its next RTP must go on with the same stream (SSRC, next sequence
 number), or the check is inconclusive if none came. The summary's RTP section reports each pause
 outside a hold: how many per call, and whether the RTP clock kept time across it (RFC 3550 5.1)
-and marked the restart.
+and marked the restart. Speech is detected with every pause heard as silence: joined by sequence
+number alone, a reply would run on from the speech before the pause, and its onset go unheard.
 
 ## Through the carrier
 
