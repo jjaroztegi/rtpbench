@@ -184,6 +184,9 @@ def test_a_tool_the_mock_cannot_fill_is_not_called() -> None:
     assert realtime._arguments({"name": realtime.TOOL}) == {}
     flag = {"type": "object", "properties": {"warm": {"type": "boolean"}}, "required": ["warm"]}
     assert realtime._arguments(AVA_TOOL | {"parameters": flag}) is None
+    queue = {"type": "string", "enum": ["queue"]}
+    queues = {"type": "object", "properties": {"destination": queue}, "required": ["destination"]}
+    assert realtime._arguments(AVA_TOOL | {"parameters": queues}) is None
 
 
 async def _barge(port: int) -> list[dict[str, Any]]:

@@ -171,13 +171,17 @@ def _pack(opcode: int, data: bytes) -> bytes:
 
 def _arguments(tool: dict[str, Any]) -> dict[str, str] | None:
     """A transfer tool's arguments: every required one names the operator (AVA requires a
-    destination). None if one is not text: the mock cannot fill it, so it does not call the
-    tool rather than send a call its schema rejects."""
+    destination). None if one is not text or its schema rules the operator out: the mock does
+    not call the tool rather than send a call its schema rejects."""
     params = tool.get("parameters") or {}
     props = params.get("properties") or {}
     required = params.get("required") or []
-    if any(props.get(k, {}).get("type") != "string" for k in required):
-        return None
+    for k in required:
+        prop = props.get(k, {})
+        if prop.get("type") != "string" or DESTINATION not in prop.get("enum", [DESTINATION]):
+            return None
+        if prop.get("const", DESTINATION) != DESTINATION:
+            return None
     return dict.fromkeys(required, DESTINATION)
 
 
