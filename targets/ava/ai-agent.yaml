@@ -47,8 +47,8 @@ active_pipeline: local_hybrid  # Don't change - uses provider override via conte
 default_provider: openai_realtime
 
 # Audio Transport - AudioSocket for OpenAI Realtime
-# rtpbench: ExternalMedia (plain RTP); andrius/asterisk has no chan_audiosocket
-audio_transport: externalmedia
+# rtpbench: AudioSocket as shipped, or ExternalMedia (RTP), from targets/ava/compose.yaml
+audio_transport: ${AVA_TRANSPORT}
 audiosocket:
   format: slin
   host: 0.0.0.0
@@ -61,7 +61,7 @@ downstream_mode: stream
 contexts:
   default:
     greeting: Hello, I am a Voice Assistant. How can I help you today?
-    profile: openai_realtime_24k
+    profile: openai_realtime_24k_${AVA_TRANSPORT}  # rtpbench: the transport's profile below
     prompt: You are a concise voice assistant. Respond clearly and keep answers under 20 words unless more detail is requested.
     provider: openai_realtime
     # rtpbench: the transfer tool, to the destination below
@@ -70,7 +70,7 @@ contexts:
   demo_openai:
     greeting: "Hi! I'm Ava running on OpenAI Realtime API. I'm fast and natural-sounding. What would you like to know about this project?"
     prompt: "You are Ava (Asterisk Voice Agent) demonstrating OpenAI Realtime. Be helpful, conversational, and explain features clearly in 5-10 sentences."
-    profile: openai_realtime_24k
+    profile: openai_realtime_24k_${AVA_TRANSPORT}  # rtpbench: the transport's profile below
     provider: openai_realtime
 
 # Barge-In - Enable for natural interruption
@@ -117,7 +117,8 @@ streaming:
 # Audio Profiles - openai_realtime_24k for native 24kHz audio
 profiles:
   default: telephony_responsive
-  openai_realtime_24k:
+  # rtpbench: the golden openai_realtime_24k, as shipped for AudioSocket
+  openai_realtime_24k_audiosocket:
     chunk_ms: 20
     idle_cutoff_ms: 0
     internal_rate_hz: 24000
@@ -127,7 +128,20 @@ profiles:
       output_encoding: pcm16
       output_sample_rate_hz: 24000
     transport_out:
-      # rtpbench: ulaw for ExternalMedia; slin goes out as PCMU and the caller hears noise
+      encoding: slin
+      sample_rate_hz: 8000
+  # rtpbench: the same for ExternalMedia, but ulaw: slin goes out as PCMU, and the caller hears
+  # noise
+  openai_realtime_24k_externalmedia:
+    chunk_ms: 20
+    idle_cutoff_ms: 0
+    internal_rate_hz: 24000
+    provider_pref:
+      input_encoding: pcm16
+      input_sample_rate_hz: 24000
+      output_encoding: pcm16
+      output_sample_rate_hz: 24000
+    transport_out:
       encoding: ulaw
       sample_rate_hz: 8000
   telephony_responsive:

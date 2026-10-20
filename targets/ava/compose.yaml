@@ -1,7 +1,8 @@
 # Asterisk + AVA (Asterisk AI Voice Agent) as a target, merged over ../../compose.yaml. AVA is an
 # ARI app for an existing Asterisk; its compose runs the engine on the host's network next to
 # it. Here Asterisk and the engine share the network namespace of `target` (agentnet, plus
-# egress to the AI engine), and the engine reaches ARI and ExternalMedia RTP on 127.0.0.1.
+# egress to the AI engine), and the engine reaches ARI and the call audio (AudioSocket or
+# ExternalMedia RTP, AVA_TRANSPORT) on 127.0.0.1.
 # rtpbench routes the caller via the router, so SIP and RTP cross netem. Needs OPENAI_API_KEY
 # (and OPENAI_BASE_URL for another Realtime endpoint). Paths are relative to the repository
 # root, the first compose file's directory.
@@ -15,7 +16,37 @@ services:
     command: sleep infinity
 
   asterisk:
-    image: andrius/asterisk:22.8-cert4_debian-trixie@sha256:f3bd01300f0c36c8a7ea5bd9472c4b906d0f85410c3ea429166a0fedac6ad3ee
+    build:
+      context: ./targets/ava
+      # andrius/asterisk without the AudioSocket modules (menuselect leaves them out): built
+      # from the same source and ABI options (OPTIONAL_API), and added
+      dockerfile_inline: |
+        FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS modules
+        # the Debian snapshot this base image was built from, so every package version is fixed
+        RUN sed -i -e 's|^URIs: http://deb.debian.org/debian$$|URIs: http://snapshot.debian.org/archive/debian/20261005T000000Z|' \
+            -e 's|^URIs: http://deb.debian.org/debian-security$$|URIs: http://snapshot.debian.org/archive/debian-security/20261005T000000Z|' \
+            /etc/apt/sources.list.d/debian.sources \
+            && apt-get -o Acquire::Check-Valid-Until=false update \
+            && apt-get install -y --no-install-recommends ca-certificates \
+            build-essential curl libedit-dev libjansson-dev libncurses-dev libsqlite3-dev \
+            libssl-dev libxml2-dev uuid-dev pkg-config libcurl4-openssl-dev libsrtp2-dev
+        WORKDIR /usr/src/asterisk
+        RUN curl -fsSL -o /tmp/a.tar.gz https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-22.8-cert4.tar.gz \
+            && echo "a41a7007d420119255017bbf15759a4204fb45915b1ce5f0dc7622ecaf498c34  /tmp/a.tar.gz" | sha256sum -c - \
+            && tar --strip-components=1 -xzf /tmp/a.tar.gz && rm /tmp/a.tar.gz
+        RUN ./configure --with-ssl=ssl --with-crypto --without-pjproject-bundled \
+            --without-pjproject > /dev/null && make menuselect.makeopts > /dev/null \
+            && menuselect/menuselect --disable BUILD_NATIVE --enable BETTER_BACKTRACES \
+            --enable res_audiosocket --enable chan_audiosocket --enable app_audiosocket \
+            menuselect.makeopts
+        RUN make -j"$$(nproc)" res channels apps > /dev/null \
+            && grep -q '"OPTIONAL_API"' include/asterisk/buildopts.h
+
+        FROM andrius/asterisk:22.8-cert4_debian-trixie@sha256:f3bd01300f0c36c8a7ea5bd9472c4b906d0f85410c3ea429166a0fedac6ad3ee
+        COPY --from=modules /usr/src/asterisk/res/res_audiosocket.so \
+            /usr/src/asterisk/channels/chan_audiosocket.so \
+            /usr/src/asterisk/apps/app_audiosocket.so /usr/lib/asterisk/modules/
+    image: rtpbench-ava-asterisk:22.8-cert4
     network_mode: service:target
     depends_on: [target]
     volumes:
@@ -24,7 +55,11 @@ services:
       - ./targets/ava/ari.conf:/etc/asterisk/ari.conf:ro
       - ./targets/ava/http.conf:/etc/asterisk/http.conf:ro
     healthcheck:
-      test: [CMD-SHELL, "asterisk -rx 'ari show status' | grep -q Enabled"]
+      test:
+        - CMD-SHELL
+        - >-
+          asterisk -rx 'ari show status' | grep -q Enabled &&
+          asterisk -rx 'module show like chan_audiosocket' | grep -q Running
       interval: 1s
       retries: 30
 
@@ -76,6 +111,8 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-realtime-2.1}
       # the golden config's egress pacer: on as shipped, false to measure what it costs
       AVA_EGRESS_PACER: ${AVA_EGRESS_PACER:-true}
+      # how Asterisk hands AVA the call audio: AudioSocket (TCP) as shipped, or externalmedia (RTP)
+      AVA_TRANSPORT: ${AVA_TRANSPORT:-audiosocket}
       LOG_LEVEL: debug
     # ready once the engine serves its health endpoint
     healthcheck:

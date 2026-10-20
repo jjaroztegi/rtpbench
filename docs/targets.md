@@ -21,18 +21,21 @@ engine; `target.log`, the target's own logs.
 | target | what |
 | --- | --- |
 | [`aivc`](../targets/aivc) | [OpenSIPS AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at a pinned commit on OpenSIPS 3.6, openai flavor as upstream's example sets it, transferring to the operator. Without `--mock`, needs `OPENAI_API_KEY`; `OPENAI_URL` points it at another Realtime endpoint (such as Azure OpenAI `wss://<resource>.openai.azure.com/openai/v1/realtime?model=<deployment>`). Set `OPENAI_REASONING_EFFORT=` (empty) for a model without reasoning, such as gpt-realtime-1.5: with the default, the session setup is rejected and the caller hears noise |
-| [`ava`](../targets/ava) | Asterisk 22 (certified 22.8, an [andrius/asterisk](https://github.com/andrius/asterisk) image) and [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) (Asterisk AI Voice Agent), an ARI app, at a pinned commit, on its OpenAI Realtime provider with AVA's golden configuration for it, transferring to the operator. Without `--mock`, needs `OPENAI_API_KEY`; `OPENAI_BASE_URL` points it at another Realtime endpoint, `OPENAI_MODEL` names the model (default `gpt-realtime-2.1`). `AVA_EGRESS_PACER=false` turns off the egress pacer that configuration turns on |
+| [`ava`](../targets/ava) | Asterisk 22 (certified 22.8, an [andrius/asterisk](https://github.com/andrius/asterisk) image with Asterisk's AudioSocket modules added) and [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) (Asterisk AI Voice Agent), an ARI app, at a pinned commit, on its OpenAI Realtime provider with AVA's golden configuration for it, transferring to the operator. Without `--mock`, needs `OPENAI_API_KEY`; `OPENAI_BASE_URL` points it at another Realtime endpoint, `OPENAI_MODEL` names the model (default `gpt-realtime-2.1`). `AVA_EGRESS_PACER=false` turns off the egress pacer that configuration turns on; `AVA_TRANSPORT=externalmedia` hands AVA the call audio over RTP instead of AudioSocket |
 | [`livekit`](../targets/livekit) | [LiveKit](https://github.com/livekit/livekit) server and [SIP bridge](https://github.com/livekit/sip) as livekit/sip's compose runs them, and a [LiveKit Agents](https://github.com/livekit/agents) worker on the OpenAI Realtime model through Azure OpenAI (`with_azure`), given AI Voice Connector CE's instructions, greeting, voice and tools, and a cold transfer. Without `--mock`, needs `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`; `AZURE_OPENAI_DEPLOYMENT` names the deployment (default `gpt-realtime-2.1`) |
 
 Images are pinned by digest. Upstream ships no SIP + Realtime compose for LiveKit, so its agent
 is rtpbench's own, on LiveKit's documented settings. LiveKit converts the call audio for the
 engine; AI Voice Connector CE passes G.711 through. AVA converts it too, behind Asterisk, which
-answers the call and bridges it to AVA over RTP.
+answers the call and bridges it to AVA over AudioSocket (TCP, 16-bit linear, as AVA's golden
+configuration ships) or, with `AVA_TRANSPORT=externalmedia`, over RTP (G.711). The variable
+also selects the profile AVA sends with: `slin` for AudioSocket, `ulaw` for ExternalMedia.
 
 What `targets/ava` changes from AVA's golden configuration, and why:
-- Its media goes over ExternalMedia (RTP) instead of AudioSocket, which the Asterisk image lacks
-  (`chan_audiosocket`). The profile then has to send `ulaw`: left at `slin`, AVA sends 16-bit
-  samples in PCMU packets, the caller hears noise, and nothing reports an error.
+- The andrius image leaves Asterisk's AudioSocket modules out, so `compose.yaml` builds those three
+  from the same release tarball and build options and adds them. For ExternalMedia, the profile
+  has to send `ulaw`: left at `slin`, AVA sends 16-bit samples in PCMU packets, the caller hears
+  noise, and nothing reports an error.
 - It enables AVA's transfer tool, to one destination. AVA does not refer the call itself: it
   hands it to an Asterisk dialplan extension and ends its session there. `Transfer()` in
   [`extensions.conf`](../targets/ava/extensions.conf) sends the REFER, so its outcome never

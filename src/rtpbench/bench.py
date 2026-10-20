@@ -46,6 +46,7 @@ TARGETS = {
             "OPENAI_BASE_URL": "wss://api.openai.com/v1/realtime",
             "OPENAI_MODEL": "gpt-realtime-2.1",
             "AVA_EGRESS_PACER": "true",
+            "AVA_TRANSPORT": "audiosocket",
         },
     ),
 }
