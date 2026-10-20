@@ -69,11 +69,18 @@ MOCK = {
 CREDENTIALS = ("RTPBENCH_SIP_USER", "RTPBENCH_SIP_PASSWORD")
 
 
+# compose takes these as ${VAR-default}, so set but empty is a value; the rest, ${VAR:-default}
+EMPTY_IS_A_VALUE = {"OPENAI_REASONING_EFFORT"}
+
+
 def _engine(settings: dict[str, str]) -> dict[str, str]:
-    """A target's engine settings as the conditions record them: no account names, no keys."""
+    """A target's engine settings as the conditions record them, as compose resolves them: no
+    account names, no keys."""
     out = {}
     for var, default in settings.items():
         value = os.environ.get(var, default)
+        if not value and var not in EMPTY_IS_A_VALUE:
+            value = default
         if "://" in value:
             url = urlsplit(value)
             domain = ".".join((url.hostname or "").split(".")[-3:])
