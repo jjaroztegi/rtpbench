@@ -163,6 +163,12 @@ def test_answers_as_the_real_api_does(engine: tuple[int, Path]) -> None:
 def test_required_text_arguments_name_the_operator(engine: tuple[int, Path]) -> None:
     port, out = engine
     _, turn = asyncio.run(_aivc(port, AVA_TOOL))
+    done = next(
+        e["item"]
+        for e in turn
+        if e["type"] == "conversation.item.done" and e["item"]["type"] == "function_call"
+    )
+    assert json.loads(done["arguments"]) == {"destination": "operator"}  # complete when done
     item = next(e for e in turn if e["type"] == "response.output_item.done")["item"]
     assert (item["name"], json.loads(item["arguments"])) == (
         "blind_transfer",
@@ -171,6 +177,13 @@ def test_required_text_arguments_name_the_operator(engine: tuple[int, Path]) -> 
     records = [json.loads(line) for line in (out / "realtime.jsonl").read_text().splitlines()]
     answer = [r for r in records if r.get("trigger") == "turn"][-1]
     assert answer["tool"] == "blind_transfer"
+
+
+def test_a_tool_the_mock_cannot_fill_is_not_called() -> None:
+    assert realtime._arguments(AVA_TOOL) == {"destination": "operator"}
+    assert realtime._arguments({"name": realtime.TOOL}) == {}
+    flag = {"type": "object", "properties": {"warm": {"type": "boolean"}}, "required": ["warm"]}
+    assert realtime._arguments(AVA_TOOL | {"parameters": flag}) is None
 
 
 async def _barge(port: int) -> list[dict[str, Any]]:

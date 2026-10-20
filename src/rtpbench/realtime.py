@@ -169,6 +169,18 @@ def _pack(opcode: int, data: bytes) -> bytes:
 # --- the engine ---
 
 
+def _arguments(tool: dict[str, Any]) -> dict[str, str] | None:
+    """A transfer tool's arguments: every required one names the operator (AVA requires a
+    destination). None if one is not text: the mock cannot fill it, so it does not call the
+    tool rather than send a call its schema rejects."""
+    params = tool.get("parameters") or {}
+    props = params.get("properties") or {}
+    required = params.get("required") or []
+    if any(props.get(k, {}).get("type") != "string" for k in required):
+        return None
+    return dict.fromkeys(required, DESTINATION)
+
+
 def _id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(8)}"
 
@@ -247,12 +259,14 @@ class Session:
         names = [t.get("name", "") for t in self.tools]
         self.note({"event": "session", "format": fmt or None, "tools": names})
 
-    async def added(self, item: dict[str, Any]) -> None:
+    async def added(self, item: dict[str, Any], done: bool = True) -> None:
+        """conversation.item.added, and with `done` its conversation.item.done."""
         await self.send(
             {"type": "conversation.item.added", "previous_item_id": self.last_item or None}
             | {"item": item}
         )
-        await self.send({"type": "conversation.item.done", "item": item})
+        if done:
+            await self.send({"type": "conversation.item.done", "item": item})
         self.last_item = item["id"]
 
     def decode(self, audio: bytes) -> list[int]:
@@ -367,7 +381,9 @@ class Session:
     ) -> None:
         """Answer DELAY_NS after `since`: a clip, or a call to the target's transfer tool."""
         await asyncio.sleep(max(0, since + DELAY_NS - CLOCK.now()) / 1e9)
-        tool = next((t for t in self.tools if t.get("name") in TOOLS), None)
+        tool = next(
+            (t for t in self.tools if t.get("name") in TOOLS and _arguments(t) is not None), None
+        )
         if what == TOOL and tool is None:
             what = SHORT
         rid, item_id = _id("resp"), _id("item")
@@ -402,29 +418,21 @@ class Session:
             await asyncio.shield(self.send({"type": "response.done", "response": done}))
 
     async def call_tool(self, rid: str, item_id: str, tool: dict[str, Any]) -> dict[str, Any]:
-        """Call `tool`, every required text argument naming the operator, as a model told
-        where a transfer can go would (AVA requires a destination)."""
-        params = tool.get("parameters") or {}
-        props = params.get("properties") or {}
-        arguments = json.dumps(
-            {
-                k: DESTINATION
-                for k in params.get("required", [])
-                if props.get(k, {}).get("type") == "string"
-            }
-        )
+        """Call `tool` with `_arguments`, as a model told where a transfer can go would."""
+        arguments = json.dumps(_arguments(tool))
         name, call_id = tool["name"], _id("call")
         item = {"id": item_id, "object": "realtime.item", "type": "function_call"}
         item |= {"status": "in_progress", "name": name, "call_id": call_id, "arguments": ""}
         where = {"response_id": rid, "output_index": 0}
         await self.send({"type": "response.output_item.added", "item": item} | where)
-        await self.added(item)
+        await self.added(item, done=False)  # done once its arguments are
         args = {"item_id": item_id, "call_id": call_id} | where
         delta = {"type": "response.function_call_arguments.delta", "delta": arguments}
         await self.send(delta | args)
         done = {"type": "response.function_call_arguments.done", "name": name}
         await self.send(done | {"arguments": arguments} | args)
         item |= {"status": "completed", "arguments": arguments}
+        await self.send({"type": "conversation.item.done", "item": item})
         await self.send({"type": "response.output_item.done", "item": item} | where)
         return item
 
