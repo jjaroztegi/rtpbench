@@ -55,3 +55,58 @@ over 0 that often by chance. Give each regression a tolerance.
 Keep a reviewed `check.json` as the baseline (in the repository, say) and replace it on
 purpose. Compared with the last deploy instead, latency can grow by just under the tolerance
 every time without failing once.
+
+## GitHub Actions
+
+```yaml
+jobs:
+  voice-agent:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      agent:
+        image: registry.example/agent:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v6  # the policy and the baseline
+      - uses: jjaroztegi/rtpbench@<commit SHA>  # vX.Y.Z
+        env:
+          RTPBENCH_SIP_USER: ${{ secrets.SIP_USER }}
+          RTPBENCH_SIP_PASSWORD: ${{ secrets.SIP_PASSWORD }}
+        with:
+          target: sip:agent@agent:5060
+          network: ${{ job.services.agent.network }}
+          profiles: clean,lte
+          policy: rtpbench.toml
+          previous: rtpbench-baseline.json
+```
+
+The [action](../action.yml) runs `rtpbench target` and `rtpbench check` with its inputs, adds
+`summary.md` and `check.md` to the job summary, uploads the report files (`summary.md`,
+`report.html`, `results.json`, `conditions.json`, `check.*`) as an artifact, and fails the job
+when the run fails the policy; its outputs are `results` (the directory) and `passed`. A job
+takes as long as `rtpbench target`: this repository's [Action
+workflow](../.github/workflows/action.yml), six calls on one profile, takes about 8 minutes on
+`ubuntu-24.04`, building images included. Credentials go in the step's `env`, from secrets.
+`upload: all` uploads the whole results directory, captures included; in a public repository
+anyone can download it, and the captures of a run with credentials hold the SIP user name and
+a digest of the password that a dictionary attack can test.
+
+### Where the agent runs
+
+- In the same job: a service container, as above, or `docker compose up -d` in an earlier step
+  with `network` its network's name. Nothing crosses a NAT and nothing listens on the internet.
+- Over the internet, from a GitHub-hosted runner: the runner takes no inbound traffic, so
+  `advertise` cannot work, and only an agent that sends its audio and requests back to where
+  ours come from (symmetric RTP and `rport`, as SBCs facing the internet do) can be called. The
+  profile adds to a real path that the error bars do not cover and that changes between runs:
+  give regressions a wider tolerance. Not yet tested.
+- On a self-hosted runner (Linux, Docker 28 or later) beside the agent: a private network, or an
+  agent that sends its audio to the offered address, with `advertise` and its ports forwarded
+  to the runner. A dedicated host also times more steadily than a shared runner.
+
+### Versioning
+
+Pin the action by commit SHA, with the version in a comment (Dependabot and Renovate update
+both). The action runs the rtpbench of that commit, so its checks and error bars change only
+when the pin does; a baseline from another version is not compared, so replace it with the
+upgrade. There is no moving major tag, which would change the judging under a build.

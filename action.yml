@@ -1,0 +1,143 @@
+name: rtpbench
+description: >-
+  Call a voice agent over SIP/RTP, time its turns and barge-in from the packets, and fail the
+  job when the run breaks a policy.
+
+# Inputs reach the shell through env, never interpolated into a script.
+inputs:
+  target:
+    description: "The agent's sip: URI (sip:user@host:port), or a bundled target: aivc, livekit"
+    required: true
+  profiles:
+    description: Comma-separated netem profiles (rtpbench target --help lists them)
+    default: clean
+  runs:
+    description: Repeats per profile
+    default: "1"
+  only:
+    description: Comma-separated cases, latency, barge-in (default all)
+    default: ""
+  policy:
+    description: Policy file (docs/ci.md); without one, every case must pass
+    default: ""
+  previous:
+    description: An earlier run's check.json, for the policy's [regression]
+    default: ""
+  lines:
+    description: Directory of the caller's lines, named as in corpus/lines/en
+    default: ""
+  network:
+    description: Docker network the agent is on, by name or ID (job.services.<id>.network)
+    default: ""
+  advertise:
+    description: HOST:PORT where the agent reaches this runner; it publishes PORT and the next 7
+    default: ""
+  proxy:
+    description: Where a transfer's INVITE goes (default the Refer-To host)
+    default: ""
+  mock:
+    description: A bundled target on the mock engine instead of its AI engine
+    default: "false"
+  out:
+    description: Results directory
+    default: rtpbench-results
+  upload:
+    description: >-
+      Artifact: report (summary, report.html, results, check, conditions), all (the whole results
+      directory, with the captures) or none. The captures of a run with digest credentials hold
+      the user name and a digest of the password a dictionary attack can test.
+    default: report
+  artifact-name:
+    description: Name of the uploaded artifact
+    default: rtpbench
+
+outputs:
+  results:
+    description: The results directory
+    value: ${{ inputs.out }}
+  passed:
+    description: Whether the run passed the policy (true or false)
+    value: ${{ steps.check.outcome == 'success' }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        working-directory: ${{ github.action_path }}
+
+    - id: target
+      shell: bash
+      env:
+        RTPBENCH: ${{ github.action_path }}
+        TARGET: ${{ inputs.target }}
+        PROFILES: ${{ inputs.profiles }}
+        RUNS: ${{ inputs.runs }}
+        ONLY: ${{ inputs.only }}
+        LINES: ${{ inputs.lines }}
+        NETWORK: ${{ inputs.network }}
+        ADVERTISE: ${{ inputs.advertise }}
+        PROXY: ${{ inputs.proxy }}
+        MOCK: ${{ inputs.mock }}
+        OUT: ${{ inputs.out }}
+        UPLOAD: ${{ inputs.upload }}
+      run: |
+        case "$UPLOAD" in all | report | none) ;; *) echo "::error::upload: all, report or none"; exit 2 ;; esac
+        args=(target "$TARGET" --profiles "$PROFILES" --runs "$RUNS" --out "$OUT")
+        [ -n "$ONLY" ] && args+=(--only "$ONLY")
+        [ -n "$LINES" ] && args+=(--lines "$LINES")
+        # a service container's network comes as an ID; compose joins a network by name
+        [ -n "$NETWORK" ] && args+=(--network "$(docker network inspect -f '{{.Name}}' "$NETWORK")")
+        [ -n "$ADVERTISE" ] && args+=(--advertise "$ADVERTISE")
+        [ -n "$PROXY" ] && args+=(--proxy "$PROXY")
+        [ "$MOCK" = true ] && args+=(--mock)
+        uv run --project "$RTPBENCH" --locked --extra vad rtpbench "${args[@]}"
+
+    - id: check
+      continue-on-error: true
+      shell: bash
+      env:
+        RTPBENCH: ${{ github.action_path }}
+        OUT: ${{ inputs.out }}
+        POLICY: ${{ inputs.policy }}
+        PREVIOUS: ${{ inputs.previous }}
+      run: |
+        args=(check "$OUT")
+        [ -n "$POLICY" ] && args+=(--policy "$POLICY")
+        [ -n "$PREVIOUS" ] && args+=(--previous "$PREVIOUS")
+        uv run --project "$RTPBENCH" --locked rtpbench "${args[@]}"
+
+    - if: always()
+      shell: bash
+      env:
+        OUT: ${{ inputs.out }}
+      run: |
+        for f in summary.md check.md; do
+          if [ -f "$OUT/$f" ]; then cat "$OUT/$f" >> "$GITHUB_STEP_SUMMARY"; fi
+        done
+
+    - if: always() && inputs.upload == 'all'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.out }}
+        if-no-files-found: ignore
+
+    - if: always() && inputs.upload == 'report'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.out }}/summary.md
+          ${{ inputs.out }}/report.html
+          ${{ inputs.out }}/results.json
+          ${{ inputs.out }}/conditions.json
+          ${{ inputs.out }}/check.md
+          ${{ inputs.out }}/check.json
+        if-no-files-found: ignore
+
+    - if: steps.check.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::error::the run fails the policy: see Check in the job summary"
+        exit 1

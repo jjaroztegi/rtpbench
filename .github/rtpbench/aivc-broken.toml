@@ -1,0 +1,3 @@
+# What the same run must fail: hold expected to pass, and a latency it does not meet.
+[latency.clean]
+p50 = 1000
