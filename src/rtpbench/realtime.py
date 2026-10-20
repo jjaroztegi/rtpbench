@@ -635,7 +635,9 @@ def sent(clip: list[int], fmt: str | None) -> list[float]:
     law = {"audio/pcmu": g711.PCMU, "audio/pcma": g711.PCMA}.get(fmt or "")
     if law is not None:
         return [float(s) for s in g711.decode(law, g711.encode(law, clip))]
-    up = np.frombuffer(_upsample(clip), dtype="<i2").astype(np.float64)
+    step = 8 * DELTA_MS  # interpolated a delta at a time, as `Session.speak` sends it
+    raw = b"".join(_upsample(clip[i : i + step]) for i in range(0, len(clip), step))
+    up = np.frombuffer(raw, dtype="<i2").astype(np.float64)
     spectrum = np.fft.rfft(up)
     spectrum[len(up) // 6 + 1 :] = 0  # above 4 kHz
     return [float(s) for s in np.fft.irfft(spectrum, len(up))[::3]]
@@ -653,8 +655,9 @@ def heard(ref: list[float], rx: list[int], ok: list[bool]) -> dict[str, Any] | N
     late, `ok` false for samples the network lost. Each piece of speech is aligned on its own,
     near the one before: gain (dB, least squares), what no linear filter of ±TAPS explains (dB
     below the audio; inf if unchanged), 3.4-4 kHz against 300-3400 Hz relative to `ref`'s (dB),
-    the moves of 5 ms or more between pieces (ms, positive later), and whether every sample is
-    unchanged. None if under half the speech could be aligned."""
+    the moves of 5 ms or more between pieces (ms, positive later), and whether every aligned
+    sample is unchanged (pauses and pieces that could not be aligned are not compared). None if
+    under half the speech could be aligned."""
     import numpy as np
 
     r_all, x_all, m_all = np.asarray(ref), np.asarray(rx, dtype=np.float64), np.asarray(ok)
@@ -778,7 +781,8 @@ def downlink(out: Path) -> str:
         "latency and barge-in calls), median [min, max] over answers. Each piece of speech is "
         "aligned with what the mock sent; for 24 kHz audio, that is its interpolation through an "
         "ideal 8 kHz converter, so the mock's own resampling is not counted. Samples in packets "
-        "the network lost are left out. unchanged: answers with every sample as sent. "
+        "the network lost are left out. unchanged: answers whose aligned speech came through "
+        "sample for sample (pauses are not compared). "
         "distortion: the audio against what no linear filter of ±4 ms explains; a resampler or "
         "band filter would leave G.711's own, about 37 dB. moved: answers where a piece came out "
         "5 ms or more later or earlier than the one before (a pause lengthened or shortened, "
