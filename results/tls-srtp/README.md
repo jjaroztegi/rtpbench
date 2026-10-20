@@ -10,8 +10,10 @@ SRTP](../../docs/targets.md#tls-and-srtp). Image `rtpbench:f026db2ef9a8`; the gi
 the raw run directories are [archived](#raw-runs).
 
 ```sh
-uv run rtpbench calibrate --tls --srtp [--carrier]
-uv run --extra vad rtpbench cases --tls --srtp [--carrier]
+uv run rtpbench calibrate --tls --srtp
+uv run rtpbench calibrate --tls --srtp --carrier
+uv run --extra vad rtpbench cases --tls --srtp
+uv run --extra vad rtpbench cases --tls --srtp --carrier
 uv run --extra vad rtpbench target aivc --mock --carrier --tls --srtp
 ```
 
