@@ -1537,7 +1537,7 @@ def pacing(calls: list[tuple[str, Path]]) -> str:
         if not run.name.startswith("hold"):  # in a hold, stopping is what the case asks for
             paused.setdefault(profile, []).append(analyze.pauses(down, SEQ_LOST_MAX))
     if not by:
-        return ""
+        return _pauses(paused).lstrip() if paused else ""
     rows = [
         [p, str(len(v)), _spread([late for _, late in v], ".1f"), _spread([j for j, _ in v], ".2f")]
         for p, v in by.items()
@@ -1558,7 +1558,8 @@ def _pauses(by: dict[str, list[list[tuple[float, float, bool]]]]) -> str:
     calls (each a list of `analyze.pauses`); a sentence if it never did."""
     if not any(p for calls in by.values() for p in calls):
         return (
-            "\nPauses: none; outside a hold the agent's RTP never stopped for a second or more.\n"
+            "\nPauses: none; outside a hold, the agent's RTP never went on after stopping for a "
+            "second or more.\n"
         )
     rows = []
     for profile, calls in by.items():

@@ -96,4 +96,4 @@ The agent's RTP as the caller received it, ms, median [min, max] over calls: lat
 | lte | 120 | 15.7 [11.8, 19.9] | 3.32 [2.52, 3.76] |
 | lte-bad | 120 | 105.2 [88.8, 121.4] | 20.07 [15.70, 21.31] |
 
-Pauses: none; outside a hold the agent's RTP never stopped for a second or more.
+Pauses: none; outside a hold, the agent's RTP never went on after stopping for a second or more.
