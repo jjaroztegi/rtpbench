@@ -1,0 +1,58 @@
+{
+ "date": "2026-10-20T05:29:50+00:00",
+ "commit": "v0.1.0-21-g4161aa1",
+ "image": "rtpbench:0397e3c41635",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  5.68,
+  5.54,
+  5.4
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "ava",
+ "carrier": true,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "settings": {
+  "AVA_EGRESS_PACER": "true",
+  "AVA_TRANSPORT": "externalmedia"
+ },
+ "images": "CONTAINER                         REPOSITORY              TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-ff4f78-agent-1           rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-asterisk-1        rtpbench-ava-asterisk   22.8-cert4          linux/amd64         dd1b3d92f315        326MB               42 minutes ago\nrtpbench-ff4f78-caller-1          rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-carrier-1         rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-carrier-media-1   rtpbench-rtpengine      12.5.1.31           linux/amd64         1fbe3c69796b        295MB               2 days ago\nrtpbench-ff4f78-carrier-sip-1     rtpbench-opensips       3.6.9-1             linux/amd64         db05b78159b8        266MB               30 hours ago\nrtpbench-ff4f78-engine-1          rtpbench-ava            ba52df9             linux/amd64         eb717fe2ec72        459MB               12 hours ago\nrtpbench-ff4f78-operator-1        rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-realtime-1        rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-router-1          rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago\nrtpbench-ff4f78-target-1          rtpbench                0397e3c41635        linux/amd64         00644b805457        138MB               16 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  6.0,
+  5.15,
+  5.04
+ ]
+}

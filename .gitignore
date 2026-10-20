@@ -9,3 +9,4 @@ results/*
 !results/metrology/
 !results/media-path/
 !results/tls-srtp/
+!results/ava/
