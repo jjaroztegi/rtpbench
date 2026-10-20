@@ -24,7 +24,7 @@ services:
 
   engine:
     build:
-      context: https://github.com/OpenSIPS/opensips-ai-voice-connector-ce.git#09e14d00863c7a76fa5778e32209c9bdf49bdaee
+      context: https://github.com/OpenSIPS/opensips-ai-voice-connector-ce.git#b95f5afa99301e5d6ee0643dcea73b1a457b6286
       # upstream's docker/Dockerfile, with the base image and every installed package pinned
       # (upstream pins only its direct requirements)
       additional_contexts: { pins: ./targets/aivc }
@@ -35,7 +35,7 @@ services:
         COPY --from=pins constraints.txt /tmp/constraints.txt
         RUN pip install --no-cache-dir -r requirements.txt -c /tmp/constraints.txt
         CMD ["python3", "-u", "src/main.py"]
-    image: rtpbench-aivc:09e14d0
+    image: rtpbench-aivc:b95f5af
     network_mode: service:target
     depends_on:
       opensips: { condition: service_healthy }
