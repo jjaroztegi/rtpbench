@@ -1,0 +1,62 @@
+{
+ "date": "2026-10-20T17:11:51+00:00",
+ "commit": "v0.1.0-25-g274e92d",
+ "image": "rtpbench:f026db2ef9a8",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  2.73,
+  2.53,
+  1.82
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "tls": true,
+ "tls_trust": "ca sha256:79a977b52d4a6008bbfc5c60f6204425eca93a5bb15ec27cf12e69d7d2c573ad",
+ "srtp": [
+  "AES_CM_128_HMAC_SHA1_80",
+  "AES_CM_128_HMAC_SHA1_32",
+  "AEAD_AES_128_GCM"
+ ],
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean"
+ ],
+ "runs": 1,
+ "target": "aivc",
+ "carrier": true,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "settings": {
+  "OPENAI_REASONING_EFFORT": "low"
+ },
+ "images": "CONTAINER                         REPOSITORY           TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-3bdb37-agent-1           rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-caller-1          rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-carrier-1         rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-carrier-media-1   rtpbench-rtpengine   12.5.1.31           linux/amd64         44e8ded2029c        295MB               3 days ago\nrtpbench-3bdb37-carrier-sip-1     rtpbench-opensips    3.6.9-1-tls         linux/amd64         b1e3319646fe        267MB               23 hours ago\nrtpbench-3bdb37-engine-1          rtpbench-aivc        09e14d0             linux/amd64         0fa45b533ac5        1.32GB              3 days ago\nrtpbench-3bdb37-opensips-1        opensips/opensips    <none>              linux/amd64         7000cf7d09d4        264MB               4 weeks ago\nrtpbench-3bdb37-operator-1        rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-realtime-1        rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-router-1          rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago\nrtpbench-3bdb37-target-1          rtpbench             f026db2ef9a8        linux/amd64         c686a09520a5        165MB               48 minutes ago",
+ "clock_steps": [],
+ "load_end": [
+  2.23,
+  2.55,
+  2.22
+ ]
+}
