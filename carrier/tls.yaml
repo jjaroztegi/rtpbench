@@ -1,0 +1,9 @@
+# The carrier with SIP over TLS on the caller's leg (carrier/tls.cfg), merged over
+# compose.yaml: the stack's test certificate from the results' tls/ directory.
+services:
+  carrier-sip:
+    entrypoint: [/usr/sbin/opensips, -F, -f, /etc/opensips/tls.cfg]
+    volumes:
+      - ./carrier/opensips.cfg:/etc/opensips/opensips.cfg:ro
+      - ./carrier/tls.cfg:/etc/opensips/tls.cfg:ro
+      - ${RTPBENCH_OUT:?}/tls:/tls:ro

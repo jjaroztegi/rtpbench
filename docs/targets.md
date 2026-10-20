@@ -110,7 +110,8 @@ calls here. With [digest authentication](#digest-authentication) the captures th
 digest, as over UDP.
 
 `cases --tls` and `calibrate --tls` reach the reference agent over TLS, with a certificate from a
-CA the stack makes for the run (both kept in the results' `tls/`). `large-invite` does not run
+CA the stack makes for the run (both kept in the results' `tls/`); with `--carrier`, the carrier
+takes both on the caller's leg ([below](#carrier)). `large-invite` does not run
 over TLS: the case is about switching from UDP. `conditions.json` records `tls` and what the
 caller trusted (`tls_trust`); each call's `caller.json`, the TLS version and cipher suite, which
 the summary counts.
@@ -168,6 +169,18 @@ legs. The caller's leg crosses the netem router; the carrier-agent leg does not.
 legs are captured (`carrier.pcap`), and the calibration adds the carrier's own transit time per
 packet: 0.1 ms or less at the median. Which cases change through it is in
 [cases](cases.md#through-the-carrier).
+
+```sh
+uv run --extra vad rtpbench cases --carrier --tls --srtp
+uv run --extra vad rtpbench target aivc --mock --carrier --tls --srtp
+```
+
+With `--tls` and `--srtp` the caller's leg is SIP over TLS on 5061 and SRTP, as trunks offer
+them ([`tls.cfg`](../carrier/tls.cfg)): OpenSIPS ends TLS with the stack's test certificate,
+rtpengine ends SRTP, and the agent's leg stays plain SIP over UDP and RTP, as an SBC in front of
+a PBX would leave it. A bundled target that takes neither (AI Voice Connector CE's media is plain
+RTP) is judged this way behind a secure trunk. The caller's `keys.log` reads that leg in
+`carrier.pcap` too, and the carrier's transit time then includes rtpengine's encryption.
 
 ## Digest authentication
 

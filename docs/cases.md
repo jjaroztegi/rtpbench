@@ -69,4 +69,4 @@ the agent:
   not offer, rtpengine gives the caller the offered law and transcodes.
 - `hold-zero`: rtpengine passes a `c=0.0.0.0` offer on with `a=sendonly` added, which `hold`
   already covers.
-- `large-invite`: the carrier takes SIP over UDP only.
+- `large-invite`: the carrier takes SIP over UDP (and TLS, with `--tls`), not TCP.

@@ -14,7 +14,7 @@ from rtpbench.srtp import SUITES
 
 CODECS = {"pcmu": 0, "pcma": 8}
 LARGE_INVITE_TLS = "large-invite: not over TLS (it checks the switch from UDP to TCP)"
-TLS_HELP = "SIP over TLS to the reference agent, its certificate from the stack's test CA"
+TLS_HELP = "SIP over TLS to the agent (or the carrier), certified by the stack's test CA"
 SRTP_HELP = (
     "SRTP keyed in the SDP (SDES), offering these suites in this order (default: "
     + ", ".join(SUITES)
@@ -50,18 +50,19 @@ def _target_args(args: argparse.Namespace) -> str | None:
         "--network": args.network,
         "--advertise": args.advertise,
         "--ca": args.ca,
-        "--srtp": args.srtp,
     }
     if not is_uri(args.name):
         if args.name not in TARGETS:
             return f"NAME|URI: {args.name!r} is neither {', '.join(TARGETS)} nor a sip: URI"
         if given := [k for k, v in uri_only.items() if v]:
             return f"{', '.join(given)}: with a URI only"
+        if (args.tls or args.srtp) and not args.carrier:
+            return "--tls, --srtp: with a URI, or through the carrier (--carrier)"
         if args.lines and args.mock:
             return "--lines: not with --mock, which recognises only the bundled lines"
         return None
-    if args.mock or args.carrier:
-        return "--mock, --carrier: with a bundled target only"
+    if args.mock or args.carrier or args.tls:
+        return "--mock, --carrier, --tls: with a bundled target only (a URI gives TLS as sips:)"
     if ":" in args.name.split(":", 1)[1].split("@")[0] and "@" in args.name:
         return "the URI has a password: give credentials in the environment, not the URI"
     host, _ = parse_uri(args.name)
@@ -229,7 +230,16 @@ examples:
         help="URI over TLS: trust the certificates in FILE (PEM) instead of the system's",
     )
     p.add_argument(
-        "--srtp", nargs="?", const=",".join(SUITES), metavar="SUITE,...", help="URI: " + SRTP_HELP
+        "--srtp",
+        nargs="?",
+        const=",".join(SUITES),
+        metavar="SUITE,...",
+        help="URI, or with --carrier: " + SRTP_HELP,
+    )
+    p.add_argument(
+        "--tls",
+        action="store_true",
+        help="with --carrier: SIP over TLS to the carrier (a URI says so itself: sips:)",
     )
 
     p = sub.add_parser("case", description="run one case's caller side (inside a container)")
@@ -360,8 +370,6 @@ example:
     if args.cmd is None:
         parser.print_help()
         raise SystemExit(2)
-    if args.cmd in ("calibrate", "cases") and (args.tls or args.srtp) and args.carrier:
-        parser.error("--tls, --srtp: not with --carrier yet")
     if unknown := [
         s for s in (getattr(args, "srtp", None) or "").split(",") if s and s not in SUITES
     ]:
@@ -425,7 +433,7 @@ example:
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         from rtpbench.sip import secure
 
-        tls = is_uri(args.name) and secure(args.name)
+        tls = secure(args.name) if is_uri(args.name) else args.tls
         names = (
             args.only.split(",")
             if args.only
@@ -450,6 +458,7 @@ example:
                 args.advertise,
                 args.ca,
                 _suites(args.srtp),
+                args.tls,
                 progress=progress,
             )
         print(summary)
