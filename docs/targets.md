@@ -105,8 +105,9 @@ caller's lines with what reached the engine.
 
 It recognises the caller's own lines, not speech in general: it names the nearest line by the
 shape of its energy envelope, whatever the level and through lost packets. A target's audio path
-can change the audio a lot; LiveKit's makes the caller about 10 dB louder and compresses it. A
-new set of caller lines needs lengths that stay apart from the transfer line's.
+can change the audio a lot: LiveKit's raises the caller's level by anything from 0 to 12 dB,
+line to line ([media path](../results/media-path)). A new set of caller lines needs lengths
+that stay apart from the transfer line's.
 
 What the mock cannot stand in for is the model: what it understands, and when it decides to
 transfer or to stop for a backchannel. Against a mock, `greeting` times the stack, `refer` the
