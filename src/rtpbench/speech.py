@@ -45,7 +45,9 @@ def highpass(pcm: list[int], rate: int = 8000) -> list[float]:
 def active_power(x: list[float]) -> float:
     """Mean power of the 20 ms frames within 30 dB of the loudest one."""
     frames = [sum(s * s for s in x[i : i + 160]) / 160 for i in range(0, len(x) - 159, 160)]
-    loud = [p for p in frames if p > max(frames) / 1000]
+    loud = [p for p in frames if p > max(frames, default=0) / 1000]
+    if not loud:
+        raise ValueError("no speech")
     return sum(loud) / len(loud)
 
 
@@ -81,10 +83,13 @@ def label(pcm: list[int], below_db: float = BELOW_ACTIVE_DB) -> list[tuple[int, 
 
 
 def read_wav(path: Path) -> list[int]:
-    with wave.open(str(path)) as w:
-        if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, 8000):
-            raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM")
-        return list(array("h", w.readframes(w.getnframes())))
+    try:
+        with wave.open(str(path)) as w:
+            if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, 8000):
+                raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM")
+            return list(array("h", w.readframes(w.getnframes())))
+    except wave.Error, EOFError:  # not a WAV file, or a truncated one
+        raise ValueError(f"{path}: need 8 kHz mono 16-bit PCM") from None
 
 
 def clips(*prefixes: str) -> dict[str, list[int]]:

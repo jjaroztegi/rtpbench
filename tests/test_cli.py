@@ -1,4 +1,7 @@
+import shutil
 import subprocess
+import wave
+from pathlib import Path
 
 import pytest
 
@@ -80,3 +83,26 @@ def test_docker_preflight_names_the_cause(
     with pytest.raises(SystemExit) as e:
         bench.docker()
     assert says in str(e.value)
+
+
+def test_target_lists_every_unusable_line_before_it_starts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    shutil.copy(bench.LINES / "turn-00.wav", tmp_path)
+    (tmp_path / "prompt.wav").write_text("not audio")
+    with wave.open(str(tmp_path / "turn-01.wav"), "wb") as w:
+        w.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+        w.writeframes(bytes(16000))  # silence
+    only = "greeting,refer,latency,barge-in"
+    with pytest.raises(SystemExit):
+        cli.main(["target", "sip:agent@203.0.113.7", "--lines", str(tmp_path), "--only", only])
+    err = capsys.readouterr().err
+    for problem in (
+        "prompt.wav: not 8 kHz mono 16-bit PCM",
+        "no transfer.wav",
+        "turn-01.wav: no speech",
+        "no prompt-*.wav",
+        "no interrupt-*.wav",
+    ):
+        assert f"\n  {problem}" in err
+    assert "turn-00.wav" not in err

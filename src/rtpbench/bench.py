@@ -568,9 +568,9 @@ def _verdict(progress: Progress, run: Path, profile: str, behaviour: str | None)
         progress.done(f"{r.verdict}, expected {want}" + (f" ({failed})" if failed else ""), False)
 
 
-def check_lines(lines: Path, names: list[str]) -> None:
-    """Raise unless `lines` has, for the calls in `names`, every line it needs (as in
-    corpus/lines/en), each 8 kHz mono 16-bit with speech the labeller can find."""
+def check_lines(lines: Path, names: list[str]) -> list[str]:
+    """What keeps `lines` from serving the calls in `names`: each line they need (as in
+    corpus/lines/en) missing, not 8 kHz mono 16-bit, or without speech the labeller can find."""
     from rtpbench import cases as cs
 
     need = {
@@ -586,11 +586,16 @@ def check_lines(lines: Path, names: list[str]) -> None:
             problems.append(f"no {pattern}")
         for f in files:
             try:
-                speech.label(speech.read_wav(f))
+                pcm = speech.read_wav(f)
+            except ValueError:
+                problems.append(f"{f.name}: not 8 kHz mono 16-bit PCM")
+                continue
+            try:
+                if not speech.label(pcm):
+                    raise ValueError("no speech")
             except ValueError as e:
                 problems.append(f"{f.name}: {e}")
-    if problems:
-        raise ValueError(f"{lines}: " + "; ".join(problems))
+    return problems
 
 
 def _reach(
@@ -667,8 +672,6 @@ def target(
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
     from rtpbench.sip import secure
 
-    if lines:
-        check_lines(lines, names)
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
     said = LINES

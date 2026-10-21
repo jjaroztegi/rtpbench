@@ -428,7 +428,7 @@ example:
         if not proven:
             raise SystemExit(1)
     elif args.cmd == "target":
-        from rtpbench.bench import target
+        from rtpbench.bench import check_lines, target
 
         if problem := _target_args(args):
             parser.error(problem)
@@ -441,6 +441,8 @@ example:
             if args.only
             else [*cases.names(args.carrier, tls), "latency", "barge-in"]
         )
+        if args.lines and (problems := check_lines(args.lines, names)):
+            parser.error(f"--lines {args.lines}:\n  " + "\n  ".join(problems))
         if tls and "large-invite" in names:
             parser.error(LARGE_INVITE_TLS)
         profiles = args.profiles.split(",")
