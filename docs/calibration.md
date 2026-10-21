@@ -32,6 +32,11 @@ bars, where about 10% would be expected ([held out](../results/baseline#detector
 The bars come from one host and serve every host: with one seed per bar, a run on a second host
 moved the edges no more than a second run on the same host did.
 
+Against a target, the gate's stop bar also decides which barge-in turns count: a stop time below
+its low side means the agent's speech, as the gate heard it, ended before the caller cut in, and
+the turn is left out of the stop rate and stop times ("speech ended before (gate)"). The bar is
+p5..p95, so about 5% of real stops read below it and are left out with them.
+
 The agent's first speech in a call, usually its greeting, has its own onset bar: a detector that
 has heard nothing yet fires later, and without the early A-law tail below.
 
