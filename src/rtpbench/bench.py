@@ -718,9 +718,9 @@ def target(
             if is_uri(name):
                 target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
                 uri, sip = name, tuple(dict.fromkeys((port, 5060)))
-                if proxy:  # where a transfer goes, as the router resolves it
-                    proxy_host, proxy_port = parse_uri(proxy)
-                    proxy = f"{_resolve(stack, proxy_host)}:{proxy_port}"
+                if proxy:  # where a transfer goes: by name (TLS checks it), as the router finds it
+                    proxy_host = parse_uri(proxy)[0]
+                    stack.env["RTPBENCH_RESOLVE"] += f",{proxy_host}={_resolve(stack, proxy_host)}"
                 else:  # whatever the Refer-To names: a test never calls a real transferee
                     proxy = stack.sh("operator", "hostname -i").split()[0]  # not the agent's
                 conds |= {"network": network, "advertise": advertise}
