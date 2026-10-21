@@ -353,6 +353,26 @@ def test_operator_answers_or_is_busy(tmp_path: Path) -> None:
     secure.hangup()
 
 
+def test_a_sips_proxy_takes_tls() -> None:
+    """A proxy given as sips: (as `--proxy sips:HOST`) gets the transfer's INVITE over TLS: the
+    first bytes on its TCP port are a TLS handshake record; a bare HOST gets UDP (above)."""
+    first: list[bytes] = []
+    with socket.create_server(("127.0.0.1", 0)) as server:
+
+        def accept() -> None:
+            conn, _ = server.accept()
+            with conn:
+                first.append(conn.recv(1))
+
+        server.settimeout(5)  # no connection at all: fail, not hang
+        listener = threading.Thread(target=accept, daemon=True)
+        listener.start()
+        with pytest.raises(sip.SipError):  # the handshake goes no further
+            Session(OPERATOR, (g711.PCMU,), proxy=f"sips:127.0.0.1:{server.getsockname()[1]}")
+        listener.join(5)
+    assert first == [b"\x16"]
+
+
 def test_offer_in_a_reinvite_2xx_is_answered(pair: tuple[socket.socket, socket.socket]) -> None:
     """RFC 3261 14.1: a re-INVITE without SDP gets the offer in its 2xx; the caller answers it
     with the call's codec and sends to the address it gives. A 2xx without SDP gets no answer."""
