@@ -52,6 +52,21 @@ Barge-in: whether the agent stopped within 2 s of the interjection's onset, and 
 | clean | backchannel | 1 | 3/3 | 100% .. 100% | 13 | 23 | 44 | 0 | 1 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
 | clean | cough | 1 | 3/3 | 100% .. 100% | -40 | -9 | 21 | 0 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
 
+Per clip: stopped / turns, over the same turns, and those left out as ended before; interruptions are the caller's lines (--lines), backchannels and coughs the corpus's.
+
+| interjection | clip | words | clean |
+| --- | --- | --- | --- |
+| interrupt | interrupt-00 |  | 1/1 |
+| interrupt | interrupt-01 |  | 0/0, 1 ended before |
+| interrupt | interrupt-02 |  | 1/1 |
+| backchannel | tts-cori-bc | Yeah | 0/0, 1 ended before |
+| backchannel | tts-libritts0-bc | Okay | 1/1 |
+| backchannel | tts-ljspeech-bc | Uh-huh | 1/1 |
+| backchannel | tts-sharvardf-bc | Vale | 1/1 |
+| cough | cough-man-1 |  | 1/1 |
+| cough | cough-short-0 |  | 1/1 |
+| cough | cough-short-1 |  | 1/1 |
+
 ## Turn latency by part
 
 Turn latency on the mock engine, split where it heard the end of the caller's speech and sent its first audio (one clock with the captures), ms, p50 [p5, p95]: uplink and downlink are the target's; the engine waits 1000 ms of silence and answers 500 ms later by design. Uplink carries the caller's label error (±17 ms), downlink the onset error bar of the profile and codec.

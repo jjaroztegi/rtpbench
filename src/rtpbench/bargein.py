@@ -28,6 +28,16 @@ KINDS = ("interrupt", "backchannel", "cough")
 GAP_NS = 1_000_000_000  # silence that ends the agent's speech
 STOP_WINDOW_NS = 2_000_000_000
 METHOD_DETECTOR = "webrtcvad"  # the detector the per-method table uses
+WORDS = {  # what each backchannel clip says, as corpus/README.md lists them
+    "tts-ald-bc": "Ajá",
+    "tts-davefx-bc": "Vale",
+    "tts-sharvardf-bc": "Vale",
+    "tts-sharvardm-bc": "Sí, sí",
+    "tts-cori-bc": "Yeah",
+    "tts-libritts0-bc": "Okay",
+    "tts-libritts3-bc": "Uh-huh",
+    "tts-ljspeech-bc": "Uh-huh",
+}
 
 
 def plan(seed: int, n: int = 1000) -> list[dict[str, Any]]:
@@ -185,11 +195,13 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
     run: how often the agent stopped (and the range of that rate over runs), its stop time by
     the gate on the wire, with the gate's error bar for the profile and codec, and how many of
     those ran across one of the wall-clock `steps`. Turns whose agent speech ended before the
-    interjection (`ended`) are counted apart."""
+    interjection (`ended`) are counted apart. Then how often it stopped for each clip, over the
+    same turns."""
     from rtpbench import cases, clock
 
     key = "wire/gate"
     rows = []
+    clips: dict[tuple[str, str], dict[str, list[int]]] = {}  # stopped, turns per profile
     for profile, dirs in runs.items():
         per_run, bars, widths, before = [], set(), [], []
         for run in dirs:
@@ -202,6 +214,13 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
             lo = b.lo if b else 0
             per_run.append([r for r in recs if not ended(r, lo)])
             before += [r["kind"] for r in recs if ended(r, lo)]
+            for r in recs:
+                tally = clips.setdefault((r["kind"], r["clip"]), {}).setdefault(profile, [0, 0, 0])
+                if ended(r, lo):
+                    tally[2] += 1
+                else:
+                    tally[0] += _stopped(r, key)
+                    tally[1] += 1
         error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b) or "-"
         for kind in KINDS:
             sel = [[r for r in recs if r["kind"] == kind] for recs in per_run]
@@ -226,10 +245,26 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
             rows.append([*row, str(before.count(kind)), error])
     head = ["profile", "interjection", "runs", "stopped", "run rates", "p5", "p50", "p95"]
     head += ["across a clock step", "speech ended before (gate)"]
+    order = sorted(clips, key=lambda c: (KINDS.index(c[0]), c[1]))
+    per_clip = [
+        [kind, clip, WORDS.get(clip, ""), *(_share(clips[kind, clip].get(p)) for p in runs)]
+        for kind, clip in order
+    ]
     return (
         "Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop "
         "time (ms, gate, wire) when it did, every turn of every run. True value = measured - "
         "error, error within the bar (calibrated on hard cuts). Speech ended before (gate): turns "
         "left out, the gate having heard the agent's speech end before the onset by more than "
-        "the bar.\n\n" + analyze._table([*head, "stop error bar"], rows)
+        "the bar.\n\n"
+        + analyze._table([*head, "stop error bar"], rows)
+        + "\nPer clip: stopped / turns, over the same turns, and those left out as ended before; "
+        "interruptions are the caller's lines (--lines), backchannels and coughs the corpus's.\n\n"
+        + analyze._table(["interjection", "clip", "words", *runs], per_clip)
     )
+
+
+def _share(n: list[int] | None) -> str:
+    """Stopped / turns, and the turns left out as ended before, if any."""
+    if not n:
+        return "-"
+    return f"{n[0]}/{n[1]}" + (f", {n[2]} ended before" if n[2] else "")
