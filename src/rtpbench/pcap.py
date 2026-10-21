@@ -6,7 +6,7 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-MAGIC = {
+_MAGIC = {
     b"\xd4\xc3\xb2\xa1": ("<", 1000),
     b"\x4d\x3c\xb2\xa1": ("<", 1),
     b"\xa1\xb2\xc3\xd4": (">", 1000),
@@ -43,9 +43,9 @@ def _ip_offset(link: int, frame: bytes) -> int | None:
 
 def read(path: Path) -> list[Datagram]:
     data = path.read_bytes()
-    if data[:4] not in MAGIC:
+    if len(data) < 24 or data[:4] not in _MAGIC:
         raise ValueError(f"{path}: not a classic pcap file")
-    order, scale = MAGIC[data[:4]]
+    order, scale = _MAGIC[data[:4]]
     link = struct.unpack_from(order + "I", data, 20)[0] & 0x0FFFFFFF
     record = struct.Struct(order + "IIII")
     out, pos = [], 24

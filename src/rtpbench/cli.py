@@ -496,14 +496,13 @@ example:
         from rtpbench.bench import judge
 
         if args.agent_pcap:
+            side = args.out / cases.AGENT_SIDE
             try:
-                with args.agent_pcap.open("rb") as f:
-                    head = f.read(4)
-            except OSError as e:
-                parser.error(f"--agent-pcap: {e}")
-            if head not in pcap.MAGIC:
-                parser.error(f"--agent-pcap {args.agent_pcap}: not a classic pcap (tcpdump -w)")
-            shutil.copyfile(args.agent_pcap, args.out / cases.AGENT_SIDE)
+                pcap.read(args.agent_pcap)  # refused here, not copied in to break later reports
+            except (OSError, ValueError) as e:
+                parser.error(f"--agent-pcap: {e} (tcpdump -w writes one)")
+            if not (side.exists() and side.samefile(args.agent_pcap)):
+                shutil.copyfile(args.agent_pcap, side)
         print(judge(args.out)[0])
         print(f"report in {args.out / 'report.html'}")
     elif args.cmd == "check":
