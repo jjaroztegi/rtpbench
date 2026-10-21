@@ -657,8 +657,6 @@ def load(run: Path, profile: str = "clean") -> Wire:
     agent_path = run / "agent.json"
     agent = json.loads(agent_path.read_text()) if agent_path.exists() else None
     msgs: list[tuple[int, bool, sip.Message]] = []
-    up: analyze.Timed = []
-    down: analyze.Timed = []
     me, port = "", log.get("rtp_port")
     grams = pcap.read(run / "caller.pcap")
     for t, src, data in sip.captured(grams, run / "keys.log"):
@@ -673,14 +671,9 @@ def load(run: Path, profile: str = "clean") -> Wire:
     msgs = [x for x in msgs if x[2].branch not in challenged]
     # SRTP: opened with the keys the captured SDP gave, each side's for its own packets
     rings = srtp.keyrings([(sent, m.body) for _, sent, m in msgs])
-    for g in grams:
-        if g.tcp or port not in (g.sport, g.dport):
-            continue
-        opened = rings[g.sport != port].open(g.payload) if rings else g.payload
-        if opened is not None and (p := rtp.parse(opened)) is not None:
-            (up if g.sport == port else down).append((g.t_ns, p))
+    cap = analyze.split(grams, (me, port), rings)
     unopened = sum(r.failed for r in rings) if rings else 0
-    return Wire(log, agent, msgs, up, down, profile, unopened)
+    return Wire(log, agent, msgs, cap.up, cap.down, profile, unopened)
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:

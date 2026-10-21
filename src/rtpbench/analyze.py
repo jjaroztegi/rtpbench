@@ -50,19 +50,44 @@ class Capture:
     down: Timed  # agent -> caller
 
 
-def load(path: Path) -> Capture:
+def load(path: Path, port: int | None = None) -> Capture:
+    """The G.711 RTP of a capture at the caller, whose RTP port is `port` (caller.json's
+    rtp_port), or without one at the reference agent, whose answer's SDP gives its address."""
     grams = pcap.read(path)
     msgs = sip.captured(grams, path.with_name("keys.log"))
     caller = next(src for _, src, data in msgs if data.startswith(b"INVITE "))
     rings = srtp.keyrings([(src == caller, sip.parse(data).body) for _, src, data in msgs])
+    if port is not None:
+        me = (caller, port)
+    else:
+        # its first SDP (a 401 or a 183 may carry another body first)
+        sdps = (sip.parse_sdp(sip.parse(d).body) for _, src, d in msgs if src != caller)
+        sdp = next(s for s in sdps if s.port)
+        me = (sdp.ip, sdp.port)
+    cap = split(grams, me, rings, port is not None)
+    return Capture(*([x for x in s if x[1].pt in g711.NAMES] for s in (cap.up, cap.down)))
+
+
+def split(
+    grams: list[pcap.Datagram],
+    me: tuple[str, int],
+    rings: tuple[srtp.Keyring, srtp.Keyring] | None,
+    caller: bool = True,
+) -> Capture:
+    """The RTP the capturing side sent from its own address `me` (IP, RTP port) and received
+    there, as up and down; it is the caller, or the agent if not `caller`. Both ends may use one
+    port number, so the address, not the port, says which way a packet went. SRTP opens with
+    `rings` (the caller's packets', the agent's)."""
     up: Timed = []
     down: Timed = []
     for g in grams:
-        if g.tcp or 5060 in (g.sport, g.dport):
+        sent = (g.src, g.sport) == me
+        if g.tcp or not (sent or (g.dst, g.dport) == me):
             continue
-        data = rings[g.src != caller].open(g.payload) if rings else g.payload
-        if data is not None and (p := rtp.parse(data)) is not None and p.pt in g711.NAMES:
-            (up if g.src == caller else down).append((g.t_ns, p))
+        from_caller = sent == caller
+        data = rings[not from_caller].open(g.payload) if rings else g.payload
+        if data is not None and (p := rtp.parse(data)) is not None:
+            (up if from_caller else down).append((g.t_ns, p))
     return Capture(up, down)
 
 
