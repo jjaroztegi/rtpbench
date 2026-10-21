@@ -996,7 +996,8 @@ def check_refer(w: Wire) -> Result:
     r = Result()
     if (last := _transfer(w, r)) is None:
         return r
-    notifies = [m for _, out, m in w.msgs if out and m.method == "NOTIFY"]
+    # one per NOTIFY in the order first sent (a retransmitted 100 can follow the final one)
+    notifies = list({m.branch: m for _, out, m in w.msgs if out and m.method == "NOTIFY"}.values())
     frag = notifies[-1].body.decode(errors="replace").strip() if notifies else ""
     if notifies and not frag.startswith("SIP/2.0 2"):
         r.checks.append(Check("Refer-To target answers 2xx", None, frag))

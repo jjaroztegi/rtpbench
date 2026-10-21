@@ -488,6 +488,7 @@ def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) ->
     msgs += [(4, True, final), (5, False, sip.response(final, 200, "OK"))]
     if frag == "200 OK":
         msgs.append((10**9, False, sip.Message("BYE sip:caller@x SIP/2.0")))
+    msgs.append((6, True, trying))  # a late copy of the 100 does not make it the final one
     w = Wire({"pt": 0, "ssrc": 0}, None, msgs, [], [])
     r = cases.check_refer(w)
     assert r.verdict == verdict
