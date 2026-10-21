@@ -472,7 +472,8 @@ def test_invite_copy(answers: list[tuple[int, str, str]], verdict: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("frag", "verdict"), [("200 OK", "pass"), ("408 Request Timeout", "inconclusive")]
+    ("frag", "verdict"),
+    [("200 OK", "pass"), ("408 Request Timeout", "inconclusive"), ("", "pass")],
 )
 def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) -> None:
     """The agent took the call back after a failed transfer, as `refer-fail` requires: `refer`
@@ -485,14 +486,15 @@ def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) ->
 
     trying, final = notify(2, "100 Trying"), notify(3, frag)
     msgs = [(1, False, refer), (2, True, trying), (3, False, sip.response(trying, 200, "OK"))]
-    msgs += [(4, True, final), (5, False, sip.response(final, 200, "OK"))]
-    if frag == "200 OK":
+    if frag:  # none: only the 100 went, the transfer still pending, judged as before
+        msgs += [(4, True, final), (5, False, sip.response(final, 200, "OK"))]
+    if verdict == "pass":
         msgs.append((10**9, False, sip.Message("BYE sip:caller@x SIP/2.0")))
     msgs.append((6, True, trying))  # a late copy of the 100 does not make it the final one
     w = Wire({"pt": 0, "ssrc": 0}, None, msgs, [], [])
     r = cases.check_refer(w)
     assert r.verdict == verdict
-    assert r.checks[-1].detail == ("" if frag == "200 OK" else "SIP/2.0 408 Request Timeout")
+    assert r.checks[-1].detail == ("" if verdict == "pass" else "SIP/2.0 408 Request Timeout")
     # refer-lost: the same, and the copy of the lost REFER, resent 500 ms later
     w.msgs.insert(1, (500_000_000, False, refer))
     lost = cases.check_refer_lost(w)

@@ -999,7 +999,8 @@ def check_refer(w: Wire) -> Result:
     # one per NOTIFY in the order first sent (a retransmitted 100 can follow the final one)
     notifies = list({m.branch: m for _, out, m in w.msgs if out and m.method == "NOTIFY"}.values())
     frag = notifies[-1].body.decode(errors="replace").strip() if notifies else ""
-    if notifies and not frag.startswith("SIP/2.0 2"):
+    status = frag.split()[1] if len(frag.split()) > 1 else ""
+    if status.isdigit() and int(status) >= 300:  # failed; a 1xx is a transfer still pending
         r.checks.append(Check("Refer-To target answers 2xx", None, frag))
         return r
     bye = w.find(lambda m: m.method == "BYE", sent=False)
