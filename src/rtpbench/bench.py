@@ -135,9 +135,14 @@ def docker() -> None:
     """Exit unless a Docker server of version DOCKER or later answers, before a run starts."""
     cmd = ["docker", "version", "--format", "{{.Server.Version}}"]
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     except FileNotFoundError:
         raise SystemExit(f"rtpbench needs Docker {DOCKER} or later: no docker command") from None
+    except subprocess.TimeoutExpired:
+        raise SystemExit(
+            f"rtpbench needs Docker {DOCKER} or later, and no Docker server answered in 30 s.\n"
+            + NO_SERVER
+        ) from None
     version = res.stdout.strip()
     major = version.split(".")[0]
     if res.returncode or not major.isdigit():
