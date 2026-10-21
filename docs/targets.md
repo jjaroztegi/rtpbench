@@ -154,6 +154,29 @@ transfer or to stop for a backchannel. Against a mock, `greeting` times the stac
 transfer mechanics, `refer-fail` whether the failure reaches the engine, and the DTMF cases
 whether a digit reaches it at all.
 
+### An agent of your own on the mock
+
+`--mock` wires the mock into the bundled targets only. Your own agent can use it if its engine
+URL can lead there: `uv run rtpbench realtime --out DIR` serves it as plain `ws` on port 8000.
+The agent then relays audio and the mock recognises rtpbench's own lines, so leave out
+`--lines`. What the agent has to meet:
+
+- The session shape of the OpenAI Realtime GA API. The mock reads the audio format from
+  `session.audio.input.format` only; an agent that sends the preview shape
+  (`input_audio_format`) is heard as 24 kHz PCM16.
+- An endpoint it accepts. The mock ignores the path, the query and any auth header, so a token
+  the agent fetches first does no harm. An agent that takes only `wss` URLs under its
+  provider's host names and verifies TLS needs both overridden on its side: that host name
+  resolving to the mock (a hosts entry or DNS), and a TLS proxy in front of the mock with a
+  certificate for that name from a CA the agent trusts.
+- For `refer`, a transfer tool named as above.
+
+The split of turn latency into uplink, engine and downlink needs the mock's log on the
+captures' clock: run the mock on the host that runs `rtpbench target`, and write its log into
+the run's directory (DIR is the run's `--out`, or copy `realtime.jsonl` and `realtime/` there
+and run `rtpbench report`). End-to-end turn latency comes from the caller's capture alone and
+does not depend on where the mock runs.
+
 ## Carrier
 
 ```sh
