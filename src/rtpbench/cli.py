@@ -212,7 +212,9 @@ examples:
         metavar="DIR",
         help="the caller's lines, named as in corpus/lines/en (not with --mock)",
     )
-    p.add_argument("--proxy", metavar="HOST", help="URI: send a transfer's INVITE here")
+    p.add_argument(
+        "--proxy", metavar="HOST", help="URI: send a transfer's INVITE here, not to the operator"
+    )
     p.add_argument(
         "--network",
         metavar="NAME",
@@ -227,7 +229,7 @@ examples:
         "--ca",
         type=Path,
         metavar="FILE",
-        help="URI over TLS: trust the certificates in FILE (PEM) instead of the system's",
+        help="URI or --proxy over TLS: trust the certificates in FILE (PEM), not the system's",
     )
     p.add_argument(
         "--srtp",

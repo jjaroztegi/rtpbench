@@ -19,8 +19,10 @@ of both sides on one time axis; `rtpbench report DIR` judges a finished run agai
 
 Against the reference agent the caller says a corpus utterance; against a target, `prompt.wav`
 (a question) and `transfer.wav` (asking for a person) from [`corpus/lines`](../corpus/README.md).
-Transfers go to `sip:operator@operator`, a service on the agent's side of the router that rings
-for a second and answers, or answers 486 for `refer-fail`.
+Transfers go to the operator, a service on the agent's side of the router that rings for a
+second and answers, or answers 486 for `refer-fail`. Bundled targets refer to
+`sip:operator@operator`; against a URI the transferee calls the operator whatever the Refer-To
+names.
 
 | case | what passes |
 | --- | --- |

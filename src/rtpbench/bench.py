@@ -165,12 +165,12 @@ def _image_tag() -> str:
 class Stack:
     """caller | router | agent, plus a target's services when given (on the mock engine with
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
-    are relative to the repository root). With `uri`, caller | router only, for an agent outside
-    the stack: the router also joins the Docker network `network`, and with `ports` (first-last)
-    the host publishes that range on the router. With `tls`, out/tls holds a test certificate
-    for the stack's TLS servers, and ca.pem, what the caller trusts: `ca`, or with no `uri` the
-    stack's test CA; else the caller trusts the system's certificates. With `srtp`, the caller
-    offers SRTP with these suites."""
+    are relative to the repository root). With `uri`, caller | router | operator, for an agent
+    outside the stack: the router also joins the Docker network `network`, and with `ports`
+    (first-last) the host publishes that range on the router. With `tls`, out/tls holds a test
+    certificate for the stack's TLS servers, and ca.pem, what the caller trusts: `ca`, or with no
+    `uri` the stack's test CA; else the caller trusts the system's certificates. With `srtp`, the
+    caller offers SRTP with these suites."""
 
     def __init__(
         self,
@@ -188,7 +188,7 @@ class Stack:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
         self.files = [ROOT / "compose.yaml"]
-        self.services = ["router", "caller"] if uri else []
+        self.services = ["router", "caller", "operator"] if uri else []
         self.passed: list[str] = []  # variables passed to the caller's commands, by name only
         if network:
             self.files.append(ROOT / "uri" / "network.yaml")
@@ -333,11 +333,17 @@ def _host(cmd: str) -> str:
 
 
 def conditions(
-    sh: Callable[[str], str], seed: int, tls: Path | None = None, srtp: list[str] | None = None
+    sh: Callable[[str], str],
+    seed: int,
+    tls: Path | None = None,
+    srtp: list[str] | None = None,
+    proxy_tls: Path | None = None,
 ) -> dict[str, Any]:
     """Versions and host; `sh` runs a command in the stack (where the capture runs); `tls`, the
-    results' tls/ directory when SIP goes over TLS; `srtp`, the SRTP suites offered."""
-    ca = tls / "ca.pem" if tls else None
+    results' tls/ directory when SIP goes over TLS; `srtp`, the SRTP suites offered;
+    `proxy_tls`, that directory when a transfer's proxy takes TLS (sips:)."""
+    where = tls or proxy_tls
+    ca = where / "ca.pem" if where else None
     trust = (
         f"ca sha256:{hashlib.sha256(ca.read_bytes()).hexdigest()}"
         if ca and ca.exists()
@@ -359,7 +365,8 @@ def conditions(
         "seed": seed,
         "sip_auth": all(os.environ.get(k) for k in CREDENTIALS),  # whether, never what
         "tls": tls is not None,
-        **({"tls_trust": trust} if tls else {}),
+        **({"proxy_tls": True} if proxy_tls else {}),
+        **({"tls_trust": trust} if where else {}),
         "srtp": srtp,  # the suites offered; the keys are in each call's SDP
         "netem_per_direction": PROFILES,
     }
@@ -666,12 +673,12 @@ def target(
     carrier), `runs` times per profile (repeat k uses seed + k - 1); returns the summary.
 
     `lines`: the caller's lines instead of corpus/lines/en. For a URI: `proxy` is where a
-    transfer's INVITE goes (else the Refer-To host); the router joins the Docker network
+    transfer's INVITE goes (else the stack's operator); the router joins the Docker network
     `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
-    next few to it), else with `network` its router's address there; over TLS (a sips: URI, or
-    transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp` the caller
-    offers SRTP with these suites. A compose target takes `tls` and `srtp` with `carrier` only,
-    which takes them on the caller's leg."""
+    next few to it), else with `network` its router's address there; over TLS (a sips: URI or
+    proxy, or transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp`
+    the caller offers SRTP with these suites. A compose target takes `tls` and `srtp` with
+    `carrier` only, which takes them on the caller's leg."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
@@ -704,23 +711,33 @@ def target(
             if advertise:  # the host publishes the range
                 first = int(advertise.rpartition(":")[2])
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
-            stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca, srtp=srtp)
+            proxy_tls = bool(proxy and secure(proxy))
+            trust = tls or proxy_tls  # the caller's TLS setup, and --ca
+            stack = Stack(out, uri=True, network=network, ports=ports, tls=trust, ca=ca, srtp=srtp)
         else:
+            proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
         try:
             stack.up(progress.phase)
             caller_ip = stack.ip("caller")
+            where = out / "tls"
             conds = conditions(
-                partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
+                partial(stack.sh, "router"),
+                seed,
+                where if tls else None,
+                srtp,
+                where if proxy_tls else None,
             )
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
             if is_uri(name):
                 target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
                 uri, sip = name, tuple(dict.fromkeys((port, 5060)))
-                if proxy:  # where a transfer goes, as the router resolves it
-                    proxy_host, proxy_port = parse_uri(proxy)
-                    proxy = f"{_resolve(stack, proxy_host)}:{proxy_port}"
+                if proxy:  # where a transfer goes: by name (TLS checks it), as the router finds it
+                    proxy_host = parse_uri(proxy)[0]
+                    stack.env["RTPBENCH_RESOLVE"] += f",{proxy_host}={_resolve(stack, proxy_host)}"
+                else:  # whatever the Refer-To names: a test never calls a real transferee
+                    proxy = stack.sh("operator", "hostname -i").split()[0]  # not the agent's
                 conds |= {"network": network, "advertise": advertise}
             else:
                 user, settings = TARGETS[name]

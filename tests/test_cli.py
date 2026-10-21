@@ -107,3 +107,16 @@ def test_target_lists_every_unusable_line_before_it_starts(
     ):
         assert f"\n  {problem}" in err
     assert "turn-00.wav" not in err
+
+
+def test_conditions_record_tls_to_a_transfer_proxy_alone(tmp_path: Path) -> None:
+    """A plain sip: target with a sips: proxy: the call's TLS stays false, the proxy's is
+    recorded, and so is the CA the caller trusted for it."""
+    (tmp_path / "ca.pem").write_text("test CA")
+    conds = bench.conditions(lambda cmd: "", 1, None, None, proxy_tls=tmp_path)
+    assert conds["tls"] is False
+    assert conds["proxy_tls"] is True
+    assert conds["tls_trust"].startswith("ca sha256:")
+    plain = bench.conditions(lambda cmd: "", 1)
+    assert "proxy_tls" not in plain
+    assert "tls_trust" not in plain
