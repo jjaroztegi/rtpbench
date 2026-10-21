@@ -80,7 +80,10 @@ def _lines(path: Path) -> Iterator[dict[str, Any]]:
 def measure(out: Path) -> dict[str, Any]:
     """What a judged target run directory holds that a policy reads: verdicts per profile and
     case over the repeats, and per profile each latency and barge-in call's turns (ms; None
-    unanswered or not stopped), leaving out turns timed across a clock step; check.json."""
+    unanswered or not stopped), leaving out turns timed across a clock step; check.json.
+
+    A latency or barge-in call has its directory before it is placed, and a run cut short
+    writes no conditions.json: a profile with no such directory did not request the call."""
     conds = json.loads((out / "conditions.json").read_text())
     records = json.loads((out / "results.json").read_text())
     if any(r["behaviour"] for r in records):
@@ -211,7 +214,7 @@ def evaluate(
     for profile, limits in policy.get("latency", {}).items():
         entry = now["latency"].get(profile)
         if not entry:
-            row(profile, "latency", False, "not measured")
+            row(profile, "latency", None, "not requested in this run")
             continue
         if entry["broken"]:
             row(profile, "latency", False, f"{entry['broken']} call(s) did not complete")
@@ -224,7 +227,7 @@ def evaluate(
     for profile, kinds in policy.get("barge-in", {}).items():
         entry = now["barge-in"].get(profile)
         if not entry:
-            row(profile, "barge-in", False, "not measured")
+            row(profile, "barge-in", None, "not requested in this run")
             continue
         if entry["broken"]:
             row(profile, "barge-in", False, f"{entry['broken']} call(s) did not complete")

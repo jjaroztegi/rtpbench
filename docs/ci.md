@@ -37,8 +37,10 @@ a typo cannot turn a limit off.
   the check when `--previous` shows it passing in every repeat there.
 - A limit holds unless even the lowest true value the [error bar](calibration.md#error-bars)
   allows is over it: the detector's bias never fails a build. A turn the agent never answered
-  counts as later than any limit; a limit on a call that was not run, or did not complete,
-  fails. Turns timed across a wall-clock step are left out.
+  counts as later than any limit, and a limit on a call that did not complete fails. A limit on
+  a call the run did not request (left out of `--only`, or a profile not run) is noted and not
+  judged, so one policy serves split runs, such as cases nightly and latency on each deploy.
+  Turns timed across a wall-clock step are left out.
 - A regression fails when the change in median from `--previous` is over the tolerance across
   its whole 95% interval (resampling calls, then the turns within them). The error bars are the
   same on both sides and cancel; what the interval holds is how the agent varies from turn to
