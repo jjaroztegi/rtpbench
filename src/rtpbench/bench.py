@@ -9,6 +9,7 @@ import secrets
 import shlex
 import shutil
 import subprocess
+import textwrap
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -121,6 +122,32 @@ PROFILES = {
     "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
     "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit",
 }
+
+
+DOCKER = 28  # the oldest Docker server the stacks run on
+NO_SERVER = (
+    "Is the Docker daemon running? On WSL2: is Docker Desktop running, with its WSL integration "
+    "on for this distro? (With either off, `docker` may say it is not installed.)"
+)
+
+
+def docker() -> None:
+    """Exit unless a Docker server of version DOCKER or later answers, before a run starts."""
+    cmd = ["docker", "version", "--format", "{{.Server.Version}}"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise SystemExit(f"rtpbench needs Docker {DOCKER} or later: no docker command") from None
+    version = res.stdout.strip()
+    major = version.split(".")[0]
+    if res.returncode or not major.isdigit():
+        said = textwrap.indent((res.stdout + res.stderr).strip(), "  ")
+        raise SystemExit(
+            f"rtpbench needs Docker {DOCKER} or later, and no Docker server answered:\n"
+            f"{said}\n{NO_SERVER}"
+        )
+    if int(major) < DOCKER:
+        raise SystemExit(f"rtpbench needs Docker {DOCKER} or later; the server is {version}")
 
 
 def _image_tag() -> str:

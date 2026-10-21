@@ -1,3 +1,5 @@
+import subprocess
+
 import pytest
 
 from rtpbench import bench, cases, cli
@@ -46,3 +48,25 @@ def test_engine_settings_are_recorded_as_compose_resolves_them(
     monkeypatch.setenv("OPENAI_REASONING_EFFORT", "")  # ${OPENAI_REASONING_EFFORT-low}: empty
     assert bench._engine(TARGETS["ava"][1])["AVA_EGRESS_PACER"] == "true"
     assert bench._engine(TARGETS["aivc"][1])["OPENAI_REASONING_EFFORT"] == ""
+
+
+@pytest.mark.parametrize(
+    ("code", "out", "err", "says"),
+    [
+        (1, "The command 'docker' could not be found in this WSL 2 distro.", "", "WSL integration"),
+        (1, "", "Cannot connect to the Docker daemon. Is it running?", "Cannot connect"),
+        (0, "27.5.1", "", "the server is 27.5.1"),
+        (0, "29.9.1", "", None),
+    ],
+)
+def test_docker_preflight_names_the_cause(
+    code: int, out: str, err: str, says: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = subprocess.CompletedProcess([], code, out + "\n", err)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: done)
+    if says is None:
+        bench.docker()
+        return
+    with pytest.raises(SystemExit) as e:
+        bench.docker()
+    assert says in str(e.value)
