@@ -13,6 +13,7 @@ LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET.
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 from livekit import api, rtc
 from livekit.agents import (
@@ -29,6 +30,10 @@ from livekit.agents.beta import EndCallTool
 from livekit.plugins import openai
 
 NUMBER = "agent"  # the Request-URI user rtpbench calls (bench.TARGETS)
+# the compose healthcheck's: the server can dispatch to this worker. Its own health check answers
+# once its HTTP server is up, seconds before it registers; a call in between gets a room no
+# worker ever joins, and rings unanswered
+REGISTERED = Path("/tmp/registered")
 
 
 class Assistant(Agent):
@@ -63,6 +68,11 @@ class Assistant(Agent):
 
 
 server = AgentServer()
+
+
+@server.on("worker_registered")
+def registered(worker_id: str, info: object) -> None:
+    REGISTERED.touch()
 
 
 @server.rtc_session()
