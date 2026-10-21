@@ -54,8 +54,8 @@ transit against the earliest packet, grows with it until the next step. Each run
 wall clock's rate between steps (`clock_rate_ppm`, from the steps' net size), and `calibrate`
 warns above 100 ppm. Virtual machines are prone to both: one WSL2 guest's clock stepped back
 25-80 ms about every 30 s, so it ran 800-2,700 ppm fast and late read up to 25-80 ms high just
-before each step. That is WSL2 on the default `tsc` clocksource; on Hyper-V's own the steps
-shrink to a few ms:
+before each step. On WSL2, a `calibrate` run before and after switching from the default `tsc`
+clocksource to Hyper-V's shows whether that helps:
 
 ```sh
 echo hyperv_clocksource_tsc_page | sudo tee /sys/devices/system/clocksource/clocksource0/current_clocksource

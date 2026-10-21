@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from rtpbench import cases, clock, g711, rtp
 from rtpbench.agent import Responder
 from rtpbench.rtp import FRAME, PTIME_NS, SAMPLE_NS, Packet
@@ -180,7 +182,17 @@ def test_rate_reads_a_clock_that_runs_fast_and_is_stepped_back(tmp_path: Path) -
     assert clock.rate_note(tmp_path).startswith(
         "Wall clock: 1,700 ppm fast between its steps, 30 s apart: late reads up to 51 ms off"
     )
-    conds.write_text(json.dumps({"clock_rate_ppm": 1_700.0, "clock_steps": steps[:1]}))
-    assert clock.rate_note(tmp_path) == ""  # one step is no rate
-    conds.write_text(json.dumps({"clock_rate_ppm": -20.0, "clock_steps": []}))
+
+
+@pytest.mark.parametrize(
+    ("ppm", "steps"),
+    [
+        (1_700.0, [{"wall_ns": [0, 1], "step_ms": -51.0}]),  # one step is no rate
+        (-20.0, []),  # within RATE_PPM
+    ],
+)
+def test_rate_note_stays_quiet(ppm: float, steps: list[dict[str, Any]], tmp_path: Path) -> None:
+    (tmp_path / "conditions.json").write_text(
+        json.dumps({"clock_rate_ppm": ppm, "clock_steps": steps})
+    )
     assert clock.rate_note(tmp_path) == ""
