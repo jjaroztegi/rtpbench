@@ -27,7 +27,7 @@
 | codec-pcma | good | pass | pass | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.4 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60016.2 ms (-0.4/+0.4) | - | - |
-| timer | unsupported | fail | fail | - | Session-Expires in the 2xx (timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
 | ssrc-change | good | pass | pass | end of the question to agent speech: 1095.9 ms (-44.6/+3.2) | - | +17.5 |
 | ssrc-change | first-ssrc | fail | fail | - | agent replies within 10000 ms | - |
@@ -71,7 +71,7 @@
 | codec-pcma | good | pass | pass | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60003.3 ms (-0.4/+0.4) | - | - |
-| timer | unsupported | fail | fail | - | Session-Expires in the 2xx (timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
 | ssrc-change | good | pass | pass | end of the question to agent speech: 1189.2 ms (-43.3/+3.6) | - | +26.2 |
 | ssrc-change | first-ssrc | fail | fail | - | agent replies within 10000 ms | - |
@@ -115,7 +115,7 @@
 | codec-pcma | good | pass | pass | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60013.9 ms (-0.4/+0.4) | - | - |
-| timer | unsupported | fail | fail | - | Session-Expires in the 2xx (timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
 | ssrc-change | good | pass | pass | end of the question to agent speech: 1201.9 ms (-60.9/+15.5) | - | -3.7 |
 | ssrc-change | first-ssrc | fail | fail | - | agent replies within 10000 ms | - |

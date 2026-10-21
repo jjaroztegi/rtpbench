@@ -23,7 +23,7 @@
 | refer-fail | hangs-up | fail | fail 10/10 | end of the request to REFER: 1432.7 [1310.8, 1472.7] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 1 ms after it); agent speaks within 5000 ms (10/10) | - |
 | refer-fail | silent | fail | fail 10/10 | end of the request to REFER: 1439.5 [1307.9, 1471.2] ms (-17.0/+17.0) n=10 | agent speaks within 5000 ms (10/10) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 1.4 [1.1, 2.7] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60011.4 [60001.6, 60019.9] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 1.4 [1.0, 2.5] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | compact-headers | good | pass | pass 10/10 | end of the question to agent speech: 1228.5 [1105.4, 1286.3] ms (-44.6/+3.2) n=10 | - | +12.1 [+0.0, +27.5] |
 | compact-headers | long-names | fail | fail 10/10 | - | call completed (10/10: SIP/2.0 500 Server Internal Error) | - |
@@ -65,7 +65,7 @@
 | refer-fail | hangs-up | fail | fail 10/10 | end of the request to REFER: 1473.9 [1350.2, 1514.8] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 1 ms after it); agent speaks within 5000 ms (10/10) | - |
 | refer-fail | silent | fail | fail 10/10 | end of the request to REFER: 1475.2 [1351.8, 1528.5] ms (-17.0/+17.0) n=10 | agent speaks within 5000 ms (10/10) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 1.2 [1.1, 1.3] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60009.4 [60003.7, 60016.4] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 1.3 [1.1, 2.1] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | compact-headers | good | pass | pass 10/10 | end of the question to agent speech: 1298.3 [1174.4, 1365.2] ms (-43.3/+3.6) n=10 | - | +11.9 [+0.0, +17.1] |
 | compact-headers | long-names | fail | fail 10/10 | - | call completed (10/10: SIP/2.0 500 Server Internal Error) | - |
@@ -107,7 +107,7 @@
 | refer-fail | hangs-up | fail | fail 10/10 | end of the request to REFER: 1465.6 [1391.0, 1525.4] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 1 ms after it); agent speaks within 5000 ms (10/10) | - |
 | refer-fail | silent | fail | fail 10/10 | end of the request to REFER: 1463.3 [1391.8, 1534.6] ms (-17.0/+17.0) n=10 | agent speaks within 5000 ms (10/10) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 1.1 [1.1, 1.3] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60015.9 [60002.5, 60020.4] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 1.1 [1.0, 1.2] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | compact-headers | good | pass | pass 10/10 | end of the question to agent speech: 1336.2 [1198.1, 1446.7] ms (-60.9/+15.5) n=10 | - | +1.6 [-17.0, +89.6] (2/10 outside the bar) |
 | compact-headers | long-names | fail | fail 10/10 | - | call completed (10/10: SIP/2.0 500 Server Internal Error) | - |

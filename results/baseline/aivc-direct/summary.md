@@ -12,7 +12,7 @@
 | refer-fail | fail 10/10 | end of the request to REFER: 1502.8 [1502.4, 1506.8] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 19 ms after it); agent speaks within 5000 ms (10/10) |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1508.3 [1508.1, 1511.4] ms (-11.0/+133.0) n=10 | - |
 | large-invite | fail 10/10 | end of the question to agent speech: 1508.4 [1508.1, 1508.9] ms (-11.0/+133.0) n=10 | INVITE over TCP answered 2xx (10/10: ConnectionRefusedError: [Errno 111] Connection refused; over UDP then: SIP/2.0 200 OK) |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.9 [0.8, 1.3] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1508.4 [1508.1, 1509.1] ms (-11.0/+133.0) n=10 | - |
@@ -34,7 +34,7 @@
 | refer-fail | fail 10/10 | end of the request to REFER: 1542.5 [1534.8, 1546.2] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 16 ms after it); agent speaks within 5000 ms (10/10) |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1588.5 [1582.5, 1597.2] ms (-14.1/+131.0) n=10 | - |
 | large-invite | fail 10/10 | end of the question to agent speech: 1587.7 [1583.2, 1605.9] ms (-14.1/+131.0) n=10 | INVITE over TCP answered 2xx (10/10: ConnectionRefusedError: [Errno 111] Connection refused; over UDP then: SIP/2.0 200 OK) |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.8 [0.7, 1.0] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1590.9 [1573.8, 1609.5] ms (-14.1/+131.0) n=10 | - |
@@ -56,7 +56,7 @@
 | refer-fail | fail 10/10 | end of the request to REFER: 1561.8 [1525.4, 1583.3] ms (-17.0/+17.0) n=10 | agent keeps the call for 10 s (10/10: BYE 20 ms after it); agent speaks within 5000 ms (10/10) |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1619.9 [1556.9, 1703.4] ms (-22.9/+141.5) n=10 | - |
 | large-invite | fail 10/10 | end of the question to agent speech: 1584.3 [1540.9, 1626.7] ms (-22.9/+141.5) n=10 | INVITE over TCP answered 2xx (10/10: ConnectionRefusedError: [Errno 111] Connection refused; over UDP then: SIP/2.0 200 OK) |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.8 [0.7, 1.1] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1591.9 [1559.5, 1649.6] ms (-22.9/+141.5) n=10 | - |

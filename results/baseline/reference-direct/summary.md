@@ -27,7 +27,7 @@
 | codec-pcma | good | pass | pass 10/10 | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA (10/10: payload types 0) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.8] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60008.6 [60002.2, 60013.9] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | ssrc-change | good | pass | pass 10/10 | end of the question to agent speech: 1226.5 [1105.8, 1286.7] ms (-44.6/+3.2) n=10 | - | +12.2 [+0.0, +27.5] |
 | ssrc-change | first-ssrc | fail | fail 10/10 | - | agent replies within 10000 ms (10/10) | - |
@@ -71,7 +71,7 @@
 | codec-pcma | good | pass | pass 10/10 | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA (10/10: payload types 0) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.4] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60009.2 [60001.2, 60019.6] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | ssrc-change | good | pass | pass 10/10 | end of the question to agent speech: 1311.7 [1180.3, 1350.0] ms (-43.3/+3.6) n=10 | - | +13.2 [+0.0, +22.6] |
 | ssrc-change | first-ssrc | fail | fail 10/10 | - | agent replies within 10000 ms (10/10) | - |
@@ -115,7 +115,7 @@
 | codec-pcma | good | pass | pass 10/10 | - | - | - |
 | codec-pcma | pcmu-anyway | fail | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA (10/10: payload types 0) | - |
 | timer | good | pass | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10<br>refresh 2xx to agent BYE: 60014.0 [60003.2, 60019.6] ms (-0.4/+0.4) n=10 | - | - |
-| timer | unsupported | fail | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) | - |
+| timer | unsupported | inconclusive | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail 10/10 | refresh re-INVITE to 2xx: 0.3 [0.3, 0.4] ms (-0.4/+0.4) n=10 | agent ends the session in (45, 90] s (10/10) | - |
 | ssrc-change | good | pass | pass 10/10 | end of the question to agent speech: 1360.7 [1165.7, 1443.4] ms (-60.9/+15.5) n=10 | - | +19.3 [-7.0, +79.5] (2/10 outside the bar) |
 | ssrc-change | first-ssrc | fail | fail 10/10 | - | agent replies within 10000 ms (10/10) | - |

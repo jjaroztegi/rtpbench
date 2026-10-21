@@ -10,7 +10,7 @@
 | dtmf-info | fail | INFO to its response: 30700.8 ms (-0.4/+0.4) | INFO answered 2xx (SIP/2.0 408 Request Timeout); agent reacts within 5000 ms |
 | refer | pass | end of the request to REFER: 1503.8 ms (-17.0/+17.0)<br>final NOTIFY to agent BYE: 17.4 ms (-0.4/+0.4) | - |
 | refer-fail | fail | end of the request to REFER: 1503.3 ms (-17.0/+17.0) | agent keeps the call for 10 s (BYE 19 ms after it); agent speaks within 5000 ms |
-| timer | fail | - | Session-Expires in the 2xx (timers not supported) |
+| timer | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | compact-headers | fail | - | call completed (SIP/2.0 500 Server Internal Error) |
 | sdp-ssrc | fail | - | call completed (INVITE timed out) |
 | late-offer | fail | - | call completed (SIP/2.0 500 Server Internal Error) |

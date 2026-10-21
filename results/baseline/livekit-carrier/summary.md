@@ -10,7 +10,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 0.6 [0.5, 0.8] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 405 Method Not Allowed); agent reacts within 5000 ms (10/10) |
 | refer | pass 10/10 | end of the request to REFER: 1652.3 [1644.1, 1675.8] ms (-17.0/+17.0) n=10<br>final NOTIFY to agent BYE: 1002.1 [1001.8, 1002.5] ms (-0.4/+0.4) n=10 | - |
 | refer-fail | pass 10/10 | end of the request to REFER: 1655.5 [1648.4, 1670.0] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 698.1 [652.5, 718.8] ms (-44.6/+3.2) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 1882.5 [1871.7, 1895.1] ms (-44.6/+3.2) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1821.5 [1810.3, 1844.6] ms (-44.6/+3.2) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 1.3 [1.2, 2.9] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1829.5 [1816.2, 1846.6] ms (-44.6/+3.2) n=10 | - |
@@ -31,7 +31,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 0.6 [0.6, 0.7] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 405 Method Not Allowed); agent reacts within 5000 ms (10/10) |
 | refer | flips: pass 9, fail 1 | end of the request to REFER: 1755.2 [1688.6, 1800.8] ms (-17.0/+17.0) n=10<br>final NOTIFY to agent BYE: 1002.1 [1001.7, 1003.0] ms (-0.4/+0.4) n=9 | agent hangs up within 10 s (1/10) |
 | refer-fail | pass 10/10 | end of the request to REFER: 1709.3 [1693.9, 1736.7] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 709.3 [700.2, 750.9] ms (-43.3/+3.6) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 1987.3 [1931.7, 2113.1] ms (-43.3/+3.6) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1912.3 [1896.4, 2024.7] ms (-43.3/+3.6) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 1.4 [1.2, 4.2] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1936.9 [1910.7, 2017.0] ms (-43.3/+3.6) n=10 | - |
@@ -52,7 +52,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 0.6 [0.6, 1.0] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 405 Method Not Allowed); agent reacts within 5000 ms (10/10) |
 | refer | pass 10/10 | end of the request to REFER: 1792.8 [1739.8, 2010.7] ms (-17.0/+17.0) n=10<br>final NOTIFY to agent BYE: 1002.3 [1001.9, 1004.2] ms (-0.4/+0.4) n=10 | - |
 | refer-fail | pass 10/10 | end of the request to REFER: 1900.6 [1725.8, 2130.2] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 693.7 [678.4, 825.1] ms (-60.9/+15.5) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 2144.7 [2021.4, 2234.1] ms (-60.9/+15.5) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 2053.6 [1977.4, 2250.7] ms (-60.9/+15.5) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 1.6 [1.3, 4.1] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 2041.2 [1935.7, 2137.7] ms (-60.9/+15.5) n=10 | - |
