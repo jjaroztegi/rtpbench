@@ -88,6 +88,8 @@ Turn latency, ms: caller's labelled end to the agent's first speech (webrtcvad),
 | lte | 10 | 120/120 | 1879 | 1997 | 2109 | 1973 .. 2015 | 0 | [-3.6, +43.3] webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech, seeds 1-5) |
 | lte-bad | 10 | 120/120 | 1924 | 2134 | 2273 | 2080 .. 2174 | 0 | [-15.5, +60.9] webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech, seeds 1-5) |
 
+Each turn: a line of PROFILE/REPEAT/latency/turns.jsonl (results.json holds the cases only; rtpbench check gathers the turns into check.json).
+
 ## Barge-in
 
 Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop time (ms, gate, wire) when it did, every turn of every run. True value = measured - error, error within the bar (calibrated on hard cuts). Speech ended before (gate): turns left out, the gate having heard the agent's speech end before the onset by more than the bar.
@@ -128,6 +130,8 @@ Per clip: stopped / turns, over the same turns, and those left out as ended befo
 | cough | cough-short-0 |  | 5/5, 1 ended before | 6/6 | 6/6 |
 | cough | cough-short-1 |  | 2/2 | 2/2 | 2/2 |
 | cough | cough-woman_three_times-0 |  | 2/2 | 2/2 | 2/2 |
+
+Each turn: a line of PROFILE/REPEAT/barge-in/turns.jsonl (results.json holds the cases only; rtpbench check gathers the turns into check.json).
 
 ## Turn latency by part
 

@@ -260,6 +260,8 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
         + "\nPer clip: stopped / turns, over the same turns, and those left out as ended before; "
         "interruptions are the caller's lines (--lines), backchannels and coughs the corpus's.\n\n"
         + analyze._table(["interjection", "clip", "words", *runs], per_clip)
+        + "\nEach turn: a line of PROFILE/REPEAT/barge-in/turns.jsonl (results.json holds "
+        "the cases only; rtpbench check gathers the turns into check.json).\n"
     )
 
 
