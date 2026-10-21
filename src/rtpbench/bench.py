@@ -874,7 +874,8 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
         sections.append(("Turn latency by part", parts))
         summary += "\n## Turn latency by part\n\n" + parts
     target = json.loads((out / "conditions.json").read_text()).get("target", "")
-    if paced := cs.pacing(agent, is_uri(target)):
+    side = out / cs.AGENT_SIDE
+    if paced := cs.pacing(agent, is_uri(target), side if side.exists() else None):
         sections.append(("RTP pacing", paced))
         summary += "\n## RTP pacing\n\n" + paced
     if (out / "realtime.jsonl").exists() and (heard := realtime.downlink(out)):

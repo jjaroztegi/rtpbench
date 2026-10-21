@@ -3,11 +3,12 @@
 import argparse
 import json
 import os
+import shutil
 import textwrap
 from datetime import datetime
 from pathlib import Path
 
-from rtpbench import analyze, cases
+from rtpbench import analyze, cases, pcap
 from rtpbench.bench import PROFILES, TARGETS, docker, is_uri
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
@@ -269,10 +270,18 @@ Rewrites summary.md, results.json and report.html in DIR.""",
         epilog="""\
 example:
   uv run --extra vad rtpbench report results/20260101-120000
+  uv run --extra vad rtpbench report results/20260101-120000 --agent-pcap agent.pcap
 """,
         formatter_class=Help,
     )
     p.add_argument("out", type=Path, metavar="DIR", help="a cases or target results directory")
+    p.add_argument(
+        "--agent-pcap",
+        type=Path,
+        metavar="FILE",
+        help="a capture taken at the agent during the run (tcpdump -w), to split its own RTP "
+        "pacing from the path's; copied into DIR, where later reports find it",
+    )
 
     p = sub.add_parser(
         "check",
@@ -486,6 +495,15 @@ example:
     elif args.cmd == "report":
         from rtpbench.bench import judge
 
+        if args.agent_pcap:
+            try:
+                with args.agent_pcap.open("rb") as f:
+                    head = f.read(4)
+            except OSError as e:
+                parser.error(f"--agent-pcap: {e}")
+            if head not in pcap.MAGIC:
+                parser.error(f"--agent-pcap {args.agent_pcap}: not a classic pcap (tcpdump -w)")
+            shutil.copyfile(args.agent_pcap, args.out / cases.AGENT_SIDE)
         print(judge(args.out)[0])
         print(f"report in {args.out / 'report.html'}")
     elif args.cmd == "check":

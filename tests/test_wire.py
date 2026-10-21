@@ -1,11 +1,12 @@
 import json
+import random
 import socket
 import struct
 from pathlib import Path
 
 import pytest
 
-from rtpbench import analyze, g711, pcap, rtp, sip
+from rtpbench import analyze, cases, g711, pcap, rtp, sip
 from rtpbench.clock import CLOCK
 
 
@@ -290,3 +291,47 @@ def test_rtp_direction_by_address_when_both_ends_use_one_port(tmp_path: Path) ->
     assert ([p.ssrc for _, p in w.up], [p.ssrc for _, p in w.down]) == ([7], [8])
     for cap in analyze.load(run / "caller.pcap", 40000), analyze.load(run / "caller.pcap"):
         assert ([p.ssrc for _, p in cap.up], [p.ssrc for _, p in cap.down]) == ([7], [8])
+
+
+def test_path_follows_the_clocks_rate_difference() -> None:
+    """A caller's clock 1,700 ppm fast drifts 100 ms over a minute's call: against one
+    minimum that would be the path's p99; against the line it is the path's own jitter."""
+    rng = random.Random(1)
+    pairs = []
+    for n in range(3000):  # a minute, 20 ms apart
+        sent = n * rtp.PTIME_NS
+        spike = 50_000_000 if n % 200 == 0 else 0  # 0.5% of packets, past the p99
+        pairs.append((sent, 5 * 10**9 + round(sent * 1.0017) + rng.randrange(2_000_000) + spike))
+    late, ppm = analyze.path(pairs) or (0.0, 0.0)
+    assert late == pytest.approx(2, abs=0.2)
+    assert ppm == pytest.approx(1700, abs=5)
+    assert analyze.path(pairs[:49]) is None
+    assert analyze.path(pairs[:50]) is None  # one second: no rate to take
+
+
+def _agent_side(path: Path, packets: list[tuple[int, bytes]]) -> cases.Sent:
+    _raw_pcap(path, [(t, "10.0.0.2", 40000, "10.0.0.1", 4000, p) for t, p in packets])
+    return cases._sent(path)
+
+
+def test_agent_side_split_pairs_the_same_packets_only(tmp_path: Path) -> None:
+    def packet(n: int, ts_step: int = rtp.FRAME) -> rtp.Packet:
+        return rtp.Packet(g711.PCMU, n, n * ts_step, 7, False, bytes([n % 256]) * rtp.FRAME)
+
+    sent = [(n * rtp.PTIME_NS, packet(n)) for n in range(200)]
+    wire = [(t, rtp.pack(p.pt, p.seq, p.ts, p.ssrc, p.payload)) for t, p in sent]
+    twice = sorted(wire + [(t + 10_000, b) for t, b in wire])  # on two interfaces at the agent
+    side = _agent_side(tmp_path / "side.pcap", twice)
+    down = [(t + 30_000_000, p) for t, p in sent]
+    split = cases._split(down, side, False)
+    assert split is not None
+    assert [*split[0], *split[1]] == pytest.approx([0, 0, 0, 0], abs=1e-6)  # even, 30 ms
+    # repacketized to 30 ms on the way (timestamps step 240): nothing pairs
+    assert cases._split([(t, packet(n, 240)) for n, (t, _) in enumerate(down)], side, False) is None
+    # the same headers with other audio: not the same packets, unless SRTP hides the payload
+    other = [(t, rtp.Packet(p.pt, p.seq, p.ts, p.ssrc, False, b"x" * rtp.FRAME)) for t, p in down]
+    assert cases._split(other, side, False) is None
+    assert cases._split(other, side, True) is not None
+    # headers sent again a second later: which copy arrived is unknown, so neither pairs
+    reused = _agent_side(tmp_path / "reused.pcap", wire + [(t + 10**9, b) for t, b in wire])
+    assert set(reused.values()) == {None}

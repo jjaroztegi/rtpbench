@@ -339,6 +339,29 @@ def pacing(packets: Timed) -> tuple[float, float] | None:
     return statistics.median(jitter), _pct(late, 0.99)
 
 
+def path(pairs: list[tuple[int, int]]) -> tuple[float, float] | None:
+    """What the path between two captures added to a sender's pacing, from each packet's (sent,
+    arrived) ns, on two hosts' clocks: the p99 of how much later than the earliest each packet
+    took, ms, measured against a line through the quickest packet of each second, so that the
+    clocks' offset and rate difference drop out; and that line's slope, ppm. None for fewer
+    than 50 packets or under 2 s."""
+    if len(pairs) < 50:
+        return None
+    t0 = min(s for s, _ in pairs)
+    quickest: dict[int, tuple[int, int]] = {}
+    for s, a in pairs:
+        second, took = (s - t0) // 1_000_000_000, a - s
+        if second not in quickest or took < quickest[second][1]:
+            quickest[second] = (s - t0, took)
+    if len(quickest) < 2:
+        return None
+    xs, ys = [x for x, _ in quickest.values()], [y for _, y in quickest.values()]
+    line = statistics.linear_regression(xs, ys)
+    over = [a - s - line.slope * (s - t0) for s, a in pairs]
+    least = min(over)
+    return _pct([(v - least) / 1e6 for v in over], 0.99), line.slope * 1e6
+
+
 def pauses(packets: Timed, lost_max: int) -> list[tuple[float, float, bool]]:
     """Where a sender stopped sending and went on with the same stream (silence suppression):
     a second or more between two packets of one SSRC that arrive in turn, at most `lost_max`
