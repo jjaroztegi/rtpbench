@@ -73,7 +73,7 @@ def turns(run: Path) -> list[dict[str, Any]]:
     caller_log = json.loads((run / "caller.json").read_text())
     agent_path = run / "agent.json"
     agent_log = json.loads(agent_path.read_text()) if agent_path.exists() else None
-    cap = analyze.load(run / "caller.pcap")
+    cap = analyze.load(run / "caller.pcap", caller_log["rtp_port"])
     pt, seq0 = caller_log["pt"], caller_log["seq0"]
     segs: dict[str, tuple[analyze.Stream, list[list[int]]]] = {}
     for m in analyze.METHODS:

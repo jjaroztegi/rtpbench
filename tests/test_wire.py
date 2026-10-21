@@ -1,3 +1,4 @@
+import json
 import socket
 import struct
 from pathlib import Path
@@ -257,3 +258,33 @@ def test_digest_without_qop_sends_no_cnonce() -> None:
     legacy = sip.digest(['Digest realm="r", nonce="n", qop=""'], "BYE", "sip:a@b", "u", "p")
     assert "qop" not in legacy
     assert "cnonce" not in legacy
+
+
+def test_rtp_direction_by_address_when_both_ends_use_one_port(tmp_path: Path) -> None:
+    """The caller and the agent both send RTP from port 40000: the address says which is which,
+    in the caller's capture and in the agent's."""
+    from rtpbench import cases
+
+    run = tmp_path / "run"
+    run.mkdir()
+    sdp = {ip: sip.sdp(ip, 40000, [0]) for ip in ("10.0.0.1", "10.0.0.2")}
+    call = [("Call-ID", "c1"), ("CSeq", "1 INVITE")]
+    invite = sip.Message("INVITE sip:agent@10.0.0.2 SIP/2.0", call, sdp["10.0.0.1"])
+    ok = sip.Message("SIP/2.0 200 OK", call, sdp["10.0.0.2"])
+    up, down = rtp.pack(0, 1, 160, 7, b"u" * 160), rtp.pack(0, 9, 320, 8, b"d" * 160)
+    stray = rtp.pack(0, 5, 160, 9, b"s" * 160)  # another call's, to another port of the caller
+    _raw_pcap(
+        run / "caller.pcap",
+        [
+            (0, "10.0.0.1", 5070, "10.0.0.2", 5060, invite.render()),
+            (1, "10.0.0.2", 5060, "10.0.0.1", 5070, ok.render()),
+            (2, "10.0.0.1", 40000, "10.0.0.2", 40000, up),
+            (3, "10.0.0.2", 40000, "10.0.0.1", 40000, down),
+            (4, "10.0.0.3", 40000, "10.0.0.1", 41000, stray),
+        ],
+    )
+    (run / "caller.json").write_text(json.dumps({"call_id": "c1", "rtp_port": 40000, "pt": 0}))
+    w = cases.load(run)
+    assert ([p.ssrc for _, p in w.up], [p.ssrc for _, p in w.down]) == ([7], [8])
+    for cap in analyze.load(run / "caller.pcap", 40000), analyze.load(run / "caller.pcap"):
+        assert ([p.ssrc for _, p in cap.up], [p.ssrc for _, p in cap.down]) == ([7], [8])
