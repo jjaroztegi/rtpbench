@@ -10,6 +10,7 @@ events are capture times (`rtpbench calibrate`: wire timing within 0.41 ms on a 
 agent speech onsets are webrtcvad's (`rtpbench calibrate --speech`, p5..p95 per codec).
 """
 
+import contextlib
 import functools
 import itertools
 import json
@@ -36,6 +37,7 @@ REPLY_WAIT_S = 15.0
 BYE_AFTER_NS = 1_000_000_000  # into the agent's speech
 BYE_AUDIBLE_S = 3.0  # then wait this long for a moment the agent is audible
 CANCEL_AFTER_S = 0.2  # after the first provisional response
+FINALS_WAIT_S = 2.0  # after the INVITE's 2xx, for another final response
 MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be on its way
 WATCH_S = 2.0  # listen after the call ends for media that should have stopped
 HOLD_S = 3.0
@@ -304,6 +306,25 @@ def cancel(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     if s.final is not None and s.final.status < 300:  # answered after all: end it properly
         s.hangup()
     s.wait(lambda: False, WATCH_S)
+    return s.meta(seed, s.remote_bye)
+
+
+def invite_retransmit(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """INVITE, every response to it in the first T1 lost, so timer A sends it again at T1 (the
+    agent may still be setting the call up, or have answered and be resending its 2xx). Then
+    take the responses as they come, listen for more final ones and hang up."""
+    s = dial()
+    until = time.monotonic() + sip.T1 * (s.dialog.transport == "UDP")  # TCP and TLS lose none
+    while (left := until - time.monotonic()) > 0:  # lost: read, never handled
+        s.dialog.sock.settimeout(left)
+        with contextlib.suppress(TimeoutError):
+            s.dialog.sock.recvfrom(65535)
+    s.dialog.retransmit()  # timer A, due
+    # a 2xx may still follow a failure (one agent's 503 to the copy, then its 200 to the INVITE)
+    answered = s.wait(lambda: any(_is_2xx_invite(r) for r in s.responses), 64 * sip.T1)
+    s.wait(lambda: False, FINALS_WAIT_S)
+    if answered:
+        s.hangup()
     return s.meta(seed, s.remote_bye)
 
 
@@ -768,6 +789,61 @@ def check_cancel(w: Wire) -> Result:
     late = [u for u, _ in w.down if u > t + MEDIA_GRACE_MS * 1_000_000]
     span = (t, w.down[-1][0]) if w.down else None
     r.checks.append(Check("no agent RTP after the CANCEL", not late, f"{len(late)} packets", span))
+    return r
+
+
+def check_invite_retransmit(w: Wire) -> Result:
+    """The INVITE's copy, sent T1 after it, every response before it lost: while the agent sets
+    the call up (no final response yet), answered with a provisional or final response before
+    the next copy would go (RFC 3261 17.2.1: the most recent provisional one); after a 2xx, that
+    resent until ACKed (13.3.1.4) and the copy absorbed or answered with it (RFC 6026 7.1).
+    Either way there is one final response, one status and one To-tag, and nothing provisional
+    after it."""
+    r = Result()
+    ok = w.find(_is_2xx_invite, sent=False)
+    if (transport := w.log.get("transport", "UDP")) != "UDP":
+        r.checks.append(Check("INVITE copy sent", None, f"over {transport}, which loses nothing"))
+        return r
+    sent = [(t, m) for t, out, m in w.msgs if out and m.method == "INVITE"]
+    copy = next((x for x in sent[1:] if x[1].branch == sent[0][1].branch), None)
+    if copy is None:
+        r.checks.append(Check("call answered 2xx", ok is not None))
+        r.checks.append(Check("INVITE copy sent", None, "the call ended first"))
+        return r
+    t0, invite = sent[0]
+    if ok:
+        r.timings.append(Timing("INVITE to the 2xx", (ok[0] - t0) / 1e6, WIRE, span=(t0, ok[0])))
+    heard = w.find(_is_2xx_invite, sent=False, after=copy[0])  # the ones before were lost
+    detail = "" if heard or not ok else "only before the copy, when lost; never resent"
+    r.checks.append(Check("call answered 2xx", heard is not None, detail))
+    got = [(t, m) for t, out, m in w.msgs if not out and m.branch == invite.branch]
+    got = [(t, m) for t, m in got if m.cseq_method == "INVITE"]
+    finals = [(t, m) for t, m in got if m.status >= 200]
+    reply = next(((t, m) for t, m in got if t > copy[0]), None)
+    if reply:
+        ms = (reply[0] - copy[0]) / 1e6
+        r.timings.append(
+            Timing("INVITE copy to the agent's response", ms, WIRE, span=(copy[0], reply[0]))
+        )
+    if not finals or finals[0][0] > copy[0]:  # still setting the call up
+        window = round(2 * sip.T1 * 1e9)
+        in_time = reply is not None and reply[0] - copy[0] <= window
+        detail = "nothing"
+        if reply:
+            detail = f"{reply[1].first.removeprefix('SIP/2.0 ')} after {ms:.0f} ms"
+        span = (copy[0], reply[0] if reply else copy[0] + window)
+        name = f"INVITE copy answered within {window // 1_000_000} ms"
+        r.checks.append(Check(name, in_time, detail, span))
+    if finals:  # nothing provisional once final (17.2.1), as when a copy is taken for a new call
+        late = next((m for t, m in got if t > finals[0][0] and m.status < 200), None)
+        detail = late.first.removeprefix("SIP/2.0 ") if late else ""
+        r.checks.append(Check("no provisional response after the final", late is None, detail))
+    seen = {(m.status, sip.tag(m.get("to"))): m.first for _, m in finals}
+    each = [
+        first.removeprefix("SIP/2.0 ") + ("" if to_tag else " without a To-tag")
+        for (_, to_tag), first in seen.items()
+    ]
+    r.checks.append(Check("one final response to the INVITE", len(seen) <= 1, ", then ".join(each)))
     return r
 
 
@@ -1430,10 +1506,20 @@ CASES = {
         {"once": Behaviour(refer_s=1.5, retransmit=False)},
         route="direct",  # likewise the BYE
     ),
+    "invite-retransmit": Case(
+        invite_retransmit,
+        check_invite_retransmit,
+        Behaviour(ring_s=2.0),
+        {
+            "rejects": Behaviour(ring_s=2.0, copies="reject"),
+            "ignores": Behaviour(ring_s=2.0, copies="ignore"),
+        },
+        route="direct",  # the carrier's own transaction answers the copy
+    ),
 }
 # not over TLS: `large-invite`'s INVITE goes over TCP because UDP cannot take it; over a reliable
-# transport nothing is retransmitted (RFC 3261 17.1.2.2)
-NOT_TLS = ("large-invite", "refer-lost", "bye-lost")
+# transport nothing is retransmitted (RFC 3261 17.1.1.2, 17.1.2.2)
+NOT_TLS = ("large-invite", "refer-lost", "bye-lost", "invite-retransmit")
 
 
 def names(carrier: bool, tls: bool = False) -> list[str]:

@@ -439,3 +439,33 @@ def test_lost_bye_is_resent(copies: list[int] | None, transport: str, verdict: s
     msgs += [(at * ms, False, bye) for at in copies or []]
     w = Wire({"transport": transport}, None, msgs, [], [])
     assert cases.check_bye_lost(w).verdict == verdict
+
+
+def _on(first: str, to: str = "<sip:a@b>") -> sip.Message:
+    via = ("Via", "SIP/2.0/UDP 10.0.0.1:5060;branch=z9hG4bKcall")
+    return sip.Message(first, [via, ("To", to), ("CSeq", "1 INVITE")])
+
+
+@pytest.mark.parametrize(
+    ("answers", "verdict"),
+    [
+        ([(510, "180 Ringing", "t"), (2000, "200 OK", "t")], "pass"),  # the latest provisional
+        ([(510, "503 Service Unavailable", ""), (2000, "200 OK", "t")], "fail"),
+        ([(2000, "200 OK", "t")], "fail"),  # nothing until the 2xx, 1.5 s after the copy
+        ([(100, "200 OK", "t"), (510, "200 OK", "t")], "pass"),  # after a 2xx, resent
+        ([(100, "200 OK", "t")], "fail"),  # a lost 2xx never resent (RFC 3261 13.3.1.4)
+        ([(100, "200 OK", "t"), (510, "200 OK", "u")], "fail"),  # the copy taken for a call
+        ([(100, "200 OK", "t"), (510, "100 Trying", ""), (520, "200 OK", "t")], "fail"),  # likewise
+        ([(100, "200 OK", "t"), (510, "200 OK", "t"), (520, "100 Trying", "")], "fail"),
+        ([(600, "200 OK", "t"), (700, "180 Ringing", "t")], "fail"),  # 1xx after a 2xx in setup
+    ],
+)
+def test_invite_copy(answers: list[tuple[int, str, str]], verdict: str) -> None:
+    ms = 1_000_000
+    invite = _on("INVITE sip:a@b SIP/2.0")
+    msgs = [(0, True, invite), (5 * ms, False, _on("SIP/2.0 100 Trying")), (500 * ms, True, invite)]
+    for at, status, to_tag in answers:
+        to = "<sip:a@b>" + (f";tag={to_tag}" if to_tag else "")
+        msgs.append((at * ms, False, _on(f"SIP/2.0 {status}", to)))
+    w = Wire({"transport": "UDP"}, None, sorted(msgs, key=lambda m: m[0]), [], [])
+    assert cases.check_invite_retransmit(w).verdict == verdict
