@@ -1,4 +1,5 @@
 import shutil
+import struct
 import subprocess
 import wave
 from pathlib import Path
@@ -120,3 +121,22 @@ def test_conditions_record_tls_to_a_transfer_proxy_alone(tmp_path: Path) -> None
     plain = bench.conditions(lambda cmd: "", 1)
     assert "proxy_tls" not in plain
     assert "tls_trust" not in plain
+
+
+def test_report_refuses_an_agent_pcap_it_cannot_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bench, "judge", lambda out: ("", True))
+    side = tmp_path / "agent-side.pcap"
+    for bad in (b"pcapng?", b"\xd4\xc3\xb2\xa1"):  # not a pcap; the magic alone, no header
+        (tmp_path / "bad.pcap").write_bytes(bad)
+        with pytest.raises(SystemExit) as e:
+            cli.main(["report", str(tmp_path), "--agent-pcap", str(tmp_path / "bad.pcap")])
+        assert e.value.code == 2
+        assert not side.exists()
+    header = struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    (tmp_path / "agent.pcap").write_bytes(header)
+    cli.main(["report", str(tmp_path), "--agent-pcap", str(tmp_path / "agent.pcap")])
+    assert side.read_bytes() == header
+    cli.main(["report", str(tmp_path), "--agent-pcap", str(side)])  # its own copy again
+    assert side.read_bytes() == header

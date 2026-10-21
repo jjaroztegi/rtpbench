@@ -43,7 +43,7 @@ def _ip_offset(link: int, frame: bytes) -> int | None:
 
 def read(path: Path) -> list[Datagram]:
     data = path.read_bytes()
-    if data[:4] not in _MAGIC:
+    if len(data) < 24 or data[:4] not in _MAGIC:
         raise ValueError(f"{path}: not a classic pcap file")
     order, scale = _MAGIC[data[:4]]
     link = struct.unpack_from(order + "I", data, 20)[0] & 0x0FFFFFFF
@@ -53,7 +53,10 @@ def read(path: Path) -> list[Datagram]:
         sec, frac, incl, _ = record.unpack_from(data, pos)
         frame = data[pos + 16 : pos + 16 + incl]
         pos += 16 + incl
-        ip = _ip_offset(link, frame)
+        try:
+            ip = _ip_offset(link, frame)
+        except struct.error:  # shorter than its link header says
+            continue
         if ip is None or len(frame) < ip + 28 or frame[ip + 9] not in (6, 17):
             continue
         if struct.unpack_from("!H", frame, ip + 6)[0] & 0x3FFF:  # fragment

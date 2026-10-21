@@ -40,6 +40,9 @@ CANCEL_AFTER_S = 0.2  # after the first provisional response
 FINALS_WAIT_S = 2.0  # after the INVITE's 2xx, for another final response
 MEDIA_GRACE_MS = 500  # RTP sent before the agent handled a request may still be on its way
 WATCH_S = 2.0  # listen after the call ends for media that should have stopped
+AGENT_SIDE = "agent-side.pcap"  # a target run's capture taken at the agent (report --agent-pcap)
+SAME_PACKET_NS = 1_000_000  # copies closer than this in the agent's capture: one packet, twice
+MATCHED_MIN = 0.9  # share of a call's packets the agent's capture must hold
 HOLD_S = 3.0
 RESUME_MS = 1000
 CLOCK_MS = 40  # RTP clock vs arrival time, before vs after a pause (two packets)
@@ -1693,16 +1696,22 @@ def proven(records: list[dict[str, Any]]) -> bool:
     return all(r["verdict"] == expected(r["behaviour"]) for r in records if r["behaviour"])
 
 
-def pacing(calls: list[tuple[str, Path]], uri: bool) -> str:
+def pacing(calls: list[tuple[str, Path]], uri: bool, agent_side: Path | None = None) -> str:
     """How evenly the agent's RTP reached the caller, per profile over the `calls` (profile, run
     directory) that have one: `analyze.pacing` of each, median [min, max] over the calls; empty
-    if none has. `uri`: the agent is at a SIP URI, beyond a real path."""
+    if none has. `uri`: the agent is at a SIP URI, beyond a real path. `agent_side`: a capture
+    taken at the agent, which splits the agent's own pacing from the path's."""
     by: dict[str, list[tuple[float, float]]] = {}
     paused: dict[str, list[list[tuple[float, float, bool]]]] = {}
+    sent = _sent(agent_side) if agent_side else {}
+    split: dict[str, list[tuple[tuple[float, float], tuple[float, float]] | None]] = {}
     for profile, run in calls:
-        down = load(run, profile).down
+        wire = load(run, profile)
+        down = wire.down
         if (paced := analyze.pacing(down)) is not None:
             by.setdefault(profile, []).append(paced)
+            if agent_side:
+                split.setdefault(profile, []).append(_split(down, sent, bool(wire.log.get("srtp"))))
         if not run.name.startswith("hold"):  # in a hold, stopping is what the case asks for
             paused.setdefault(profile, []).append(analyze.pauses(down, SEQ_LOST_MAX))
     if not by:
@@ -1724,7 +1733,84 @@ def pacing(calls: list[tuple[str, Path]], uri: bool) -> str:
         )
         + "; a profile adds its own.\n\n"
         + analyze._table(["profile", "calls", "late, p99", "jitter"], rows)
+        + (_split_table(split) if agent_side else "")
         + _pauses(paused)
+    )
+
+
+Sent = dict[tuple[int, int, int], tuple[int, rtp.Packet] | None]
+
+
+def _sent(capture: Path) -> Sent:
+    """Each G.711 RTP packet the capture taken at the agent saw, and when, by SSRC, sequence
+    number and timestamp; None where two packets share those (which of them arrived is
+    unknown). A packet seen twice within SAME_PACKET_NS (on two interfaces) counts once, at its
+    first."""
+    out: Sent = {}
+    for g in pcap.read(capture):
+        if g.tcp or (p := rtp.parse(g.payload)) is None or p.pt not in g711.NAMES:
+            continue
+        key = (p.ssrc, p.seq, p.ts)
+        if key not in out:
+            out[key] = g.t_ns, p
+        elif (seen := out[key]) is not None and g.t_ns - seen[0] >= SAME_PACKET_NS:
+            out[key] = None
+    return out
+
+
+def _split(
+    down: analyze.Timed, sent: Sent, encrypted: bool
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
+    """For one call: the agent's own pacing (`analyze.pacing` on its packets as the agent's
+    capture saw them leave) and the path's (`analyze.path`); None when the capture holds under
+    MATCHED_MIN of the packets the caller received (something between rewrote their SSRC,
+    sequence numbers or timestamps, as a repacketizing media relay does, or the capture missed
+    the call). A packet pairs by SSRC, sequence number and timestamp, never where those are
+    ambiguous, and with the same payload unless the call is SRTP (`encrypted`)."""
+    packets = [(t, p) for t, p in down if p.pt in g711.NAMES]
+    pairs = []
+    for t, p in packets:
+        mine = sent.get((p.ssrc, p.seq, p.ts))
+        if mine is not None and (encrypted or mine[1].payload == p.payload):
+            pairs.append((mine[0], t))
+    if not packets or len(pairs) < MATCHED_MIN * len(packets):
+        return None
+    first, last = min(s for s, _ in pairs), max(s for s, _ in pairs)
+    ssrcs = {p.ssrc for _, p in packets}
+    # what the agent sent over the span, lost on the way or not, in the order it left
+    own = sorted(
+        (x for x in sent.values() if x and x[1].ssrc in ssrcs and first <= x[0] <= last),
+        key=lambda x: x[0],
+    )
+    at_agent, on_path = analyze.pacing(own), analyze.path(pairs)
+    return (at_agent, on_path) if at_agent and on_path else None
+
+
+def _split_table(
+    by: dict[str, list[tuple[tuple[float, float], tuple[float, float]] | None]],
+) -> str:
+    rows = []
+    for profile, calls in by.items():
+        got = [c for c in calls if c]
+        columns = (
+            ([a[1] for a, _ in got], ".1f"),  # at the agent: late
+            ([a[0] for a, _ in got], ".2f"),  # jitter
+            ([w[0] for _, w in got], ".1f"),  # the path: late
+            ([float(round(w[1])) for _, w in got], ".0f"),  # its clock rate, no "-0"
+        )
+        cells = [_spread(v, fmt) if v else "-" for v, fmt in columns]
+        rows.append([profile, f"{len(got)}/{len(calls)}", *cells])
+    head = ["profile", "calls matched", "at the agent: late, p99", "jitter", "path: late, p99"]
+    return (
+        f"\nSplit by the capture taken at the agent ({AGENT_SIDE}), ms, median [min, max] over "
+        "calls: at the agent, late and jitter as above from when its packets left; the path, "
+        "p99 of how much later than the quickest each packet took from the agent to the "
+        "caller, against a line through the quickest of each second, which takes up the two "
+        "clocks' offset and rate difference (ppm, the caller's clock against the agent's). "
+        "Packets pair by SSRC, sequence number and timestamp; a call whose packets the capture "
+        f"does not hold (at least {MATCHED_MIN:.0%}) is not matched: something between the "
+        "two captures rewrote them, or the capture missed the call.\n\n"
+        + analyze._table([*head, "clock rate, ppm"], rows)
     )
 
 
