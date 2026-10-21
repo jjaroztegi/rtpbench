@@ -382,3 +382,18 @@ def test_no_media_names_the_offered_address() -> None:
     assert cases.no_media(Wire({"pt": 0}, None, msgs, [(3, pkt)], [(4, pkt)])) is None
     assert cases.no_media(Wire({"pt": 0}, None, msgs[:1], [(3, pkt)], [])) is None  # unanswered
     assert cases.no_media(Wire({"pt": 0}, {}, msgs, [(3, pkt)], [])) is None  # reference agent
+
+
+@pytest.mark.parametrize(
+    ("error", "how"),
+    [(ConnectionRefusedError, "connection refused"), (TimeoutError, "connection timed out")],
+)
+def test_no_tcp_listener_is_named(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError], how: str
+) -> None:
+    def fail(self: sip.Tcp, addr: tuple[str, int]) -> socket.socket:
+        raise error
+
+    monkeypatch.setattr(sip.Tcp, "_open", fail)
+    with pytest.raises(ConnectionError, match=rf"^no TCP listener on port 5999 \({how}\)$"):
+        Session("sip:agent@127.0.0.1:5999", (g711.PCMU,), tcp=True)
