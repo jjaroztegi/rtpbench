@@ -42,13 +42,24 @@ threshold. A fresh detector per clip does not do it, and nor does a lead-in repl
 silence. A-law has no zero level (silence decodes to ±8), mu-law has one. An A-law agent's
 onsets after its first can read more than 130 ms early.
 
-## Clock steps
+## Clock steps and rate
 
 Captures stamp the wall clock, which time sync can step. Senders schedule on the monotonic clock
 ([`clock.py`](../src/rtpbench/clock.py)), so a step leaves no gap in the audio. Each run logs the
 steps it saw (`clock_steps` in `conditions.json`), and summaries mark any interval timed across
-one, because it reads off by the step. Virtual machines are prone to this: one guest's clock
-stepped back 25-80 ms about every 30 s under load.
+one, because it reads off by the step.
+
+A clock stepped back again and again runs fast in between, and nothing marks that drift: late,
+transit against the earliest packet, grows with it until the next step. Each run records the
+wall clock's rate between steps (`clock_rate_ppm`, from the steps' net size), and `calibrate`
+warns above 100 ppm. Virtual machines are prone to both: one WSL2 guest's clock stepped back
+25-80 ms about every 30 s, so it ran 800-2,700 ppm fast and late read up to 25-80 ms high just
+before each step. That is WSL2 on the default `tsc` clocksource; on Hyper-V's own the steps
+shrink to a few ms:
+
+```sh
+echo hyperv_clocksource_tsc_page | sudo tee /sys/devices/system/clocksource/clocksource0/current_clocksource
+```
 
 ## Running stacks in parallel
 
