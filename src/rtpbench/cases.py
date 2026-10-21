@@ -492,7 +492,7 @@ def large_invite(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
         log = _carried(lambda **o: dial(**o | padding | {"tcp": True}), seed, lines)
         refused = ""
     except OSError as e:  # connection refused (RST), or not even a SYN-ACK
-        refused = f"{type(e).__name__}: {e}"
+        refused = str(e)
         log = _carried(lambda **o: dial(**o | padding), seed, lines)
     return log | {"tcp_refused": refused}
 

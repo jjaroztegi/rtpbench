@@ -156,7 +156,6 @@ class Session:
             probe.connect(peer)
             local_ip, ports = probe.getsockname()[0], range(1)  # port 0: any
         sock: socket.socket | sip.Tcp
-        # sip.Tcp raises ConnectionRefusedError at the INVITE if the far end takes no TCP
         if sip.secure(uri):
             sock = _bind(lambda p: _tls(p, host), ports)
         else:
@@ -193,9 +192,15 @@ class Session:
         try:
             self.dialog.send(self.invite)
         except OSError as e:  # over TCP the caller may retry over UDP; over TLS it cannot
-            if not sip.secure(uri):
+            if sip.secure(uri):
+                raise sip.SipError(f"TLS to {peer[0]}:{peer[1]}: {type(e).__name__}: {e}") from e
+            how = {
+                TimeoutError: "connection timed out",
+                ConnectionRefusedError: "connection refused",
+            }
+            if not tcp or type(e) not in how:
                 raise
-            raise sip.SipError(f"TLS to {peer[0]}:{peer[1]}: {type(e).__name__}: {e}") from e
+            raise ConnectionError(f"no TCP listener on port {peer[1]} ({how[type(e)]})") from e
 
     def pump(self, timeout: float) -> None:
         """Handle the next SIP message, if one comes within `timeout`."""
