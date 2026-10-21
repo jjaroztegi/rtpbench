@@ -271,12 +271,14 @@ def test_rtp_direction_by_address_when_both_ends_use_one_port(tmp_path: Path) ->
     call = [("Call-ID", "c1"), ("CSeq", "1 INVITE")]
     invite = sip.Message("INVITE sip:agent@10.0.0.2 SIP/2.0", call, sdp["10.0.0.1"])
     ok = sip.Message("SIP/2.0 200 OK", call, sdp["10.0.0.2"])
+    early = sip.Message("SIP/2.0 183 Session Progress", call, b"not an SDP body")
     up, down = rtp.pack(0, 1, 160, 7, b"u" * 160), rtp.pack(0, 9, 320, 8, b"d" * 160)
     stray = rtp.pack(0, 5, 160, 9, b"s" * 160)  # another call's, to another port of the caller
     _raw_pcap(
         run / "caller.pcap",
         [
             (0, "10.0.0.1", 5070, "10.0.0.2", 5060, invite.render()),
+            (1, "10.0.0.2", 5060, "10.0.0.1", 5070, early.render()),
             (1, "10.0.0.2", 5060, "10.0.0.1", 5070, ok.render()),
             (2, "10.0.0.1", 40000, "10.0.0.2", 40000, up),
             (3, "10.0.0.2", 40000, "10.0.0.1", 40000, down),

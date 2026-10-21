@@ -60,8 +60,9 @@ def load(path: Path, port: int | None = None) -> Capture:
     if port is not None:
         me = (caller, port)
     else:
-        answer = next(m for _, src, d in msgs if src != caller and (m := sip.parse(d)).body)
-        sdp = sip.parse_sdp(answer.body)
+        # its first SDP (a 401 or a 183 may carry another body first)
+        sdps = (sip.parse_sdp(sip.parse(d).body) for _, src, d in msgs if src != caller)
+        sdp = next(s for s in sdps if s.port)
         me = (sdp.ip, sdp.port)
     cap = split(grams, me, rings, port is not None)
     return Capture(*([x for x in s if x[1].pt in g711.NAMES] for s in (cap.up, cap.down)))
