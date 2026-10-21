@@ -990,9 +990,18 @@ def check_dtmf_info(w: Wire) -> Result:
 
 def check_refer(w: Wire) -> Result:
     """A REFER with a SIP or tel Refer-To, both NOTIFYs answered 2xx (the subscription outlives
-    a BYE, RFC 5057), and the agent hangs up within 10 s of the final NOTIFY."""
+    a BYE, RFC 5057), and the agent hangs up within 10 s of the final NOTIFY. If the transfer
+    itself failed (the final NOTIFY is not 2xx), the agent should take the call back instead
+    (`refer-fail`): inconclusive."""
     r = Result()
     if (last := _transfer(w, r)) is None:
+        return r
+    # one per NOTIFY in the order first sent (a retransmitted 100 can follow the final one)
+    notifies = list({m.branch: m for _, out, m in w.msgs if out and m.method == "NOTIFY"}.values())
+    frag = notifies[-1].body.decode(errors="replace").strip() if notifies else ""
+    status = frag.split()[1] if len(frag.split()) > 1 else ""
+    if status.isdigit() and int(status) >= 300:  # failed; a 1xx is a transfer still pending
+        r.checks.append(Check("Refer-To target answers 2xx", None, frag))
         return r
     bye = w.find(lambda m: m.method == "BYE", sent=False)
     in_time = bye is not None and bye[0] - last <= BYE_WAIT_S * 1e9
