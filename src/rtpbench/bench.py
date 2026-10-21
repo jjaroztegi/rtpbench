@@ -333,11 +333,17 @@ def _host(cmd: str) -> str:
 
 
 def conditions(
-    sh: Callable[[str], str], seed: int, tls: Path | None = None, srtp: list[str] | None = None
+    sh: Callable[[str], str],
+    seed: int,
+    tls: Path | None = None,
+    srtp: list[str] | None = None,
+    proxy_tls: Path | None = None,
 ) -> dict[str, Any]:
     """Versions and host; `sh` runs a command in the stack (where the capture runs); `tls`, the
-    results' tls/ directory when SIP goes over TLS; `srtp`, the SRTP suites offered."""
-    ca = tls / "ca.pem" if tls else None
+    results' tls/ directory when SIP goes over TLS; `srtp`, the SRTP suites offered;
+    `proxy_tls`, that directory when a transfer's proxy takes TLS (sips:)."""
+    where = tls or proxy_tls
+    ca = where / "ca.pem" if where else None
     trust = (
         f"ca sha256:{hashlib.sha256(ca.read_bytes()).hexdigest()}"
         if ca and ca.exists()
@@ -359,7 +365,8 @@ def conditions(
         "seed": seed,
         "sip_auth": all(os.environ.get(k) for k in CREDENTIALS),  # whether, never what
         "tls": tls is not None,
-        **({"tls_trust": trust} if tls else {}),
+        **({"proxy_tls": True} if proxy_tls else {}),
+        **({"tls_trust": trust} if where else {}),
         "srtp": srtp,  # the suites offered; the keys are in each call's SDP
         "netem_per_direction": PROFILES,
     }
@@ -704,15 +711,22 @@ def target(
             if advertise:  # the host publishes the range
                 first = int(advertise.rpartition(":")[2])
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
-            trust = tls or bool(proxy and secure(proxy))  # the caller's TLS setup, and --ca
+            proxy_tls = bool(proxy and secure(proxy))
+            trust = tls or proxy_tls  # the caller's TLS setup, and --ca
             stack = Stack(out, uri=True, network=network, ports=ports, tls=trust, ca=ca, srtp=srtp)
         else:
+            proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
         try:
             stack.up(progress.phase)
             caller_ip = stack.ip("caller")
+            where = out / "tls"
             conds = conditions(
-                partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
+                partial(stack.sh, "router"),
+                seed,
+                where if tls else None,
+                srtp,
+                where if proxy_tls else None,
             )
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
