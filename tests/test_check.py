@@ -110,21 +110,25 @@ def test_unanswered_turns_are_later_than_any_limit(tmp_path: Path) -> None:
     assert [r[2] for r in rows] == ["pass", "FAIL"]
 
 
-def test_a_limit_on_a_call_not_requested_is_noted_and_on_a_broken_call_fails(
-    tmp_path: Path,
-) -> None:
+def test_a_limit_on_a_call_not_requested_is_noted(tmp_path: Path) -> None:
     policy = {"latency": {"clean": {"p50": 2000}}, "barge-in": {"clean": {"interrupt": {"p50": 1}}}}
-    rows, ok = check.evaluate(check.measure(_run(tmp_path / "none", {"greeting": "pass"})), policy)
+    rows, ok = check.evaluate(check.measure(_run(tmp_path / "d", {"greeting": "pass"})), policy)
     assert ok  # a cases-only run (--only <cases>): one policy serves split runs
     assert [r[1:] for r in rows[1:]] == [
         ["latency", "note", "not requested in this run"],
         ["barge-in", "note", "not requested in this run"],
     ]
-    d = _run(tmp_path / "empty", {}, latency=[[]])  # requested, answered no turn
+
+
+def test_a_limit_on_a_requested_call_with_no_turn_fails(tmp_path: Path) -> None:
+    d = _run(tmp_path / "d", {}, latency=[[]])
     rows, ok = check.evaluate(check.measure(d), {"latency": {"clean": {"p50": 2000}}})
     assert not ok
     assert rows[0][3] == "p50: no measurement"
-    d = _run(tmp_path / "broken", {}, latency=[[1000] * 12])
+
+
+def test_a_limit_on_a_broken_call_fails(tmp_path: Path) -> None:
+    d = _run(tmp_path / "d", {}, latency=[[1000] * 12])
     (d / "clean/02/latency").mkdir(parents=True)
     (d / "clean/02/latency/error.txt").write_text("refused")
     rows, ok = check.evaluate(check.measure(d), {"latency": {"clean": {"p50": 2000}}})
