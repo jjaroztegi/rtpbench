@@ -153,6 +153,22 @@ def test_turns_across_a_clock_step_are_left_out(tmp_path: Path) -> None:
     assert d["latency"]["clean"]["stepped"] == 1
 
 
+def test_a_step_well_inside_the_error_bar_is_no_step(tmp_path: Path) -> None:
+    def step(ms: float, turn: int) -> dict[str, Any]:
+        return {"wall_ns": [turn * 10**10 + 1, turn * 10**10 + 2], "step_ms": ms}
+
+    # onset bar 47.8 ms wide (mu-law, clean): 1.5 ms is no step, 5 ms is one
+    steps = [step(-1.5, 1), step(-5.0, 2)]
+    d = check.measure(_run(tmp_path / "lat", {}, latency=[[1000, 1000, 1000]], steps=steps))
+    assert d["latency"]["clean"]["calls"] == [[1000, 1000]]
+    # stop bar 84.8 ms wide: 1.5 and 5 ms are no step, 10.9 ms is one
+    stops: list[list[tuple[str, float | None]]] = [[("interrupt", 500.0)] * 3]
+    steps = [step(-1.5, 1), step(-5.0, 2), step(-10.9, 3)]
+    d = check.measure(_run(tmp_path / "barge", {}, stops=stops, steps=steps))
+    assert d["barge-in"]["clean"]["kinds"]["interrupt"] == [[500.0, 500.0]]
+    assert d["barge-in"]["clean"]["stepped"] == 1
+
+
 def test_regression_beyond_noise_and_tolerance(tmp_path: Path) -> None:
     def calls(base: float) -> list[list[float | None]]:
         return [[base + (7 * i + 3 * k) % 40 for i in range(12)] for k in range(3)]

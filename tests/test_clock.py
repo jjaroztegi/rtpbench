@@ -158,7 +158,9 @@ def test_summaries_mark_what_ran_across_a_step() -> None:
     assert cases.errors(recs)[0].endswith("[1 across a clock step]")
     assert "none" in clock.note([])
     assert "not recorded" in clock.note(None)
-    assert "1 (-50.0 ms)" in clock.note([{"wall_ns": [0, 1], "step_ms": -50.0}])
+    sizes = [-1.5, -1.4, -10.9, -1.6, 2.0]
+    note = clock.note([{"wall_ns": [0, 1], "step_ms": ms} for ms in sizes])
+    assert "5 (median -1.5 ms, largest -10.9 ms)" in note
 
 
 def test_rate_reads_a_clock_that_runs_fast_and_is_stepped_back() -> None:
@@ -200,3 +202,12 @@ def test_rate_note_stays_quiet(ppm: float, steps: list[dict[str, Any]], tmp_path
         json.dumps({"clock_rate_ppm": ppm, "clock_steps": steps})
     )
     assert clock.rate_note(tmp_path) == ""
+
+
+def test_a_step_counts_from_a_tenth_of_the_error_bar() -> None:
+    steps = [{"wall_ns": [10, 20], "step_ms": -1.5}]
+    assert clock.spans(0, 30, steps)  # no bar: any step
+    assert clock.spans(0, 30, steps, 15.0)
+    assert not clock.spans(0, 30, steps, 15.1)
+    assert not clock.spans(0, 30, steps, cases.ONSET["clean", 8].hi - cases.ONSET["clean", 8].lo)
+    assert clock.spans(0, 30, steps, cases.WIRE.hi - cases.WIRE.lo)
