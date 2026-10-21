@@ -292,6 +292,8 @@ def pooled(
         "turn of every run. True value = measured - error, error within the onset bar; where the "
         "caller's speech ends is defined to ±17 ms (label threshold ±5 dB).\n\n"
         + analyze._table(head, rows)
+        + "\nEach turn: a line of PROFILE/REPEAT/latency/turns.jsonl (results.json holds "
+        "the cases only; rtpbench check gathers the turns into check.json).\n"
     )
 
 
