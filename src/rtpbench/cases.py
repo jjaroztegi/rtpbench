@@ -803,7 +803,8 @@ def check_invite_retransmit(w: Wire) -> Result:
     """The INVITE's copy, sent T1 after it, every response before it lost: while the agent sets
     the call up (no final response yet), answered with a provisional or final response before
     the next copy would go (RFC 3261 17.2.1: the most recent provisional one); after a 2xx, that
-    resent until ACKed (13.3.1.4) and the copy absorbed or answered with it (RFC 6026 7.1).
+    resent until ACKed (13.3.1.4) and the copy absorbed or answered with it (RFC 6026 7.1), never
+    with a provisional response.
     Either way there is one final response: one status, one To-tag."""
     r = Result()
     ok = w.find(_is_2xx_invite, sent=False)
@@ -840,6 +841,12 @@ def check_invite_retransmit(w: Wire) -> Result:
         span = (copy[0], reply[0] if reply else copy[0] + window)
         name = f"INVITE copy answered within {window // 1_000_000} ms"
         r.checks.append(Check(name, in_time, detail, span))
+    else:  # a provisional response after the final one: the copy was taken for a new request
+        late = reply is not None and reply[1].status < 200
+        detail = reply[1].first.removeprefix("SIP/2.0 ") if late and reply else ""
+        r.checks.append(
+            Check("INVITE copy after the final: no provisional response", not late, detail)
+        )
     seen = {(m.status, sip.tag(m.get("to"))): m.first for _, m in finals}
     each = [
         first.removeprefix("SIP/2.0 ") + ("" if to_tag else " without a To-tag")

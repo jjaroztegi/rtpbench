@@ -455,6 +455,7 @@ def _on(first: str, to: str = "<sip:a@b>") -> sip.Message:
         ([(100, "200 OK", "t"), (510, "200 OK", "t")], "pass"),  # after a 2xx, resent
         ([(100, "200 OK", "t")], "fail"),  # a lost 2xx never resent (RFC 3261 13.3.1.4)
         ([(100, "200 OK", "t"), (510, "200 OK", "u")], "fail"),  # the copy taken for a call
+        ([(100, "200 OK", "t"), (510, "100 Trying", ""), (520, "200 OK", "t")], "fail"),  # likewise
     ],
 )
 def test_invite_copy(answers: list[tuple[int, str, str]], verdict: str) -> None:
