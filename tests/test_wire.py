@@ -82,6 +82,7 @@ def test_pcap_reads_nanosecond_ethernet_udp(tmp_path: Path) -> None:
     data += struct.pack("<IIII", 1_700_000_000, 123_456_789, len(frame), len(frame)) + frame
     cut = frame[:-2]  # snaplen: the datagram is not all there
     data += struct.pack("<IIII", 1_700_000_001, 0, len(cut), len(frame)) + cut
+    data += struct.pack("<IIII", 1_700_000_002, 0, 1, 1) + b"\x00"  # shorter than Ethernet's
     (tmp_path / "x.pcap").write_bytes(data)
     (d,) = pcap.read(tmp_path / "x.pcap")
     assert d == pcap.Datagram(

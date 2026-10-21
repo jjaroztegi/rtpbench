@@ -53,7 +53,10 @@ def read(path: Path) -> list[Datagram]:
         sec, frac, incl, _ = record.unpack_from(data, pos)
         frame = data[pos + 16 : pos + 16 + incl]
         pos += 16 + incl
-        ip = _ip_offset(link, frame)
+        try:
+            ip = _ip_offset(link, frame)
+        except struct.error:  # shorter than its link header says
+            continue
         if ip is None or len(frame) < ip + 28 or frame[ip + 9] not in (6, 17):
             continue
         if struct.unpack_from("!H", frame, ip + 6)[0] & 0x3FFF:  # fragment
