@@ -96,7 +96,9 @@ def measure(out: Path) -> dict[str, Any]:
     barge: dict[str, dict[str, Any]] = {}
     for sub, into in (("latency", latency), ("barge-in", barge)):
         for run in sorted(out.glob(f"*/*/{sub}")):
-            entry = into.setdefault(run.parts[-3], {"codecs": [], "stepped": 0, "broken": 0})
+            entry = into.setdefault(
+                run.parts[-3], {"codecs": [], "stepped": 0, "ended": 0, "broken": 0}
+            )
             if not (run / "turns.jsonl").exists():  # the call did not complete (error.txt)
                 entry["broken"] += 1
                 continue
@@ -119,7 +121,9 @@ def measure(out: Path) -> dict[str, Any]:
             for t in _lines(run / "turns.jsonl"):
                 ms = t["measured_ms"]["wire/gate"] if bargein._stopped(t, "wire/gate") else None
                 onset = t["onset_ns"]
-                if ms is not None and clock.spans(onset, onset + ms * 1e6, steps, width):
+                if bargein.ended(t, bar.lo if bar else 0):
+                    entry["ended"] += 1
+                elif ms is not None and clock.spans(onset, onset + ms * 1e6, steps, width):
                     entry["stepped"] += 1
                 else:
                     kinds[t["kind"]].append(ms)
@@ -237,6 +241,9 @@ def evaluate(
         if entry["broken"]:
             row(profile, "barge-in", False, f"{entry['broken']} call(s) did not complete")
         _stepped(row, profile, "barge-in", entry)
+        if entry.get("ended"):
+            what = "turn(s) whose agent speech ended before the interjection (gate), left out"
+            row(profile, "barge-in", None, f"{entry['ended']} {what}")
         hi = _hi(cases.STOP, profile, entry["codecs"])
         for kind, limits in kinds.items():
             turns = entry.get("kinds", {}).get(kind, [])

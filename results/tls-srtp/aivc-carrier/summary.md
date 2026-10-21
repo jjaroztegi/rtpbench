@@ -44,13 +44,13 @@ Turn latency, ms: caller's labelled end to the agent's first speech (webrtcvad),
 
 ## Barge-in
 
-Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop time (ms, gate, wire) when it did, every turn of every run. True value = measured - error, error within the bar (calibrated on hard cuts).
+Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop time (ms, gate, wire) when it did, every turn of every run. True value = measured - error, error within the bar (calibrated on hard cuts). Speech ended before (gate): turns left out, the gate having heard the agent's speech end before the onset by more than the bar.
 
-| profile | interjection | runs | stopped | run rates | p5 | p50 | p95 | across a clock step | stop error bar |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| clean | interrupt | 1 | 3/3 | 100% .. 100% | -371 | 108 | 176 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
-| clean | backchannel | 1 | 4/4 | 100% .. 100% | -191 | 13 | 44 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
-| clean | cough | 1 | 3/3 | 100% .. 100% | -40 | -9 | 21 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| profile | interjection | runs | stopped | run rates | p5 | p50 | p95 | across a clock step | speech ended before (gate) | stop error bar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| clean | interrupt | 1 | 2/2 | 100% .. 100% | 108 | 108 | 176 | 0 | 1 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| clean | backchannel | 1 | 3/3 | 100% .. 100% | 13 | 23 | 44 | 0 | 1 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| clean | cough | 1 | 3/3 | 100% .. 100% | -40 | -9 | 21 | 0 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
 
 ## Turn latency by part
 

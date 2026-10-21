@@ -228,3 +228,17 @@ def test_too_few_turns_are_not_compared(tmp_path: Path) -> None:
     rows, ok = check.evaluate(now, {"regression": {"latency": 50}}, before)
     assert ok
     assert "5 and 5 turns" in rows[0][3]
+
+
+def test_speech_ended_before_the_interjection_is_left_out(tmp_path: Path) -> None:
+    # stop bar, mu-law clean: [-84.8, 0]; -50 ms is a stop within it, -200 ms speech that ended
+    stops: list[list[tuple[str, float | None]]] = [
+        [("interrupt", -50.0), ("interrupt", -200.0), ("interrupt", 300.0), ("cough", None)]
+    ]
+    d = check.measure(_run(tmp_path / "d", {}, stops=stops))
+    assert d["barge-in"]["clean"]["kinds"]["interrupt"] == [[-50.0, 300.0]]
+    assert d["barge-in"]["clean"]["ended"] == 1
+    rows, _ = check.evaluate(d, {"barge-in": {"clean": {"interrupt": {"stopped": 1.0}}}})
+    assert rows[0][1:3] == ["barge-in", "note"]
+    assert rows[0][3].startswith("1 turn(s)")
+    assert rows[1][2:] == ["pass", "stopped 2/2, at least 100%"]

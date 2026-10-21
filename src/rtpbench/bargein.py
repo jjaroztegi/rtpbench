@@ -6,11 +6,14 @@ same script (same seed): it stops for every interruption and, playing an over-ea
 half of the backchannels and coughs, a known delay after it detects the caller.
 
 Measured, per detector and timing method, from the caller pcap alone: the agent's speech in
-progress when the caller's interjection starts (its labelled onset), or paused for less than
-1 s, ends at the last detected sample before a silence of at least 1 s. The agent stopped if
-that end comes within 2 s of the interjection; stop time is that end minus the interjection
-onset, negative when the agent fell silent in a pause the caller cut into. Truth: the last
-labelled sample of the agent's reply before its cut that reached the caller.
+progress when the caller's interjection starts (its labelled onset), or paused for less than 1
+s, ends at the last detected sample before a silence of at least 1 s. The agent stopped if that
+end comes within 2 s of the interjection; stop time is that end minus the interjection onset.
+The gate reads a stop up to its error bar early, so a negative stop time within the bar is a
+stop; one further back means the agent's speech, as the gate heard it, had ended before the
+caller cut in (its reply was over, it never came back from a pause, or the gate missed quiet
+speech), and against a target the turn is left out (`ended`). Truth: the last labelled sample of
+the agent's reply before its cut that reached the caller.
 """
 
 import json
@@ -67,6 +70,13 @@ def stop(segs: list[list[int]], t: int) -> int | None:
     agent had not spoken for GAP_NS."""
     seg = next((s for s in segs if s[0] <= t < s[1] + GAP_NS), None)
     return None if seg is None else seg[1] - t
+
+
+def ended(rec: dict[str, Any], lo: float) -> bool:
+    """Whether the agent's speech, by the gate, ended before the interjection's onset by more
+    than `lo` ms, the low side of the gate's stop error bar."""
+    v = rec["measured_ms"]["wire/gate"]
+    return v is not None and v < lo
 
 
 def turns(run: Path) -> list[dict[str, Any]]:
@@ -174,21 +184,24 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
     """Barge-in per profile and interjection against a real agent, over every turn of every
     run: how often the agent stopped (and the range of that rate over runs), its stop time by
     the gate on the wire, with the gate's error bar for the profile and codec, and how many of
-    those ran across one of the wall-clock `steps`."""
+    those ran across one of the wall-clock `steps`. Turns whose agent speech ended before the
+    interjection (`ended`) are counted apart."""
     from rtpbench import cases, clock
 
     key = "wire/gate"
     rows = []
     for profile, dirs in runs.items():
-        per_run, bars, widths = [], set(), []
+        per_run, bars, widths, before = [], set(), [], []
         for run in dirs:
             recs = turns(run)
             (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
-            per_run.append(recs)
             pt = json.loads((run / "caller.json").read_text())["pt"]
             b = cases.bar(cases.STOP, profile, pt)
             bars.add(b)
             widths.append(b.hi - b.lo if b else 0)
+            lo = b.lo if b else 0
+            per_run.append([r for r in recs if not ended(r, lo)])
+            before += [r["kind"] for r in recs if ended(r, lo)]
         error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b) or "-"
         for kind in KINDS:
             sel = [[r for r in recs if r["kind"] == kind] for recs in per_run]
@@ -210,12 +223,13 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
                 if "onset_ns" in r
             )
             row = [profile, kind, str(len(dirs)), f"{k}/{n}", spread, *cells, str(across)]
-            rows.append([*row, error])
+            rows.append([*row, str(before.count(kind)), error])
     head = ["profile", "interjection", "runs", "stopped", "run rates", "p5", "p50", "p95"]
-    head += ["across a clock step"]
+    head += ["across a clock step", "speech ended before (gate)"]
     return (
         "Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop "
         "time (ms, gate, wire) when it did, every turn of every run. True value = measured - "
-        "error, error within the bar (calibrated on hard cuts).\n\n"
-        + analyze._table([*head, "stop error bar"], rows)
+        "error, error within the bar (calibrated on hard cuts). Speech ended before (gate): turns "
+        "left out, the gate having heard the agent's speech end before the onset by more than "
+        "the bar.\n\n" + analyze._table([*head, "stop error bar"], rows)
     )
