@@ -70,9 +70,12 @@ services:
       AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-realtime-2.1}
       TRANSFER_TO: sip:operator@operator
     command: sh -c 'python agent.py setup && exec python agent.py start'
-    # ready once the worker has registered with the server (agent.py REGISTERED)
+    # ready once the worker has registered with the server (agent.py REGISTERED), while its own
+    # health check passes (it fails once the worker has lost the server for good)
     healthcheck:
-      test: test -e /tmp/registered
+      test: >-
+        test -e /tmp/registered &&
+        python -c 'import urllib.request as u; u.urlopen("http://127.0.0.1:8081")'
       interval: 1s
       retries: 60
 
