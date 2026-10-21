@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rtpbench import analyze, cases
-from rtpbench.bench import PROFILES, TARGETS, is_uri
+from rtpbench.bench import PROFILES, TARGETS, docker, is_uri
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
 
@@ -385,6 +385,7 @@ example:
         special = args.speech or args.barge_in
         profiles = args.profiles or ("clean,mobile" if special else ",".join(PROFILES))
         codecs = args.codecs or ("pcmu,pcma" if args.speech else "pcma" if args.barge_in else "")
+        docker()
         with progress:
             summary = calibrate(
                 out,
@@ -409,6 +410,7 @@ example:
         names = args.only.split(",") if args.only else cases.names(args.carrier, args.tls)
         if args.tls and "large-invite" in names:
             parser.error(LARGE_INVITE_TLS)
+        docker()
         with progress:
             summary, proven = run_cases(
                 out,
@@ -442,6 +444,7 @@ example:
         if tls and "large-invite" in names:
             parser.error(LARGE_INVITE_TLS)
         profiles = args.profiles.split(",")
+        docker()
         with progress:
             summary = target(
                 out,
