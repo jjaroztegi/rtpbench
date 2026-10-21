@@ -47,7 +47,9 @@ onsets after its first can read more than 130 ms early.
 Captures stamp the wall clock, which time sync can step. Senders schedule on the monotonic clock
 ([`clock.py`](../src/rtpbench/clock.py)), so a step leaves no gap in the audio. Each run logs the
 steps it saw (`clock_steps` in `conditions.json`), and summaries mark any interval timed across
-one, because it reads off by the step.
+one, because it reads off by the step. A step under a tenth of the width of that timing's error
+bar is not counted: it moves the timing less than the spread the bar already allows (a 1.5 ms
+step across a webrtcvad onset bar of -133/+11 ms).
 
 A clock stepped back again and again runs fast in between, and nothing marks that drift: late,
 transit against the earliest packet, grows with it until the next step. Each run records the

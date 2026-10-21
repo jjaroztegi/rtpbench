@@ -1568,12 +1568,16 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
     steps = clock.steps(out)
     known = steps or []
     records = []
+
+    def stepped(x: Check | Timing) -> bool:  # what was timed across a step reads off by it
+        width = x.bar.hi - x.bar.lo if isinstance(x, Timing) else 0  # a check's limit: no bar
+        return x.span is not None and clock.spans(*x.span, known, width)
+
     for run in runs:
         r = judge(out / run.run, run.profile)
-        # what was timed across a wall-clock step reads short or long by it
         timed: list[Check | Timing] = [*r.checks, *r.timings]
-        stepped = sorted({x.name for x in timed if x.span and clock.spans(*x.span, known)})
-        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": stepped})
+        names = sorted({x.name for x in timed if stepped(x)})
+        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": names})
     reference = bool(records) and records[0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]
     head += ["result", "timings, ms (error bar)", "failed checks"]

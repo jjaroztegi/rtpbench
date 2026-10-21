@@ -180,13 +180,15 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
     key = "wire/gate"
     rows = []
     for profile, dirs in runs.items():
-        per_run, bars = [], set()
+        per_run, bars, widths = [], set(), []
         for run in dirs:
             recs = turns(run)
             (run / "turns.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
             per_run.append(recs)
             pt = json.loads((run / "caller.json").read_text())["pt"]
-            bars.add(cases.bar(cases.STOP, profile, pt))
+            b = cases.bar(cases.STOP, profile, pt)
+            bars.add(b)
+            widths.append(b.hi - b.lo if b else 0)
         error = "; ".join(f"[{b.lo:+.1f}, {b.hi:+.1f}] {b.source}" for b in bars if b) or "-"
         for kind in KINDS:
             sel = [[r for r in recs if r["kind"] == kind] for recs in per_run]
@@ -198,9 +200,12 @@ def pooled(runs: dict[str, list[Path]], steps: list[dict[str, Any]] | None = Non
             cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3
             across = sum(
                 clock.spans(
-                    r["onset_ns"], r["onset_ns"] + round(r["measured_ms"][key] * 1e6), steps or []
+                    r["onset_ns"],
+                    r["onset_ns"] + round(r["measured_ms"][key] * 1e6),
+                    steps or [],
+                    w,
                 )
-                for t in stopped
+                for t, w in zip(stopped, widths, strict=True)
                 for r in t
                 if "onset_ns" in r
             )

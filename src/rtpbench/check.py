@@ -100,12 +100,16 @@ def measure(out: Path) -> dict[str, Any]:
             if not (run / "turns.jsonl").exists():  # the call did not complete (error.txt)
                 entry["broken"] += 1
                 continue
-            entry["codecs"].append(json.loads((run / "caller.json").read_text())["pt"])
+            pt = json.loads((run / "caller.json").read_text())["pt"]
+            entry["codecs"].append(pt)
+            bar = cases.bar(cases.ONSET if sub == "latency" else cases.STOP, run.parts[-3], pt)
+            width = bar.hi - bar.lo if bar else 0
             if sub == "latency":
                 turns = []
                 for t in _lines(run / "turns.jsonl"):
                     ms = t["webrtcvad_ms"]
-                    if ms is not None and clock.spans(t["end_ns"], t["end_ns"] + ms * 1e6, steps):
+                    end = t["end_ns"]
+                    if ms is not None and clock.spans(end, end + ms * 1e6, steps, width):
                         entry["stepped"] += 1
                     else:
                         turns.append(ms)
@@ -114,7 +118,8 @@ def measure(out: Path) -> dict[str, Any]:
             kinds: dict[str, list[float | None]] = {k: [] for k in bargein.KINDS}
             for t in _lines(run / "turns.jsonl"):
                 ms = t["measured_ms"]["wire/gate"] if bargein._stopped(t, "wire/gate") else None
-                if ms is not None and clock.spans(t["onset_ns"], t["onset_ns"] + ms * 1e6, steps):
+                onset = t["onset_ns"]
+                if ms is not None and clock.spans(onset, onset + ms * 1e6, steps, width):
                     entry["stepped"] += 1
                 else:
                     kinds[t["kind"]].append(ms)

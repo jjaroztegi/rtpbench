@@ -267,14 +267,16 @@ def pooled(
             said += len(recs)
             got = [r for r in recs if r[f"{detector}_ms"] is not None]
             per_run.append([r[f"{detector}_ms"] for r in got])
+            pt = json.loads((run / "caller.json").read_text())["pt"]
+            b = cases.bar(cases.ONSET, profile, pt)
+            bars.add(b)
+            width = b.hi - b.lo if b else 0
             stepped += sum(
                 clock.spans(
-                    r["end_ns"], r["end_ns"] + round(r[f"{detector}_ms"] * 1e6), steps or []
+                    r["end_ns"], r["end_ns"] + round(r[f"{detector}_ms"] * 1e6), steps or [], width
                 )
                 for r in got
             )
-            pt = json.loads((run / "caller.json").read_text())["pt"]
-            bars.add(cases.bar(cases.ONSET, profile, pt))
         v = [x for xs in per_run for x in xs]
         meds = [statistics.median(xs) for xs in per_run if xs]
         cells = [f"{analyze._pct(v, q):.0f}" for q in (0.05, 0.5, 0.95)] if v else ["-"] * 3

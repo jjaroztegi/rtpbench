@@ -22,6 +22,9 @@ from typing import Any
 STEP_NS = 100_000  # an offset change this large is a step, not reading noise
 RATE_PPM = 100  # a wall clock this far off between steps adds to "late" (5 ms over 50 s)
 WATCH_S = 0.1
+# a step under this share of a timing's error bar (p5..p95 of a calibration) moves the timing
+# less than the bar's own spread: no step for that timing
+STEP_SHARE = 0.1
 
 
 class Clock:
@@ -96,10 +99,14 @@ def watch(clock: Clock = CLOCK, every_s: float = WATCH_S) -> Iterator[list[dict[
         thread.join()
 
 
-def spans(a: int, b: int, steps: list[dict[str, Any]]) -> bool:
-    """Whether the capture-time interval [a, b] may hold one of `steps`."""
+def spans(a: int, b: int, steps: list[dict[str, Any]], bar_ms: float = 0.0) -> bool:
+    """Whether the capture-time interval [a, b] may hold one of `steps` that matters to a
+    timing whose error bar is `bar_ms` wide (STEP_SHARE)."""
     lo, hi = min(a, b), max(a, b)
-    return any(lo <= s["wall_ns"][1] and hi >= s["wall_ns"][0] for s in steps)
+    return any(
+        lo <= s["wall_ns"][1] and hi >= s["wall_ns"][0] and abs(s["step_ms"]) >= STEP_SHARE * bar_ms
+        for s in steps
+    )
 
 
 def steps(out: Path) -> list[dict[str, Any]] | None:
@@ -114,10 +121,11 @@ def note(steps: list[dict[str, Any]] | None) -> str:
         return "Wall-clock steps during the run: not recorded (the run predates the log).\n"
     if not steps:
         return "Wall-clock steps during the run: none.\n"
-    sizes = ", ".join(f"{s['step_ms']:+.1f}" for s in steps)
+    sizes = [s["step_ms"] for s in steps]
     return (
-        f"Wall-clock steps during the run: {len(steps)} ({sizes} ms); what was timed across one "
-        "is marked [across a clock step].\n"
+        f"Wall-clock steps during the run: {len(steps)} (median {statistics.median(sizes):+.1f} "
+        f"ms, largest {max(sizes, key=abs):+.1f} ms); what was timed across one of at least "
+        f"{STEP_SHARE:.0%} of its error bar's width is marked [across a clock step].\n"
     )
 
 
