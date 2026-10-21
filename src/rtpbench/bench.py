@@ -668,10 +668,10 @@ def target(
     `lines`: the caller's lines instead of corpus/lines/en. For a URI: `proxy` is where a
     transfer's INVITE goes (else the stack's operator); the router joins the Docker network
     `network`; the caller advertises `advertise` (HOST:PORT, the host publishing PORT and the
-    next few to it), else with `network` its router's address there; over TLS (a sips: URI, or
-    transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp` the caller
-    offers SRTP with these suites. A compose target takes `tls` and `srtp` with `carrier` only,
-    which takes them on the caller's leg."""
+    next few to it), else with `network` its router's address there; over TLS (a sips: URI or
+    proxy, or transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp`
+    the caller offers SRTP with these suites. A compose target takes `tls` and `srtp` with
+    `carrier` only, which takes them on the caller's leg."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
@@ -704,7 +704,8 @@ def target(
             if advertise:  # the host publishes the range
                 first = int(advertise.rpartition(":")[2])
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
-            stack = Stack(out, uri=True, network=network, ports=ports, tls=tls, ca=ca, srtp=srtp)
+            trust = tls or bool(proxy and secure(proxy))  # the caller's TLS setup, and --ca
+            stack = Stack(out, uri=True, network=network, ports=ports, tls=trust, ca=ca, srtp=srtp)
         else:
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
         try:

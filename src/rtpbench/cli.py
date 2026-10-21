@@ -229,7 +229,7 @@ examples:
         "--ca",
         type=Path,
         metavar="FILE",
-        help="URI over TLS: trust the certificates in FILE (PEM) instead of the system's",
+        help="URI or --proxy over TLS: trust the certificates in FILE (PEM), not the system's",
     )
     p.add_argument(
         "--srtp",

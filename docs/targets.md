@@ -79,8 +79,8 @@ clips: the labeller finds where speech ends from it, and refuses a file without.
 A transfer's INVITE goes to the stack's operator over UDP, whatever host, number or scheme the
 agent's Refer-To names, so a test run never calls a real person, and `refer` and `refer-fail`
 judge the agent alone. To reach a real transferee, `--proxy HOST` sends the INVITE there
-instead, over UDP, or over TLS as `--proxy sips:HOST` (a name on the agent's Docker network
-works with `--network`). An agent that demands digest
+instead, over UDP, or over TLS as `--proxy sips:HOST`, trusting `--ca` as a `sips:` URI does
+(a name on the agent's Docker network works with `--network`). An agent that demands digest
 authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
 ([below](#digest-authentication)).
 
