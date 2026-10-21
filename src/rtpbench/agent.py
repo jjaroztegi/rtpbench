@@ -81,6 +81,8 @@ class Behaviour:
     recodec: bool = True  # take a re-INVITE's other G.711 law; else answer the old one (stale)
     tcp: bool = True  # listen on TCP too (RFC 3261 18: every element MUST); else UDP only
     busy: bool = False  # 486 Busy Here to the INVITE (the operator of a failed transfer)
+    # resend our own requests (REFER, BYE) until answered (timer E, RFC 3261 17.1.2.2); else once
+    retransmit: bool = True
 
 
 def speech_replies(seed: int, directory: Path | None = None, long: bool = False) -> list[Reply]:
@@ -569,7 +571,7 @@ class Uas:
 
     def tick(self) -> None:
         now = time.monotonic()
-        if self.dialog:
+        if self.dialog and self.case.retransmit:
             self.dialog.retransmit()
         if self.refer is None and self._since_turn(self.case.refer_s):
             self._transfer()

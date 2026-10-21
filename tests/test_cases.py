@@ -397,3 +397,22 @@ def test_no_tcp_listener_is_named(
     monkeypatch.setattr(sip.Tcp, "_open", fail)
     with pytest.raises(ConnectionError, match=rf"^no TCP listener on port 5999 \({how}\)$"):
         Session("sip:agent@127.0.0.1:5999", (g711.PCMU,), tcp=True)
+
+
+@pytest.mark.parametrize(
+    ("copies", "transport", "verdict"),
+    [
+        ([500], "UDP", "pass"),  # timer E
+        ([1500], "UDP", "fail"),  # past 2*T1
+        ([], "UDP", "fail"),  # sent once
+        (None, "UDP", "inconclusive"),  # the agent never hung up
+        ([], "TLS", "inconclusive"),  # a reliable transport loses nothing
+    ],
+)
+def test_lost_bye_is_resent(copies: list[int] | None, transport: str, verdict: str) -> None:
+    ms = 1_000_000
+    bye = sip.Message("BYE sip:a@b SIP/2.0", [("Via", "SIP/2.0/UDP h;branch=z9hG4bKbye")])
+    msgs = [(0, False, bye)] if copies is not None else []
+    msgs += [(at * ms, False, bye) for at in copies or []]
+    w = Wire({"transport": transport}, None, msgs, [], [])
+    assert cases.check_bye_lost(w).verdict == verdict

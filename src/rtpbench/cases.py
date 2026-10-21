@@ -47,6 +47,9 @@ SILENT_NS = 1_000_000_000  # agent RTP absent this long before a request: it had
 KEY_MS = 100  # how long the caller holds a key
 REFER_WAIT_S = 20.0  # after asking for a person
 BYE_WAIT_S = 10.0  # after the transfer is reported done
+# after leaving the agent's request unanswered: its timer F (RFC 3261 17.1.2.2), and time to hear
+# what it does then
+LOST_WAIT_S = 64 * sip.T1 + 5.0
 SIPFRAG = "message/sipfrag;version=2.0"
 SESSION_S = 90  # RFC 4028 minimum
 TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
@@ -373,10 +376,26 @@ def refer_fail(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
     return _refer(dial, seed, lines, [BUSY])
 
 
+def refer_lost(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """As `refer`, the agent's first REFER lost: unanswered, the transfer goes on with its copy."""
+    return _refer(dial, seed, lines, lose="REFER")
+
+
+def bye_lost(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
+    """As `refer`, the agent's first BYE once the transfer is done lost: answered, its copy."""
+    return _refer(dial, seed, lines, lose="BYE")
+
+
 def _refer(
-    dial: Dial, seed: int, lines: Lines, headers: list[tuple[str, str]] | None = None
+    dial: Dial,
+    seed: int,
+    lines: Lines,
+    headers: list[tuple[str, str]] | None = None,
+    lose: str = "",
 ) -> dict[str, Any]:
     s = dial()
+    if lose:
+        s.lose.add(lose)
     s.answer()
     m = Script(s.pt)
     s.start(m.source, m.on_packet)
@@ -384,7 +403,7 @@ def _refer(
     m.say(*_line(lines, "transfer", seed))
     s.wait(lambda: s.remote_bye or not m.busy(), 30)
     transfer: dict[str, Any] = {}
-    if s.wait(lambda: any(r.method == "REFER" for r in s.requests), REFER_WAIT_S):
+    if s.wait(lambda: _came(s, "REFER"), REFER_WAIT_S) and _recovered((s,), s, "REFER"):
         ref = next(r for r in s.requests if r.method == "REFER")
         event = [("Event", "refer")]
         trying = [*event, ("Subscription-State", "active;expires=60")]
@@ -401,11 +420,27 @@ def _refer(
         if t.final is not None and t.final.status < 300:
             tm = Media(t.pt)
             t.start(tm.source, tm.on_packet)
-        _pump(both, lambda: s.remote_bye, BYE_WAIT_S)
+        _pump(both, lambda: _came(s, "BYE"), BYE_WAIT_S)
+        _recovered(both, s, "BYE")
         if t.media:
             t.hangup()
     s.hangup()
     return s.meta(seed, s.remote_bye) | {"said": m.said, "transfer": transfer}
+
+
+def _came(s: Session, method: str) -> bool:
+    """The agent sent `s` a `method` request, taken or lost."""
+    return any(r.method == method for r in [*s.requests, *s.lost])
+
+
+def _recovered(calls: tuple[Session, ...], s: Session, method: str) -> bool:
+    """Whether `s` took a `method` request from the agent: when it lost the first, after waiting
+    LOST_WAIT_S for a copy (or the agent's BYE)."""
+    if any(r.method == method for r in s.lost):
+        _pump(
+            calls, lambda: s.remote_bye or any(r.method == method for r in s.requests), LOST_WAIT_S
+        )
+    return any(r.method == method for r in s.requests)
 
 
 def _pump(calls: tuple[Session, ...], cond: Callable[[], bool], timeout: float) -> bool:
@@ -927,6 +962,55 @@ def check_refer_fail(w: Wire) -> Result:
     return r
 
 
+def check_refer_lost(w: Wire) -> Result:
+    """As `check_refer`, the agent having resent the REFER the caller lost (`_resent`)."""
+    r, lost = check_refer(w), _resent(w, "REFER")
+    return Result(r.checks + lost.checks, r.timings + lost.timings)
+
+
+def check_bye_lost(w: Wire) -> Result:
+    """The agent resent the BYE the caller lost (`_resent`)."""
+    r = _resent(w, "BYE")
+    if not r.checks:
+        r.checks.append(Check("agent hangs up", None, "no BYE from the agent"))
+    return r
+
+
+def _resent(w: Wire, method: str) -> Result:
+    """The agent's first `method` request, which the caller lost: a copy (its branch) within
+    2*T1 (RFC 3261 17.1.2.2: over UDP timer E fires at T1). Without one, for a REFER, what the
+    agent did once its timer F gave up on it. No checks if it sent none."""
+    r = Result()
+    first = w.find(lambda m: m.method == method, sent=False)
+    if first is None:
+        return r
+    t, req = first
+    if (transport := w.log.get("transport", "UDP")) != "UDP":
+        r.checks.append(Check(f"{method} resent", None, f"over {transport}, which loses nothing"))
+        return r
+    copy = w.find(lambda m: m.method == method and m.branch == req.branch, sent=False, after=t)
+    window = round(2 * sip.T1 * 1e9)
+    detail = "none"
+    if copy:
+        ms = (copy[0] - t) / 1e6
+        r.timings.append(Timing(f"{method} to its copy", ms, WIRE, span=(t, copy[0])))
+        detail = f"after {ms:.0f} ms"
+    elif method == "REFER":
+        gave_up = t + round(64 * sip.T1 * 1e9)
+        bye = w.find(lambda m: m.method == "BYE", sent=False, after=t)
+        if bye and bye[0] < gave_up:
+            detail += f"; the agent hung up {(bye[0] - t) / 1e9:.1f} s after it"
+        elif w.speech_after(gave_up) is not None:
+            detail += "; the agent spoke again after its timer F"
+        else:
+            detail += "; nor did the agent speak again after its timer F"
+    in_time = copy is not None and copy[0] - t <= window
+    span = (t, copy[0] if copy else t + window)
+    name = f"{method} resent within {window // 1_000_000} ms (timer E)"
+    r.checks.append(Check(name, in_time, detail, span))
+    return r
+
+
 def _transfer(w: Wire, r: Result) -> int | None:
     """The REFER and the NOTIFYs that report on it; when the last NOTIFY went (the REFER's time
     if none did), or None without a REFER."""
@@ -1339,16 +1423,30 @@ CASES = {
         {"stale": Behaviour(greet_s=0.5, reply_s=1.0, recodec=False)},
         route="direct",  # rtpengine transcodes a stale answer to the offered law
     ),
+    "refer-lost": Case(
+        refer_lost,
+        check_refer_lost,
+        Behaviour(refer_s=1.5),
+        {"once": Behaviour(refer_s=1.5, retransmit=False)},
+        route="direct",  # the carrier's own transaction resends the REFER to the caller
+    ),
+    "bye-lost": Case(
+        bye_lost,
+        check_bye_lost,
+        Behaviour(refer_s=1.5),
+        {"once": Behaviour(refer_s=1.5, retransmit=False)},
+        route="direct",  # likewise the BYE
+    ),
 }
+# not over TLS: `large-invite`'s INVITE goes over TCP because UDP cannot take it; over a reliable
+# transport nothing is retransmitted (RFC 3261 17.1.2.2)
+NOT_TLS = ("large-invite", "refer-lost", "bye-lost")
 
 
 def names(carrier: bool, tls: bool = False) -> list[str]:
-    """The cases to run by default with or without the carrier, and over TLS or not (without
-    `large-invite`: its INVITE goes over TCP because UDP cannot take it)."""
+    """The cases to run by default with or without the carrier, and over TLS or not."""
     skip = "direct" if carrier else "carrier"
-    return [
-        n for n, case in CASES.items() if case.route != skip and not (tls and n == "large-invite")
-    ]
+    return [n for n, case in CASES.items() if case.route != skip and not (tls and n in NOT_TLS)]
 
 
 def run(
