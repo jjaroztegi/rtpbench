@@ -1,0 +1,417 @@
+[
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "invite-retransmit",
+  "behaviour": "good",
+  "run": "clean/01/invite-retransmit-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "INVITE copy answered within 1000 ms",
+    "ok": true,
+    "detail": "180 Ringing after 0 ms",
+    "span": [
+     1792598329362268499,
+     1792598329362481899
+    ]
+   },
+   {
+    "name": "no provisional response after the final",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "one final response to the INVITE",
+    "ok": true,
+    "detail": "200 OK",
+    "span": null
+   }
+  ],
+  "timings": [
+   {
+    "name": "INVITE to the 2xx",
+    "ms": 3079.358734,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598328861119701,
+     1792598331940478435
+    ]
+   },
+   {
+    "name": "INVITE copy to the agent's response",
+    "ms": 0.2134,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598329362268499,
+     1792598329362481899
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "invite-retransmit",
+  "behaviour": "rejects",
+  "run": "clean/01/invite-retransmit-rejects",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "INVITE copy answered within 1000 ms",
+    "ok": true,
+    "detail": "503 Service Unavailable after 0 ms",
+    "span": [
+     1792598337444065551,
+     1792598337444324051
+    ]
+   },
+   {
+    "name": "no provisional response after the final",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "one final response to the INVITE",
+    "ok": false,
+    "detail": "503 Service Unavailable without a To-tag, then 200 OK",
+    "span": null
+   }
+  ],
+  "timings": [
+   {
+    "name": "INVITE to the 2xx",
+    "ms": 3131.820821,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598336942922592,
+     1792598340074743413
+    ]
+   },
+   {
+    "name": "INVITE copy to the agent's response",
+    "ms": 0.2585,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598337444065551,
+     1792598337444324051
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "invite-retransmit",
+  "behaviour": "ignores",
+  "run": "clean/01/invite-retransmit-ignores",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "call answered 2xx",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "INVITE copy answered within 1000 ms",
+    "ok": false,
+    "detail": "200 OK after 2564 ms",
+    "span": [
+     1792598345403905453,
+     1792598347967572832
+    ]
+   },
+   {
+    "name": "no provisional response after the final",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "one final response to the INVITE",
+    "ok": true,
+    "detail": "200 OK",
+    "span": null
+   }
+  ],
+  "timings": [
+   {
+    "name": "INVITE to the 2xx",
+    "ms": 3064.551387,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598344903021445,
+     1792598347967572832
+    ]
+   },
+   {
+    "name": "INVITE copy to the agent's response",
+    "ms": 2563.667379,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598345403905453,
+     1792598347967572832
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer-lost",
+  "behaviour": "good",
+  "run": "clean/01/refer-lost-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
+    "ok": true,
+    "detail": "SIP/2.0 200 OK",
+    "span": null
+   },
+   {
+    "name": "agent hangs up within 10 s",
+    "ok": true,
+    "detail": "",
+    "span": [
+     1792598368692913428,
+     1792598368693196488
+    ]
+   },
+   {
+    "name": "REFER resent within 1000 ms (timer E)",
+    "ok": true,
+    "detail": "after 503 ms",
+    "span": [
+     1792598367163740130,
+     1792598367666921820
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1300.823831,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598365862916299,
+     1792598367163740130
+    ]
+   },
+   {
+    "name": "final NOTIFY to agent BYE",
+    "ms": 0.28306,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598368692913428,
+     1792598368693196488
+    ]
+   },
+   {
+    "name": "REFER to its copy",
+    "ms": 503.18169,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598367163740130,
+     1792598367666921820
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "refer-lost",
+  "behaviour": "once",
+  "run": "clean/01/refer-lost-once",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "agent transfers (REFER)",
+    "ok": true,
+    "detail": "",
+    "span": null
+   },
+   {
+    "name": "Refer-To is a SIP or tel URI",
+    "ok": true,
+    "detail": "sip:operator@operator",
+    "span": null
+   },
+   {
+    "name": "agent hangs up within 10 s",
+    "ok": false,
+    "detail": "",
+    "span": [
+     1792598386066322196,
+     1792598396066322196
+    ]
+   },
+   {
+    "name": "REFER resent within 1000 ms (timer E)",
+    "ok": false,
+    "detail": "none; nor did the agent speak again after its timer F",
+    "span": [
+     1792598386066322196,
+     1792598387066322196
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "end of the request to REFER",
+    "ms": 1301.241602,
+    "bar": [
+     -17.0,
+     17.0,
+     "caller's labelled end; \u00b15 dB of label threshold, median (calibrate --speech)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598384765080594,
+     1792598386066322196
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "bye-lost",
+  "behaviour": "good",
+  "run": "clean/01/bye-lost-good",
+  "verdict": "pass",
+  "checks": [
+   {
+    "name": "BYE resent within 1000 ms (timer E)",
+    "ok": true,
+    "detail": "after 503 ms",
+    "span": [
+     1792598441532362028,
+     1792598442035004907
+    ]
+   }
+  ],
+  "timings": [
+   {
+    "name": "BYE to its copy",
+    "ms": 502.642879,
+    "bar": [
+     -0.41,
+     0.41,
+     "capture times; wire timing max abs error, clean (calibrate)"
+    ],
+    "truth_ms": null,
+    "span": [
+     1792598441532362028,
+     1792598442035004907
+    ]
+   }
+  ],
+  "stepped": []
+ },
+ {
+  "profile": "clean",
+  "repeat": 1,
+  "case": "bye-lost",
+  "behaviour": "once",
+  "run": "clean/01/bye-lost-once",
+  "verdict": "fail",
+  "checks": [
+   {
+    "name": "BYE resent within 1000 ms (timer E)",
+    "ok": false,
+    "detail": "none",
+    "span": [
+     1792598460401983784,
+     1792598461401983784
+    ]
+   }
+  ],
+  "timings": [],
+  "stepped": []
+ }
+]
