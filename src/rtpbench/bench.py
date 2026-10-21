@@ -873,7 +873,8 @@ def judge(out: Path, runs: list[Any] | None = None) -> tuple[str, bool]:
     if (out / "realtime.jsonl").exists() and (parts := realtime.decompose(out)):
         sections.append(("Turn latency by part", parts))
         summary += "\n## Turn latency by part\n\n" + parts
-    if paced := cs.pacing(agent):
+    target = json.loads((out / "conditions.json").read_text()).get("target", "")
+    if paced := cs.pacing(agent, is_uri(target)):
         sections.append(("RTP pacing", paced))
         summary += "\n## RTP pacing\n\n" + paced
     if (out / "realtime.jsonl").exists() and (heard := realtime.downlink(out)):
