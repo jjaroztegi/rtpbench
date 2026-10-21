@@ -1693,10 +1693,10 @@ def proven(records: list[dict[str, Any]]) -> bool:
     return all(r["verdict"] == expected(r["behaviour"]) for r in records if r["behaviour"])
 
 
-def pacing(calls: list[tuple[str, Path]]) -> str:
+def pacing(calls: list[tuple[str, Path]], uri: bool) -> str:
     """How evenly the agent's RTP reached the caller, per profile over the `calls` (profile, run
     directory) that have one: `analyze.pacing` of each, median [min, max] over the calls; empty
-    if none has."""
+    if none has. `uri`: the agent is at a SIP URI, beyond a real path."""
     by: dict[str, list[tuple[float, float]]] = {}
     paused: dict[str, list[list[tuple[float, float, bool]]]] = {}
     for profile, run in calls:
@@ -1716,7 +1716,13 @@ def pacing(calls: list[tuple[str, Path]]) -> str:
         "of how much later than their timestamps say the packets arrived, against the earliest "
         "before them: the jitter buffer a receiver needs to play 99% of them in time; jitter, the "
         "RFC 3550 interarrival jitter estimate, its median over each call. On a clean network "
-        "both are the agent's own pacing (and a carrier's); a profile adds its own.\n\n"
+        + (
+            "both are the agent's own pacing plus the jitter of the real path beyond the router, "
+            "which clean does not remove"
+            if uri
+            else "both are the agent's own pacing (and a carrier's)"
+        )
+        + "; a profile adds its own.\n\n"
         + analyze._table(["profile", "calls", "late, p99", "jitter"], rows)
         + _pauses(paused)
     )
