@@ -32,6 +32,8 @@ Published:
   what it receives
 - [AI Voice Connector CE at b95f5af](../results/aivc-b95f5af): the baseline's sets again, with the
   connector at upstream main, which passes 4 more cases
+- [Lost SIP messages](../results/retransmit): the three retransmission cases on LiveKit, AI
+  Voice Connector CE and AVA, on a mock engine, direct
 - [Asterisk + AVA](../results/ava): Asterisk and AVA over AudioSocket and over ExternalMedia with
   AVA's egress pacer, and over AudioSocket without it, on a mock engine, direct and through a
   carrier
