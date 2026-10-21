@@ -90,19 +90,19 @@ Turn latency, ms: caller's labelled end to the agent's first speech (webrtcvad),
 
 ## Barge-in
 
-Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop time (ms, gate, wire) when it did, every turn of every run. True value = measured - error, error within the bar (calibrated on hard cuts).
+Barge-in: whether the agent stopped within 2 s of the interjection's onset, and its stop time (ms, gate, wire) when it did, every turn of every run. True value = measured - error, error within the bar (calibrated on hard cuts). Speech ended before (gate): turns left out, the gate having heard the agent's speech end before the onset by more than the bar.
 
-| profile | interjection | runs | stopped | run rates | p5 | p50 | p95 | across a clock step | stop error bar |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| clean | interrupt | 10 | 51/51 | 100% .. 100% | -246 | 24 | 179 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
-| clean | backchannel | 10 | 25/25 | 100% .. 100% | -191 | 4 | 150 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
-| clean | cough | 10 | 24/24 | 100% .. 100% | -266 | -9 | 146 | 0 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
-| lte | interrupt | 10 | 51/51 | 100% .. 100% | -148 | 103 | 243 | 0 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
-| lte | backchannel | 10 | 25/25 | 100% .. 100% | -187 | 86 | 207 | 0 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
-| lte | cough | 10 | 24/24 | 100% .. 100% | -265 | 74 | 232 | 0 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
-| lte-bad | interrupt | 10 | 51/51 | 100% .. 100% | -188 | 128 | 285 | 0 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
-| lte-bad | backchannel | 10 | 25/25 | 100% .. 100% | -210 | 72 | 221 | 0 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
-| lte-bad | cough | 10 | 24/24 | 100% .. 100% | -241 | 87 | 230 | 0 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
+| profile | interjection | runs | stopped | run rates | p5 | p50 | p95 | across a clock step | speech ended before (gate) | stop error bar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| clean | interrupt | 10 | 47/47 | 100% .. 100% | -14 | 37 | 179 | 0 | 4 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| clean | backchannel | 10 | 21/21 | 100% .. 100% | -13 | 22 | 150 | 0 | 4 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| clean | cough | 10 | 18/18 | 100% .. 100% | -76 | 5 | 167 | 0 | 6 | [-84.9, +0.0] gate stop time, p5..p95, PCMA, clean (calibrate --barge-in, seeds 1-5) |
+| lte | interrupt | 10 | 48/48 | 100% .. 100% | -19 | 104 | 243 | 0 | 3 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
+| lte | backchannel | 10 | 22/22 | 100% .. 100% | -13 | 87 | 207 | 0 | 3 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
+| lte | cough | 10 | 20/20 | 100% .. 100% | -50 | 80 | 232 | 0 | 4 | [-77.6, +0.0] gate stop time, p5..p95, PCMA, lte (calibrate --barge-in, seeds 1-5) |
+| lte-bad | interrupt | 10 | 47/47 | 100% .. 100% | -4 | 141 | 285 | 0 | 4 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
+| lte-bad | backchannel | 10 | 22/22 | 100% .. 100% | -47 | 89 | 221 | 0 | 3 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
+| lte-bad | cough | 10 | 21/21 | 100% .. 100% | -26 | 96 | 230 | 0 | 3 | [-100.7, +0.0] gate stop time, p5..p95, PCMA, lte-bad (calibrate --barge-in, seeds 1-5) |
 
 ## Turn latency by part
 

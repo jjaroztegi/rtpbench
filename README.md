@@ -20,7 +20,7 @@ without a carrier in front, on a mock engine that holds the AI engine's share of
 | cases failed of 21 | 7 | 8, and 1 inconclusive | 4, and 3 inconclusive |
 | turn latency, clean, p50 | 1833 ms | 1511 ms | 1588 ms |
 | its own media path per turn, p50 | 335 ms | 9 ms | 88 ms |
-| stops for an interruption, clean, p50 | 306 ms | 23 ms | never |
+| stops for an interruption, clean, p50 | 306 ms | 24 ms | never |
 
 - LiveKit keeps sending audio to a held caller in every kind of hold, AI Voice Connector CE when
   held with `c=0.0.0.0`, and both answer a re-INVITE that changes codec with the old codec. AVA

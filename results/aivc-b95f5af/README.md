@@ -48,8 +48,9 @@ INFO now gets 501, where it got no answer at all); `cancel` stays inconclusive.
 
 Timing and audio, measured direct, did not move. Turn latency p50 1511, 1593 and 1604 ms (`clean`, `lte`,
 `lte-bad`) against 1512, 1592 and 1605; the connector's own share 9 ms on a clean network. It
-stopped for all 100 interjections per profile, 23 ms after an interruption at the median against
-24. A receiver needs a 1.1 ms jitter buffer for its RTP on a clean network, against 1.2, and the
+stopped for every interjection made while it spoke (84, 89 and 94 of 100 per profile, against
+86, 90 and 90), 24 ms after an interruption at the median on a clean network against 37, well
+inside the stop bar's 85 ms. A receiver needs a 1.1 ms jitter buffer for its RTP on a clean network, against 1.2, and the
 engine's speech still reaches the caller sample for sample.
 
 ## An RTP port already in use

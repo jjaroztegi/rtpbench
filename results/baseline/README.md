@@ -176,16 +176,19 @@ the target asked the engine to speak, against its 200 OK):
 | AIVC CE | lte-bad | 10 | 591 [553, 633] | 2 [2, 7] | 501 [501, 502] | 88 [45, 129] |
 
 Barge-in: the mock cancels its answer on the first voiced 10 ms of the caller, so what is left is
-the target's own path. Stopped within 2 s, and the stop time p50 (ms):
+the target's own path. Stopped within 2 s, and the stop time p50 (ms), of the interjections made
+while the agent spoke: a turn whose speech the gate heard end before the interjection, by more
+than the stop bar, is left out (14, 10 and 10 per profile for AI Voice Connector CE, 3 on clean
+for LiveKit):
 
 | target | profile | interruptions stopped | backchannels stopped | coughs stopped | stop bar |
 | --- | --- | --- | --- | --- | --- |
-| LiveKit | clean | 51/51, p50 306 | 25/25, p50 296 | 24/24, p50 283 | +0/+85 |
+| LiveKit | clean | 51/51, p50 306 | 24/24, p50 296 | 22/22, p50 293 | +0/+85 |
 | LiveKit | lte | 51/51, p50 459 | 25/25, p50 441 | 24/24, p50 438 | +0/+82 |
 | LiveKit | lte-bad | 51/51, p50 579 | 25/25, p50 619 | 24/24, p50 545 | +0/+105 |
-| AIVC CE | clean | 51/51, p50 24 | 25/25, p50 4 | 24/24, p50 -9 | +0/+85 |
-| AIVC CE | lte | 51/51, p50 103 | 25/25, p50 86 | 24/24, p50 74 | +0/+78 |
-| AIVC CE | lte-bad | 51/51, p50 128 | 25/25, p50 72 | 24/24, p50 87 | +0/+101 |
+| AIVC CE | clean | 47/47, p50 37 | 21/21, p50 22 | 18/18, p50 5 | +0/+85 |
+| AIVC CE | lte | 48/48, p50 104 | 22/22, p50 87 | 20/20, p50 80 | +0/+78 |
+| AIVC CE | lte-bad | 47/47, p50 141 | 22/22, p50 89 | 21/21, p50 96 | +0/+101 |
 
 So, with the engine held fixed, LiveKit's media path adds 324 ms to a turn at the median on
 clean (its uplink and downlink against AI Voice Connector CE's). How each drives a real engine
