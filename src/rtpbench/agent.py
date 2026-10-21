@@ -53,6 +53,9 @@ class Behaviour:
 
     ring_s: float = 0.0  # send 180 Ringing and answer this long after the INVITE
     cancel: bool = True  # a CANCEL while ringing ends the call (487); else answer anyway
+    # a copy of the INVITE while ringing: "replay" the latest response (RFC 3261 17.2.1); "reject"
+    # it 503 without a To-tag, as a stack that takes it for another call; "ignore" it
+    copies: str = "replay"
     greet_s: float | None = None  # greet this long after sending the 200 OK
     greeting: str = "short"  # a short corpus clip, or a long one (9-15 s)
     linger_s: float = 0.0  # keep sending RTP this long after answering BYE
@@ -360,8 +363,12 @@ class Uas:
         elif inv is None or msg.get("call-id") != inv.get("call-id"):
             if msg.method not in ("ACK", "INVITE"):
                 self.sock.sendto(sip.response(msg, 481, "Call Does Not Exist").render(), addr)
-        elif msg.method == "INVITE" and msg.branch in (inv.branch, self.reinvite):
-            self.sock.sendto(self.last, addr)  # retransmission
+        elif msg.method == "INVITE" and msg.branch in (inv.branch, self.reinvite):  # a copy
+            ringing = self.answer_at is not None and msg.branch == inv.branch
+            if ringing and self.case.copies == "reject":
+                self.sock.sendto(sip.response(msg, 503, "Service Unavailable").render(), addr)
+            elif not (ringing and self.case.copies == "ignore"):
+                self.sock.sendto(self.last, addr)
         elif msg.method == "INVITE":
             self._reinvite(msg)
         elif msg.method == "ACK":
@@ -374,7 +381,8 @@ class Uas:
                 self._media(answer)
             elif msg.body and self.suite:  # the answer to our offer in a 2xx: the caller's key
                 self._crypto(sip.parse_sdp(msg.body))
-            self.done |= self.responder is None  # ACK for a 487: the call never was
+            # ACK for a 487: the call never was (one for a 503 to a copy, while ringing, is not)
+            self.done |= self.responder is None and self.answer_at is None
         elif msg.method == "CANCEL":
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             if self.answer_at is not None and self.case.cancel:  # still ringing

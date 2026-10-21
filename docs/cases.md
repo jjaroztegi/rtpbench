@@ -45,6 +45,7 @@ names.
 | `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record. Not over TLS |
 | `refer-lost` | as `refer`, but the caller leaves the agent's first REFER unanswered, as if lost: a copy within 1 s (2*T1; over UDP timer E fires at T1, RFC 3261 17.1.2.2), then the transfer as in `refer`. Without a copy, the caller waits for the agent's timer F (32 s) and notes whether it spoke again. Not over TLS |
 | `bye-lost` | as `refer`, but the caller leaves the agent's BYE after the transfer unanswered: a copy within 1 s. Inconclusive if the agent never hangs up. Not over TLS |
+| `invite-retransmit` | the caller loses every response for T1 (500 ms), so it sends the INVITE again then, as timer A does: before a final response, the copy gets a provisional or final one within 1 s (RFC 3261 17.2.1); after a 2xx, the agent resends it until ACKed (13.3.1.4) and absorbs the copy or answers it with that 2xx (RFC 6026 7.1). Every final response is the same (status and To-tag). `INVITE to the 2xx` under T1 means the agent had already answered. Not over TLS |
 
 An agent may send RTP only while it speaks (silence suppression, RFC 3551 4.1). When it sent
 nothing for a second before a hold or a refresh, its silence afterwards is not the request's
@@ -77,3 +78,5 @@ the agent:
 - `large-invite`: the carrier takes SIP over UDP (and TLS, with `--tls`), not TCP.
 - `refer-lost` and `bye-lost`: the carrier's own transaction resends the agent's request to the
   caller.
+- `invite-retransmit`: the carrier's own transaction answers the caller's copy; the agent never
+  sees it.
