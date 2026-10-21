@@ -457,6 +457,7 @@ def _on(first: str, to: str = "<sip:a@b>") -> sip.Message:
         ([(100, "200 OK", "t"), (510, "200 OK", "u")], "fail"),  # the copy taken for a call
         ([(100, "200 OK", "t"), (510, "100 Trying", ""), (520, "200 OK", "t")], "fail"),  # likewise
         ([(100, "200 OK", "t"), (510, "200 OK", "t"), (520, "100 Trying", "")], "fail"),
+        ([(600, "200 OK", "t"), (700, "180 Ringing", "t")], "fail"),  # 1xx after a 2xx in setup
     ],
 )
 def test_invite_copy(answers: list[tuple[int, str, str]], verdict: str) -> None:
