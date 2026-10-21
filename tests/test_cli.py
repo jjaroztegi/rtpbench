@@ -90,6 +90,7 @@ def test_target_lists_every_unusable_line_before_it_starts(
 ) -> None:
     shutil.copy(bench.LINES / "turn-00.wav", tmp_path)
     (tmp_path / "prompt.wav").write_text("not audio")
+    (tmp_path / "prompt-00.wav").mkdir()
     with wave.open(str(tmp_path / "turn-01.wav"), "wb") as w:
         w.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
         w.writeframes(bytes(16000))  # silence
@@ -101,7 +102,7 @@ def test_target_lists_every_unusable_line_before_it_starts(
         "prompt.wav: not 8 kHz mono 16-bit PCM",
         "no transfer.wav",
         "turn-01.wav: no speech",
-        "no prompt-*.wav",
+        "prompt-00.wav: Is a directory",
         "no interrupt-*.wav",
     ):
         assert f"\n  {problem}" in err

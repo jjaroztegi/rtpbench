@@ -590,6 +590,9 @@ def check_lines(lines: Path, names: list[str]) -> list[str]:
             except ValueError:
                 problems.append(f"{f.name}: not 8 kHz mono 16-bit PCM")
                 continue
+            except OSError as e:  # a directory, or a file this user may not read
+                problems.append(f"{f.name}: {e.strerror}")
+                continue
             try:
                 if not speech.label(pcm):
                     raise ValueError("no speech")
