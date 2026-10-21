@@ -5,17 +5,22 @@ CLOCK_REALTIME as it read at the start, carried on by CLOCK_MONOTONIC (NTP slews
 only a step moves one and not the other). Until a step the two read the same to the nanosecond,
 so logged times line up with captures; across one, schedules keep their real spacing and the
 capture times jump. `Watch` logs the steps, so that what was measured across one is flagged.
+A clock stepped back again and again runs fast in between, which no step marks: `Clock.rate`
+measures it.
 """
 
 import json
+import statistics
 import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 STEP_NS = 100_000  # an offset change this large is a step, not reading noise
+RATE_PPM = 100  # a wall clock this far off between steps adds to "late" (5 ms over 50 s)
 WATCH_S = 0.1
 
 
@@ -28,6 +33,14 @@ class Clock:
     ) -> None:
         self.realtime, self.monotonic, self.sleep = realtime, monotonic, sleep
         self.base = self.offset()
+        self.started = self.monotonic()
+
+    def rate(self) -> float:
+        """How fast CLOCK_REALTIME has run between its steps since this clock started, in ppm
+        (positive: fast), against the time the steps set: their net change, per second. NTP
+        slewing moves CLOCK_MONOTONIC alike, so only steps (of any size) count."""
+        stepped = self.offset() - self.base
+        return -stepped / max(self.monotonic() - self.started + stepped, 1) * 1e6
 
     def offset(self) -> int:
         """CLOCK_REALTIME - CLOCK_MONOTONIC, from the tightest of three readings (a thread
@@ -106,3 +119,18 @@ def note(steps: list[dict[str, Any]] | None) -> str:
         f"Wall-clock steps during the run: {len(steps)} ({sizes} ms); what was timed across one "
         "is marked [across a clock step].\n"
     )
+
+
+def rate_note(out: Path) -> str:
+    """A warning when the run's wall clock ran more than RATE_PPM off between its steps (its
+    `clock_rate_ppm`); a single step is no rate."""
+    conds = json.loads((out / "conditions.json").read_text())
+    ppm, steps = conds.get("clock_rate_ppm"), conds.get("clock_steps") or []
+    if ppm is None or abs(ppm) <= RATE_PPM or len(steps) == 1:
+        return ""
+    text = f"Wall clock: {abs(ppm):,.0f} ppm {'fast' if ppm > 0 else 'slow'} between its steps"
+    if len(steps) > 1:
+        apart = statistics.median(b["wall_ns"][0] - a["wall_ns"][0] for a, b in pairwise(steps))
+        off = abs(ppm) * apart / 1e12
+        text += f", {apart / 1e9:.0f} s apart: late reads up to {off:.0f} ms off from that alone"
+    return text + " (docs/calibration.md, clock steps and rate).\n"

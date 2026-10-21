@@ -371,8 +371,10 @@ def _load() -> list[float]:
 
 
 def _finish(conds: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any]:
-    """What the run saw while it ran: wall-clock steps (`clock.watch`) and the load at its end."""
-    return conds | {"clock_steps": steps, "load_end": _load()}
+    """What the run saw while it ran: wall-clock steps (`clock.watch`) and the clock's rate
+    between them, and the load at its end."""
+    rate = round(clock.CLOCK.rate(), 1)
+    return conds | {"clock_steps": steps, "clock_rate_ppm": rate, "load_end": _load()}
 
 
 def calibrate(
@@ -460,7 +462,7 @@ def calibrate(
         summary = bargein.summarize(dirs)
     else:
         summary = speechcal.summarize(dirs, clips) if real else analyze.summarize(dirs)
-    summary += "\n" + clock.note(clock.steps(out))
+    summary += "\n" + clock.note(clock.steps(out)) + clock.rate_note(out)
     (out / "summary.md").write_text(summary)
     return summary
 
