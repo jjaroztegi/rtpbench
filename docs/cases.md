@@ -32,7 +32,7 @@ names.
 | `hold` | hold (sendonly, then inactive) and resume by re-INVITE: answers honour the offer, no agent RTP while held, RTP back within 1 s as the same stream (SSRC, next seq, timestamps kept time) |
 | `dtmf-rfc4733` | once the greeting is over the caller presses 5 (RFC 4733): telephone-event negotiated, the agent says something within 5 s |
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
-| `refer` | the caller asks for a person: REFER with a SIP or tel Refer-To, 202, NOTIFY sipfrag 100, a real call to the target, NOTIFY with its final response, both NOTIFYs answered 2xx, the agent hangs up within 10 s |
+| `refer` | the caller asks for a person: REFER with a SIP or tel Refer-To, 202, NOTIFY sipfrag 100, a real call to the target, NOTIFY with its final response, both NOTIFYs answered 2xx, the agent hangs up within 10 s. If the target does not answer 2xx, inconclusive, with its status: the agent should then take the call back, as `refer-fail` checks |
 | `refer-fail` | as `refer`, but the target is busy (`486 Busy Here`): the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
 | `codec-pcmu` | the caller offers PCMU alone: answered with PCMU alone (RFC 3264 6.1) and the agent's RTP is PCMU |
 | `codec-pcma` | the same with PCMA |

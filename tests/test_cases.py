@@ -469,3 +469,32 @@ def test_invite_copy(answers: list[tuple[int, str, str]], verdict: str) -> None:
         msgs.append((at * ms, False, _on(f"SIP/2.0 {status}", to)))
     w = Wire({"transport": "UDP"}, None, sorted(msgs, key=lambda m: m[0]), [], [])
     assert cases.check_invite_retransmit(w).verdict == verdict
+
+
+@pytest.mark.parametrize(
+    ("frag", "verdict"), [("200 OK", "pass"), ("408 Request Timeout", "inconclusive")]
+)
+def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) -> None:
+    """The agent took the call back after a failed transfer, as `refer-fail` requires: `refer`
+    cannot tell whether it would have hung up after a transfer that worked."""
+    refer = sip.Message("REFER sip:caller@x SIP/2.0", [("Refer-To", "<sip:operator@y>")])
+
+    def notify(n: int, body: str) -> sip.Message:
+        via = [("Via", f"SIP/2.0/UDP x;branch=z9hG4bK{n}"), ("CSeq", f"{n} NOTIFY")]
+        return sip.Message("NOTIFY sip:agent@x SIP/2.0", via, f"SIP/2.0 {body}\r\n".encode())
+
+    trying, final = notify(2, "100 Trying"), notify(3, frag)
+    msgs = [(1, False, refer), (2, True, trying), (3, False, sip.response(trying, 200, "OK"))]
+    msgs += [(4, True, final), (5, False, sip.response(final, 200, "OK"))]
+    if frag == "200 OK":
+        msgs.append((10**9, False, sip.Message("BYE sip:caller@x SIP/2.0")))
+    w = Wire({"pt": 0, "ssrc": 0}, None, msgs, [], [])
+    r = cases.check_refer(w)
+    assert r.verdict == verdict
+    assert r.checks[-1].detail == ("" if frag == "200 OK" else "SIP/2.0 408 Request Timeout")
+    # refer-lost: the same, and the copy of the lost REFER, resent 500 ms later
+    w.msgs.insert(1, (500_000_000, False, refer))
+    lost = cases.check_refer_lost(w)
+    assert lost.verdict == verdict
+    assert lost.checks[-1].name.startswith("REFER resent")
+    assert lost.checks[-1].ok
