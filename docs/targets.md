@@ -74,9 +74,12 @@ with the address our offer gave.
 your agent's language, under the same file names: `turn-NN.wav` for the latency call,
 `prompt-NN.wav` and `interrupt-NN.wav` for barge-in, `prompt.wav` and `transfer.wav` for the
 cases. Each is 8 kHz mono 16-bit with silence around the speech, as the corpus processes its
-clips: the labeller finds where speech ends from it, and refuses a file without. `--proxy HOST`
-is where a transfer's INVITE goes (by default the Refer-To host, as the caller resolves it: give
-`--proxy` when it is a name on the agent's Docker network). An agent that demands digest
+clips: the labeller finds where speech ends from it, and refuses a file without.
+
+A transfer's INVITE goes to the stack's operator over UDP, whatever host, number or scheme the
+agent's Refer-To names, so a test run never calls a real person, and `refer` and `refer-fail`
+judge the agent alone. To reach a real transferee, `--proxy HOST` sends the INVITE there
+instead (a name on the agent's Docker network works with `--network`). An agent that demands digest
 authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
 ([below](#digest-authentication)).
 

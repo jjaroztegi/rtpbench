@@ -212,7 +212,9 @@ examples:
         metavar="DIR",
         help="the caller's lines, named as in corpus/lines/en (not with --mock)",
     )
-    p.add_argument("--proxy", metavar="HOST", help="URI: send a transfer's INVITE here")
+    p.add_argument(
+        "--proxy", metavar="HOST", help="URI: send a transfer's INVITE here, not to the operator"
+    )
     p.add_argument(
         "--network",
         metavar="NAME",

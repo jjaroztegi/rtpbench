@@ -331,7 +331,7 @@ def test_digit_whose_end_packets_were_all_lost() -> None:
 
 def test_operator_answers_or_is_busy(tmp_path: Path) -> None:
     """The transfer target answers after ringing, or is busy when the transferee asks; a call
-    reaches it by proxy, whatever host the Refer-To names."""
+    reaches it by proxy, over UDP, whatever host (and scheme) the Refer-To names."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -348,6 +348,9 @@ def test_operator_answers_or_is_busy(tmp_path: Path) -> None:
     assert call.answer(5).status == 200
     assert call.ringing
     call.hangup()
+    secure = Session("sips:operator@operator.example", (g711.PCMU,), proxy=proxy)
+    assert secure.answer(5).status == 200
+    secure.hangup()
 
 
 def test_offer_in_a_reinvite_2xx_is_answered(pair: tuple[socket.socket, socket.socket]) -> None:
