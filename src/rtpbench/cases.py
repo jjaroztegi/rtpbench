@@ -842,10 +842,10 @@ def check_invite_retransmit(w: Wire) -> Result:
         name = f"INVITE copy answered within {window // 1_000_000} ms"
         r.checks.append(Check(name, in_time, detail, span))
     else:  # a provisional response after the final one: the copy was taken for a new request
-        late = reply is not None and reply[1].status < 200
-        detail = reply[1].first.removeprefix("SIP/2.0 ") if late and reply else ""
+        late = next((m for t, m in got if t > copy[0] and m.status < 200), None)
+        detail = late.first.removeprefix("SIP/2.0 ") if late else ""
         r.checks.append(
-            Check("INVITE copy after the final: no provisional response", not late, detail)
+            Check("INVITE copy after the final: no provisional response", late is None, detail)
         )
     seen = {(m.status, sip.tag(m.get("to"))): m.first for _, m in finals}
     each = [
