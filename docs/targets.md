@@ -162,13 +162,14 @@ The agent then relays audio and the mock recognises rtpbench's own lines, so lea
 `--lines`. What the agent has to meet:
 
 - The session shape of the OpenAI Realtime GA API. The mock reads the audio format from
-  `session.audio.input.format` only; an agent that sends the preview shape
-  (`input_audio_format`) is heard as 24 kHz PCM16.
-- An endpoint it accepts. The mock ignores the path, the query and any auth header, so a token
-  the agent fetches first does no harm. An agent that takes only `wss` URLs under its
-  provider's host names and verifies TLS needs both overridden on its side: that host name
-  resolving to the mock (a hosts entry or DNS), and a TLS proxy in front of the mock with a
-  certificate for that name from a CA the agent trusts.
+  `session.audio.input.format.type` (`audio/pcmu`, `audio/pcma`, else 24 kHz PCM16) only; an
+  agent that sends the preview shape (`input_audio_format`) is heard as 24 kHz PCM16.
+- An endpoint it accepts. The mock ignores the path, the query and any auth header. Over plain
+  `ws` that header crosses the network in clear: give the agent a dummy key, not a live token.
+  An agent that takes only `wss` URLs under its provider's host names and verifies TLS needs
+  both overridden on its side: that host name resolving to the mock (a hosts entry or DNS),
+  and a TLS proxy in front of the mock with a certificate for that name from a CA the agent
+  trusts. The token it fetches then travels inside TLS.
 - For `refer`, a transfer tool named as above.
 
 The split of turn latency into uplink, engine and downlink needs the mock's log on the
