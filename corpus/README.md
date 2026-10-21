@@ -15,9 +15,10 @@ from `rtpbench.speech.label` on these files, nothing is stored alongside them.
 | `human-en-dr-`, `human-en-sc-` | English read speech, two readers | LibriVox, *Short Story Collection 006*: *After Twenty Years*, *A Child's Dream of a Star* | public domain |
 | `cough-` | single coughs | Wikimedia Commons: Cough 1.ogg, Cough 2.ogg, Man coughing.ogg, Short coughs.ogg (public domain), Woman coughing three times.wav (CC0) | as listed |
 
-TTS clips: `-sNN` a short reply, `-long` three sentences (barge-in), `-bc` a backchannel
-("Ajá", "Sí, sí", "Vale", "Uh-huh", "Yeah", "Okay"). Generated with piper-tts 1.8.0 at default
-settings and 0.3 s between sentences.
+TTS clips: `-sNN` a short reply, `-long` three sentences (barge-in), `-bc` a backchannel:
+`ald` "Ajá", `davefx` and `sharvardf` "Vale", `sharvardm` "Sí, sí", `cori` "Yeah", `libritts0`
+"Okay", `libritts3` and `ljspeech` "Uh-huh". Generated with piper-tts 1.8.0 at default settings
+and 0.3 s between sentences.
 
 Processing: resampled to 8 kHz (polyphase, scipy `resample_poly`), scaled to an active speech
 level of -24.5 dBFS (power mean of the 20 ms frames within 30 dB of the loudest, the level a

@@ -1,8 +1,11 @@
+import json
 import math
+from pathlib import Path
+from typing import Any
 
 import pytest
 
-from rtpbench import g711
+from rtpbench import bargein, g711, speech
 from rtpbench.agent import SPEECH_HANGOVER_NS, Responder
 from rtpbench.bargein import stop
 from rtpbench.caller import Conversation
@@ -77,3 +80,32 @@ def test_caller_cuts_in_the_planned_time_after_the_reply_starts() -> None:
     for n in range(70, 400):  # 3 s of quiet ends the script; the sender keeps ticking after
         pay(conv.source(n, n * PTIME_NS))
     assert conv.done
+
+
+def test_every_backchannel_clip_has_its_words() -> None:
+    assert set(bargein.WORDS) == {p.stem for p in speech.CORPUS.glob("*-bc.wav")}
+
+
+def test_pooled_counts_stops_per_clip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def turn(kind: str, clip: str, ms: float | None) -> dict[str, Any]:
+        return {"kind": kind, "clip": clip, "measured_ms": {"wire/gate": ms}}
+
+    by_run = {
+        "a": [
+            turn("backchannel", "tts-cori-bc", 300.0),
+            turn("backchannel", "tts-cori-bc", -500.0),  # ended long before: left out
+            turn("backchannel", "tts-ald-bc", None),
+        ],
+        "b": [turn("backchannel", "tts-cori-bc", 2500.0), turn("cough", "cough-c1-0", None)],
+    }
+    for name in by_run:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "caller.json").write_text(json.dumps({"pt": g711.PCMA}))
+    monkeypatch.setattr(bargein, "turns", lambda run: by_run[run.name])
+    text = bargein.pooled({"clean": [tmp_path / "a"], "lte": [tmp_path / "b"]})
+    per_clip = text[text.index("Per clip") :]
+    # a stop over 2 s after the onset is no stop; a clip a profile never played is "-"
+    assert "| backchannel | tts-ald-bc | Ajá | 0/1 | - |" in per_clip
+    assert "| backchannel | tts-cori-bc | Yeah | 1/1, 1 ended before | 0/1 |" in per_clip
+    assert "| clean | backchannel | 1 | 1/2 |" in text  # the stop rate leaves it out too
+    assert "| cough | cough-c1-0 |  | - | 0/1 |" in per_clip
