@@ -161,7 +161,7 @@ def test_summaries_mark_what_ran_across_a_step() -> None:
     assert "1 (-50.0 ms)" in clock.note([{"wall_ns": [0, 1], "step_ms": -50.0}])
 
 
-def test_rate_reads_a_clock_that_runs_fast_and_is_stepped_back(tmp_path: Path) -> None:
+def test_rate_reads_a_clock_that_runs_fast_and_is_stepped_back() -> None:
     """A guest whose clocks run 1,700 ppm fast, the wall clock stepped back by what it gained
     every 30 s: between steps, "late" gains up to 51 ms, which no step marks."""
     true = [0]
@@ -176,9 +176,13 @@ def test_rate_reads_a_clock_that_runs_fast_and_is_stepped_back(tmp_path: Path) -
     c = clock.Clock(realtime, monotonic, time.sleep)
     true[0] = 10 * every  # ten steps later, just after one
     assert abs(c.rate() - ppm) < 1
+
+
+def test_rate_note_bounds_the_drift_between_steps(tmp_path: Path) -> None:
+    every = 30_000_000_000
     steps = [{"wall_ns": [k * every, k * every + 1], "step_ms": -51.0} for k in range(1, 11)]
     conds = tmp_path / "conditions.json"
-    conds.write_text(json.dumps({"clock_rate_ppm": c.rate(), "clock_steps": steps}))
+    conds.write_text(json.dumps({"clock_rate_ppm": 1_700.0, "clock_steps": steps}))
     assert clock.rate_note(tmp_path).startswith(
         "Wall clock: 1,700 ppm fast between its steps, 30 s apart: late reads up to 51 ms off"
     )
