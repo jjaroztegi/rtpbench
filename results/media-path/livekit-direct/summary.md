@@ -30,6 +30,31 @@ Barge-in: whether the agent stopped within 2 s of the interjection's onset, and 
 | lte-bad | backchannel | 10 | 25/25 | 100% .. 100% | 420 | 551 | 753 | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
 | lte-bad | cough | 10 | 24/24 | 100% .. 100% | 170 | 561 | 742 | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
 
+Per clip: stopped / turns, over the same turns, and those left out as ended before; interruptions are the caller's lines (--lines), backchannels and coughs the corpus's.
+
+| interjection | clip | words | clean | lte | lte-bad |
+| --- | --- | --- | --- | --- | --- |
+| interrupt | interrupt-00 |  | 17/17 | 17/17 | 17/17 |
+| interrupt | interrupt-01 |  | 14/14 | 14/14 | 14/14 |
+| interrupt | interrupt-02 |  | 12/12 | 12/12 | 12/12 |
+| interrupt | interrupt-03 |  | 7/7, 1 ended before | 8/8 | 8/8 |
+| backchannel | tts-ald-bc | Ajá | 2/2 | 2/2 | 2/2 |
+| backchannel | tts-cori-bc | Yeah | 3/3 | 3/3 | 3/3 |
+| backchannel | tts-davefx-bc | Vale | 1/1 | 1/1 | 1/1 |
+| backchannel | tts-libritts0-bc | Okay | 4/4 | 4/4 | 4/4 |
+| backchannel | tts-libritts3-bc | Uh-huh | 1/1 | 1/1 | 1/1 |
+| backchannel | tts-ljspeech-bc | Uh-huh | 6/6 | 6/6 | 6/6 |
+| backchannel | tts-sharvardf-bc | Vale | 5/5 | 5/5 | 5/5 |
+| backchannel | tts-sharvardm-bc | Sí, sí | 3/3 | 3/3 | 3/3 |
+| cough | cough-c1-1 |  | 3/3 | 3/3 | 3/3 |
+| cough | cough-c2-0 |  | 3/3 | 3/3 | 3/3 |
+| cough | cough-c2-1 |  | 2/2 | 2/2 | 2/2 |
+| cough | cough-man-0 |  | 2/2, 1 ended before | 3/3 | 3/3 |
+| cough | cough-man-1 |  | 3/3 | 3/3 | 3/3 |
+| cough | cough-short-0 |  | 5/5, 1 ended before | 6/6 | 6/6 |
+| cough | cough-short-1 |  | 2/2 | 2/2 | 2/2 |
+| cough | cough-woman_three_times-0 |  | 2/2 | 2/2 | 2/2 |
+
 ## Turn latency by part
 
 Turn latency on the mock engine, split where it heard the end of the caller's speech and sent its first audio (one clock with the captures), ms, p50 [p5, p95]: uplink and downlink are the target's; the engine waits 1000 ms of silence and answers 500 ms later by design. Uplink carries the caller's label error (±17 ms), downlink the onset error bar of the profile and codec.
