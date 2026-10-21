@@ -185,6 +185,9 @@ class Session:
         self.final: sip.Message | None = None  # final response to the INVITE
         self.responses: list[sip.Message] = []
         self.requests: list[sip.Message] = []  # from the far end
+        # methods whose next request from the far end goes unanswered, as if lost; those it lost
+        self.lose: set[str] = set()
+        self.lost: list[sip.Message] = []
         self.remote_bye = False
         self.addr, self.pt = ("", 0), 0
         self.seq0, self.ssrc = secrets.randbelow(1 << 16), secrets.randbelow(1 << 32)
@@ -318,6 +321,10 @@ class Session:
         return sip.sdp(self.dialog.local_ip, port, [self.pt], direction, self.origin, crypto=crypto)
 
     def _incoming(self, req: sip.Message) -> None:
+        if req.method in self.lose:
+            self.lose.discard(req.method)
+            self.lost.append(req)
+            return
         self.requests.append(req)
         if req.method == "ACK":
             if self.offered and req.body:  # the answer to our offer in a 2xx: its key

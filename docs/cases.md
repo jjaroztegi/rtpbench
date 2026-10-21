@@ -43,6 +43,8 @@ names.
 | `hold-zero` | hold the RFC 2543 way, `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4): 2xx, no agent RTP while held, RTP back within 1 s as the same stream |
 | `codec-change` | a re-INVITE offers the other G.711 law alone and the caller switches on the 2xx: the answer has that law alone, the agent's RTP switches, a reply within 10 s |
 | `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record. Not over TLS |
+| `refer-lost` | as `refer`, but the caller leaves the agent's first REFER unanswered, as if lost: a copy within 1 s (2*T1; over UDP timer E fires at T1, RFC 3261 17.1.2.2), then the transfer as in `refer`. Without a copy, the caller waits for the agent's timer F (32 s) and notes whether it spoke again. Not over TLS |
+| `bye-lost` | as `refer`, but the caller leaves the agent's BYE after the transfer unanswered: a copy within 1 s. Inconclusive if the agent never hangs up. Not over TLS |
 
 An agent may send RTP only while it speaks (silence suppression, RFC 3551 4.1). When it sent
 nothing for a second before a hold or a refresh, its silence afterwards is not the request's
@@ -73,3 +75,5 @@ the agent:
 - `hold-zero`: rtpengine passes a `c=0.0.0.0` offer on with `a=sendonly` added, which `hold`
   already covers.
 - `large-invite`: the carrier takes SIP over UDP (and TLS, with `--tls`), not TCP.
+- `refer-lost` and `bye-lost`: the carrier's own transaction resends the agent's request to the
+  caller.
