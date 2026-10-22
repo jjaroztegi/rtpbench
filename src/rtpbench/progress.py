@@ -3,6 +3,7 @@ event anywhere else (CI logs, redirects, pipes). Host side only: the captures th
 are taken in the containers, and the bar redraws twice a second at most, from its own thread."""
 
 import re
+import signal
 import sys
 import time
 from types import TracebackType
@@ -27,10 +28,24 @@ def hms(seconds: float) -> str:
     return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}"
 
 
+class _Stopped(SystemExit):
+    """A stop signal, told apart from any other SystemExit the run raises."""
+
+
+def _stop(signum: int, _frame: object) -> None:
+    """SIGINT and SIGTERM (systemd stop, a cancelled CI job, kill) unwind the run the same way,
+    so its `finally` blocks tear the stack down and hand the results back. A second signal
+    meanwhile would cut that short and leave containers and root-owned files behind."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise _Stopped(128 + signum)
+
+
 class Progress:
     """Units of work (calls) out of `plan`'s total: `unit` starts one, `turn` takes the caller's
     output while it runs, `done` ends it; `phase` names what happens outside units. As a context
-    manager it draws the bar (on a terminal), and says where a run failed."""
+    manager it draws the bar (on a terminal), says where a run failed, and turns SIGINT and
+    SIGTERM into a clean exit that runs the run's teardown."""
 
     def __init__(self) -> None:
         self.t0 = time.monotonic()
@@ -59,6 +74,7 @@ class Progress:
             self.task = self.bar.add_task("", total=None)
 
     def __enter__(self) -> Progress:
+        self.was = [signal.signal(s, _stop) for s in (signal.SIGINT, signal.SIGTERM)]
         if self.bar:
             self.bar.start()
         return self
@@ -67,13 +83,17 @@ class Progress:
         self, exc: type[BaseException] | None, _v: BaseException | None, _t: TracebackType | None
     ) -> None:
         took = hms(time.monotonic() - self.t0)
-        if exc:
-            how = "interrupted" if issubclass(exc, KeyboardInterrupt) else "failed"
-            self._event(False, f"{how} while {self.label or 'starting'}", f"after {took}")
-        else:
-            self._event(True, "finished", f"in {took}")
-        if self.bar:
-            self.bar.stop()
+        try:
+            if exc:
+                how = "interrupted" if issubclass(exc, KeyboardInterrupt | _Stopped) else "failed"
+                self._event(False, f"{how} while {self.label or 'starting'}", f"after {took}")
+            else:
+                self._event(True, "finished", f"in {took}")
+            if self.bar:
+                self.bar.stop()
+        finally:
+            for s, handler in zip((signal.SIGINT, signal.SIGTERM), self.was, strict=True):
+                signal.signal(s, handler)
 
     def plan(self, total: int) -> None:
         self.total = total
