@@ -96,7 +96,7 @@ Attached to the [release](https://github.com/jjaroztegi/rtpbench/releases/tag/me
 `realtime/`, and judges again from there:
 
 ```sh
-sha256sum -c SHA256SUMS && zstd -dc media-path-livekit-direct-72e41c264960.tar.zst | tar -x
+sha256sum -c --ignore-missing SHA256SUMS && zstd -dc media-path-livekit-direct-72e41c264960.tar.zst | tar -x
 uv run --extra vad rtpbench report livekit-direct
 ```
 

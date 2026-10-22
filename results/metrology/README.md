@@ -10,7 +10,7 @@ profiles clean, lte and lte-bad, PCMU and PCMA: 215 turns per profile and codec 
 The bars in the code were fit on seeds 1-5, so rtpbench's own row is held out too.
 
 ```sh
-sha256sum -c SHA256SUMS && zstd -dc baseline-detector-seeds6-10-965085c223d2.tar.zst | tar -x
+sha256sum -c --ignore-missing SHA256SUMS && zstd -dc baseline-detector-seeds6-10-965085c223d2.tar.zst | tar -x
 uv run --extra vad rtpbench analyze --methods pub/speech-s*-{clean,lte,lte-bad}/*-pcm{u,a}  # methods/summary.md
 uv run --extra vad rtpbench analyze pub/barge-s*-{clean,lte,lte-bad}-pcm{u,a}/*-pcm?      # barge-in/summary.md
 ```

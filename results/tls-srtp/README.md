@@ -66,7 +66,7 @@ Attached to the [release](https://github.com/jjaroztegi/rtpbench/releases/tag/tl
 `.tar.zst`; each unpacks to the directory `rtpbench` wrote and judges again from there:
 
 ```sh
-sha256sum -c SHA256SUMS && zstd -dc tls-srtp-reference-direct-f026db2ef9a8.tar.zst | tar -x
+sha256sum -c --ignore-missing SHA256SUMS && zstd -dc tls-srtp-reference-direct-f026db2ef9a8.tar.zst | tar -x
 uv run --extra vad rtpbench report reference-direct
 ```
 
