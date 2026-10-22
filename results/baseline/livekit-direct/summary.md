@@ -12,7 +12,7 @@
 | refer-fail | pass 10/10 | end of the request to REFER: 1651.4 [1644.0, 1659.5] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 670.0 [662.3, 718.1] ms (-44.6/+3.2) n=10 | - |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1824.2 [1815.5, 1844.1] ms (-44.6/+3.2) n=10 | - |
 | large-invite | pass 10/10 | end of the question to agent speech: 1830.2 [1802.5, 1844.5] ms (-44.6/+3.2) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.4, 0.8] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1833.4 [1812.4, 1846.6] ms (-44.6/+3.2) n=10 | - |
@@ -34,7 +34,7 @@
 | refer-fail | pass 10/10 | end of the request to REFER: 1709.8 [1684.0, 1824.9] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 735.3 [694.6, 757.6] ms (-43.3/+3.6) n=10 | - |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1930.2 [1876.1, 2023.3] ms (-43.3/+3.6) n=10 | - |
 | large-invite | pass 10/10 | end of the question to agent speech: 1909.7 [1897.8, 2074.0] ms (-43.3/+3.6) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1930.8 [1873.2, 1963.7] ms (-43.3/+3.6) n=10 | - |
@@ -56,7 +56,7 @@
 | refer-fail | pass 10/10 | end of the request to REFER: 1837.1 [1746.2, 2002.3] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 733.5 [692.6, 748.5] ms (-60.9/+15.5) n=10 | - |
 | codec-pcmu | pass 10/10 | - | - |
 | codec-pcma | pass 10/10 | - | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 2040.7 [1935.5, 2180.4] ms (-60.9/+15.5) n=10 | - |
 | large-invite | pass 10/10 | end of the question to agent speech: 2046.2 [1986.7, 2288.4] ms (-60.9/+15.5) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.4] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 2083.1 [1931.0, 2183.1] ms (-60.9/+15.5) n=10 | - |

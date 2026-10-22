@@ -58,6 +58,7 @@ LOST_WAIT_S = 64 * sip.T1 + 5.0
 SIPFRAG = "message/sipfrag;version=2.0"
 SESSION_S = 90  # RFC 4028 minimum
 TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
+NO_TIMER = "timers not supported (RFC 4028 9, optional; the caller may refresh alone)"
 MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was disturbed
 LARGE = 1300  # bytes: a request larger than this MUST go over TCP (RFC 3261 18.1.1)
 PADDING = 820  # bytes of header that take an INVITE (~560) past LARGE, under one 1500 MTU
@@ -1148,11 +1149,18 @@ def check_codec(w: Wire) -> Result:
 def check_timer(w: Wire) -> Result:
     """RFC 4028: the 2xx takes the timer (Session-Expires, refresher=uac kept, Require: timer);
     the refresh is answered 2xx with media undisturbed; the agent, not refreshed again, sends
-    BYE after half the interval and before it expires."""
+    BYE after half the interval and before it expires. A 2xx without Session-Expires is an
+    agent without the extension, which the offer only says the caller supports: inconclusive."""
     r = Result()
     ok = w.find(_is_2xx_invite, sent=False)
     expires = ok[1].get("session-expires") if ok else ""
-    r.checks.append(Check("Session-Expires in the 2xx", bool(expires), "timers not supported"))
+    tags = {t.strip().lower() for h in ok[1].all("require") for t in h.split(",")} if ok else set()
+    # without it, an agent that does not take timers, unless it says it requires them
+    took = True if expires else None if ok and "timer" not in tags else False
+    detail = (
+        "" if expires else "no 2xx" if not ok else NO_TIMER if took is None else "Require: timer"
+    )
+    r.checks.append(Check("Session-Expires in the 2xx", took, detail))
     if not ok or not expires:
         return r
     interval = int(expires.split(";")[0])
@@ -1606,7 +1614,11 @@ def groups(records: list[dict[str, Any]]) -> dict[Group, list[dict[str, Any]]]:
 
 
 def expected(behaviour: str | None) -> str | None:
-    return None if behaviour is None else "pass" if behaviour == "good" else "fail"
+    if behaviour is None:
+        return None
+    if behaviour == "unsupported":  # without an optional extension: nothing to judge
+        return "inconclusive"
+    return "pass" if behaviour == "good" else "fail"
 
 
 def verdicts(recs: list[dict[str, Any]]) -> str:

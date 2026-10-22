@@ -563,12 +563,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],

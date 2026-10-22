@@ -113,7 +113,7 @@ Every call's SIP, speech and RTP on one timeline: reference [direct](https://jja
 | `refer-fail` | 90/90 | 90/90 | pass 30/30 | pass 30/30 | **fail** 30/30 | **fail** 30/30 | failure handed back |
 | `codec-pcmu` | 60/60 | – | pass 30/30 | – | pass 30/30 | – | yes |
 | `codec-pcma` | 60/60 | – | pass 30/30 | – | pass 30/30 | – | yes |
-| `timer` | 90/90 | 90/90 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | yes |
+| `timer` | 90/90 | 90/90 | inconclusive 30/30 | inconclusive 30/30 | inconclusive 30/30 | inconclusive 30/30 | yes |
 | `compact-headers` | – | 60/60 | – | pass 30/30 | – | **fail** 30/30 | yes |
 | `sdp-ssrc` | – | 60/60 | – | pass 30/30 | – | **fail** 30/30 | yes |
 | `late-offer` | – | 60/60 | – | **fail** 30/30 | – | **fail** 30/30 | yes |

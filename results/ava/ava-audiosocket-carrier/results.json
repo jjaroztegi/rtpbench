@@ -497,7 +497,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -1425,7 +1425,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -2353,7 +2353,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -3281,7 +3281,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -4209,7 +4209,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -5137,7 +5137,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -6065,7 +6065,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -6993,7 +6993,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -7921,7 +7921,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -8849,7 +8849,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -9777,7 +9777,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -10690,7 +10690,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -11618,7 +11618,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -12490,7 +12490,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -13418,7 +13418,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -14346,7 +14346,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -15274,7 +15274,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -16202,7 +16202,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -17130,7 +17130,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -18058,7 +18058,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -18930,7 +18930,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -19858,7 +19858,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -20786,7 +20786,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -21699,7 +21699,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -22627,7 +22627,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -23541,7 +23541,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -24413,7 +24413,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -25341,7 +25341,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -26269,7 +26269,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {
@@ -27182,7 +27182,7 @@
    {
     "name": "Session-Expires in the 2xx",
     "ok": true,
-    "detail": "timers not supported",
+    "detail": "",
     "span": null
    },
    {

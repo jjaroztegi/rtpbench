@@ -10,7 +10,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 1.3 [1.2, 1.8] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 501 Not Implemented); agent reacts within 5000 ms (10/10) |
 | refer | pass 10/10 | end of the request to REFER: 1503.1 [1502.9, 1505.1] ms (-17.0/+17.0) n=10<br>final NOTIFY to agent BYE: 12.0 [8.0, 14.7] ms (-0.4/+0.4) n=10 | - |
 | refer-fail | pass 10/10 | end of the request to REFER: 1503.1 [1502.5, 1506.0] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 517.5 [513.9, 518.6] ms (-11.0/+133.0) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 1540.2 [1528.7, 1551.9] ms (-11.0/+133.0) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1508.4 [1508.3, 1509.0] ms (-11.0/+133.0) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 1.9 [1.7, 2.5] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1508.5 [1508.2, 1509.1] ms (-11.0/+133.0) n=10 | - |
@@ -31,7 +31,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 1.3 [1.1, 1.5] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 501 Not Implemented); agent reacts within 5000 ms (10/10) |
 | refer | pass 10/10 | end of the request to REFER: 1541.0 [1533.5, 1547.2] ms (-17.0/+17.0) n=10<br>final NOTIFY to agent BYE: 9.1 [2.3, 19.5] ms (-0.4/+0.4) n=10 | - |
 | refer-fail | pass 10/10 | end of the request to REFER: 1544.2 [1517.6, 1546.0] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 562.0 [552.0, 566.1] ms (-14.1/+131.0) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 1627.5 [1613.5, 1637.3] ms (-14.1/+131.0) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1591.0 [1585.8, 1599.0] ms (-14.1/+131.0) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 1.9 [1.7, 2.1] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1587.5 [1583.0, 1594.7] ms (-14.1/+131.0) n=10 | - |
@@ -52,7 +52,7 @@
 | dtmf-info | fail 10/10 | INFO to its response: 1.3 [1.1, 1.5] ms (-0.4/+0.4) n=10 | INFO answered 2xx (10/10: SIP/2.0 501 Not Implemented); agent reacts within 5000 ms (10/10) |
 | refer | flips: pass 9, fail 1 | end of the request to REFER: 1541.4 [1519.8, 1595.2] ms (-17.0/+17.0) n=9<br>final NOTIFY to agent BYE: 8.6 [3.5, 22.5] ms (-0.4/+0.4) n=9 | call completed (1/10: SIP/2.0 500 Server Internal Error) |
 | refer-fail | pass 10/10 | end of the request to REFER: 1555.6 [1522.6, 1606.0] ms (-17.0/+17.0) n=10<br>failure NOTIFY to agent speech: 561.0 [539.1, 597.0] ms (-22.9/+141.5) n=10 | - |
-| timer | fail 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported) |
+| timer | inconclusive 10/10 | - | Session-Expires in the 2xx (10/10: timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | ptime-30 | pass 10/10 | end of the question to agent speech: 1654.1 [1623.4, 1680.4] ms (-22.9/+141.5) n=10 | - |
 | ssrc-change | pass 10/10 | end of the question to agent speech: 1585.6 [1546.9, 1624.1] ms (-22.9/+141.5) n=10 | - |
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 2.0 [1.7, 2.4] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1599.2 [1513.0, 1706.5] ms (-22.9/+141.5) n=10 | - |

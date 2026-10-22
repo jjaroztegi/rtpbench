@@ -563,12 +563,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -1372,12 +1372,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/02/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -2181,12 +2181,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/03/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -2990,12 +2990,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/04/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -3799,12 +3799,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/05/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -4608,12 +4608,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/06/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -5417,12 +5417,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/07/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -6226,12 +6226,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/08/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -7035,12 +7035,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/09/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -7844,12 +7844,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/10/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -8653,12 +8653,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/01/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -9462,12 +9462,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/02/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -10271,12 +10271,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/03/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -11080,12 +11080,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/04/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -11889,12 +11889,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/05/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -12698,12 +12698,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/06/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -13507,12 +13507,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/07/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -14316,12 +14316,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/08/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -15125,12 +15125,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/09/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -15934,12 +15934,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/10/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -16743,12 +16743,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/01/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -17552,12 +17552,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/02/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -18361,12 +18361,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/03/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -19170,12 +19170,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/04/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -19979,12 +19979,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/05/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -20788,12 +20788,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/06/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -21597,12 +21597,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/07/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -22406,12 +22406,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/08/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -23215,12 +23215,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/09/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],
@@ -24024,12 +24024,12 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/10/timer",
-  "verdict": "fail",
+  "verdict": "inconclusive",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": false,
-    "detail": "timers not supported",
+    "ok": null,
+    "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
     "span": null
    }
   ],

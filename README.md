@@ -17,7 +17,7 @@ without a carrier in front, on a mock engine that holds the AI engine's share of
 
 | | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) | Asterisk + [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) |
 | --- | --- | --- | --- |
-| cases failed of 21 | 7 | 8, and 1 inconclusive | 4, and 3 inconclusive |
+| cases failed of 21 | 6, and 1 inconclusive | 7, and 2 inconclusive | 4, and 3 inconclusive |
 | turn latency, clean, p50 | 1833 ms | 1511 ms | 1588 ms |
 | its own media path per turn, p50 | 335 ms | 9 ms | 88 ms |
 | stops for an interruption, clean, p50 | 306 ms | 24 ms | never |
@@ -35,7 +35,7 @@ without a carrier in front, on a mock engine that holds the AI engine's share of
   stops for an interruption: it keeps the caller's audio from the engine while it speaks. Over
   AudioSocket under packet loss, the engine sometimes got silence instead of the caller, so 5 more
   cases fail now and then.
-- AI Voice Connector CE's main branch fixed 4 of the 12 cases it failed in the baseline (a failed
+- AI Voice Connector CE's main branch fixed 4 of the 11 cases it failed in the baseline (a failed
   transfer no longer hangs up on the caller; compact headers, a bare `a=ssrc` and SIP over TCP
   are taken). It still refuses an INVITE without SDP and answers no re-INVITE without one.
 

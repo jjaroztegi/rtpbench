@@ -501,3 +501,16 @@ def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) ->
     assert lost.verdict == verdict
     assert lost.checks[-1].name.startswith("REFER resent")
     assert lost.checks[-1].ok
+
+
+def test_timer_without_the_extension_is_inconclusive() -> None:
+    invite = sip.Message("INVITE sip:agent@x SIP/2.0", [("CSeq", "1 INVITE"), *cases.TIMER])
+    ok = sip.Message("SIP/2.0 200 OK", [("CSeq", "1 INVITE")])
+    r = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
+    assert r.verdict == "inconclusive"
+    assert r.checks[0].detail == cases.NO_TIMER
+    assert cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite)], [], [])).verdict == "fail"
+    ok.headers.append(("Require", "100rel, timer"))  # says it takes timers, gives no interval
+    broken = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
+    assert broken.verdict == "fail"
+    assert cases.expected("unsupported") == "inconclusive"
