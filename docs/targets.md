@@ -171,7 +171,7 @@ whether a digit reaches it at all.
 ### An agent of your own on the mock
 
 `--mock` wires the mock into the bundled targets only. Your own agent can use it if its engine
-URL can lead there: `uv run rtpbench realtime --out DIR` serves it as plain `ws` on port 8000.
+URL can lead there: `uv run rtpbench realtime --out DIR` serves it as plain `ws` on port 8000 (`--port` picks another).
 The agent then relays audio and the mock recognises rtpbench's own lines, so leave out
 `--lines`. What the agent has to meet:
 

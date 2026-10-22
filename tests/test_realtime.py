@@ -4,6 +4,7 @@ import json
 import os
 import random
 import secrets
+import socket
 import struct
 import threading
 import time
@@ -67,6 +68,18 @@ def engine(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, Path]:
         assert time.monotonic() < deadline
         time.sleep(0.05)
     return port, out
+
+
+def test_a_port_in_use_is_one_line_naming_the_option(tmp_path: Path) -> None:
+    with socket.socket() as taken:
+        taken.bind(("0.0.0.0", 0))
+        taken.listen()
+        port = taken.getsockname()[1]
+        with pytest.raises(SystemExit) as e:
+            realtime.serve(tmp_path, port)
+    assert f"port {port}" in str(e.value)
+    assert "--port" in str(e.value)
+    assert "\n" not in str(e.value)
 
 
 def test_lines_are_told_apart_and_answered() -> None:
