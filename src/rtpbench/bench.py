@@ -167,8 +167,10 @@ def network_problem(name: str) -> str | None:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
         return f"no answer from Docker in 30 s about network {name!r}"
-    if res.returncode:
+    if res.returncode and "not found" in res.stderr:
         return f"{name!r} is not a Docker network on this host (docker network ls)"
+    if res.returncode:
+        return f"docker network inspect {name} failed: {res.stderr.strip()}"
     mode = (json.loads(res.stdout) or {}).get(GATEWAY_MODE)
     if mode in ("nat-unprotected", "routed"):
         return None

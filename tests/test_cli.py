@@ -89,7 +89,8 @@ def test_docker_preflight_names_the_cause(
 @pytest.mark.parametrize(
     ("code", "out", "says"),
     [
-        (1, "", "not a Docker network"),
+        (1, "network myagent_default not found", "not a Docker network"),
+        (1, "Cannot connect to the Docker daemon", "Cannot connect to the Docker daemon"),
         (0, "{}\n", "drops packets routed into it"),
         (0, "null\n", "drops packets routed into it"),
         (0, '{"com.docker.network.bridge.gateway_mode_ipv4":"nat"}\n', "'nat'"),
@@ -101,7 +102,8 @@ def test_network_preflight_names_the_gateway_mode(
     code: int, out: str, says: str | None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def run(*a: object, **k: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([], code, out, "")
+        # a failed inspect says why on stderr
+        return subprocess.CompletedProcess([], code, *((out, "") if code == 0 else ("", out)))
 
     monkeypatch.setattr(subprocess, "run", run)
     problem = bench.network_problem("myagent_default")
