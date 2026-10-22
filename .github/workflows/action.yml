@@ -1,7 +1,7 @@
 name: Action
 
 # action.yml against a bundled target on the mock: one run, checked against a policy it meets,
-# one it breaks, and itself as the previous run (about 15 minutes).
+# one it breaks, and itself as the previous run (about 8 minutes).
 on:
   pull_request:
     paths:

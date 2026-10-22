@@ -69,7 +69,7 @@ jobs:
       agent:
         image: registry.example/agent:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v6  # the policy and the baseline
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1: the policy and the baseline
       - uses: jjaroztegi/rtpbench@<commit SHA>  # vX.Y.Z
         env:
           RTPBENCH_SIP_USER: ${{ secrets.SIP_USER }}

@@ -125,8 +125,8 @@ digest, as over UDP.
 
 `cases --tls` and `calibrate --tls` reach the reference agent over TLS, with a certificate from a
 CA the stack makes for the run (both kept in the results' `tls/`); with `--carrier`, the carrier
-takes both on the caller's leg ([below](#carrier)). `large-invite` does not run
-over TLS: the case is about switching from UDP. `conditions.json` records `tls` and what the
+takes both on the caller's leg ([below](#carrier)). The cases about UDP do not run over TLS
+([cases](cases.md) marks them). `conditions.json` records `tls` and what the
 caller trusted (`tls_trust`); each call's `caller.json`, the TLS version and cipher suite, which
 the summary counts.
 
