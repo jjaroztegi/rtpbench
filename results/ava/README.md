@@ -142,7 +142,7 @@ Attached to the [release](https://github.com/jjaroztegi/rtpbench/releases/tag/av
 `realtime/`, and judges again from there:
 
 ```sh
-sha256sum -c SHA256SUMS && zstd -dc ava-audiosocket-direct-0397e3c41635.tar.zst | tar -x
+sha256sum -c --ignore-missing SHA256SUMS && zstd -dc ava-audiosocket-direct-0397e3c41635.tar.zst | tar -x
 uv run --extra vad rtpbench report ava-audiosocket-direct
 ```
 
