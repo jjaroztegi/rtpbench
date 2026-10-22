@@ -10,12 +10,12 @@
 ## Published results
 
 Each comes from one version of the code, named by its image tag (`rtpbench:` and a hash of
-`src`, the `Dockerfile` and the corpus, recorded as `image` in `conditions.json`), with its
-commands and conditions, and its raw run directories (captures, logs, the reference agent's
-truth) attached to a GitHub release as `.tar.zst`, named with their SHA-256 in the result's
-README. A change to how runs are judged (checks, error bars,
-summaries) re-judges those directories; a new wave is needed only when what goes on the wire
-changes (caller, carrier, mock engine, target versions, network profiles).
+`src`, the `Dockerfile` and the corpus, recorded as `image` in `conditions.json`; the baseline,
+which predates that, names it in its README), with its commands and conditions, and its raw run
+directories (captures, logs, the reference agent's truth) attached to a GitHub release as
+`.tar.zst`, named with their SHA-256 in the result's README. A change to how runs are judged
+(checks, error bars, summaries) re-judges those directories; a new wave is needed only when what
+goes on the wire changes (caller, carrier, mock engine, target versions, network profiles).
 
 ```sh
 sha256sum -c SHA256SUMS && zstd -dc NAME.tar.zst | tar -x

@@ -6,7 +6,7 @@ description: >-
 # Inputs reach the shell through env, never interpolated into a script.
 inputs:
   target:
-    description: "The agent's sip: URI (sip:user@host:port), or a bundled target: aivc, livekit"
+    description: "The agent's sip: URI (sip:user@host:port), or a bundled target: aivc, livekit, ava"
     required: true
   profiles:
     description: Comma-separated netem profiles (rtpbench target --help lists them)
