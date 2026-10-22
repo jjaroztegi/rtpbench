@@ -28,13 +28,17 @@ def hms(seconds: float) -> str:
     return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}"
 
 
+class _Stopped(SystemExit):
+    """A stop signal, told apart from any other SystemExit the run raises."""
+
+
 def _stop(signum: int, _frame: object) -> None:
     """SIGINT and SIGTERM (systemd stop, a cancelled CI job, kill) unwind the run the same way,
     so its `finally` blocks tear the stack down and hand the results back. A second signal
     meanwhile would cut that short and leave containers and root-owned files behind."""
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    raise SystemExit(128 + signum)
+    raise _Stopped(128 + signum)
 
 
 class Progress:
@@ -79,15 +83,17 @@ class Progress:
         self, exc: type[BaseException] | None, _v: BaseException | None, _t: TracebackType | None
     ) -> None:
         took = hms(time.monotonic() - self.t0)
-        if exc:
-            how = "interrupted" if issubclass(exc, KeyboardInterrupt | SystemExit) else "failed"
-            self._event(False, f"{how} while {self.label or 'starting'}", f"after {took}")
-        else:
-            self._event(True, "finished", f"in {took}")
-        if self.bar:
-            self.bar.stop()
-        for s, handler in zip((signal.SIGINT, signal.SIGTERM), self.was, strict=True):
-            signal.signal(s, handler)
+        try:
+            if exc:
+                how = "interrupted" if issubclass(exc, KeyboardInterrupt | _Stopped) else "failed"
+                self._event(False, f"{how} while {self.label or 'starting'}", f"after {took}")
+            else:
+                self._event(True, "finished", f"in {took}")
+            if self.bar:
+                self.bar.stop()
+        finally:
+            for s, handler in zip((signal.SIGINT, signal.SIGTERM), self.was, strict=True):
+                signal.signal(s, handler)
 
     def plan(self, total: int) -> None:
         self.total = total
