@@ -155,6 +155,32 @@ def docker() -> None:
         raise SystemExit(f"rtpbench needs Docker {DOCKER} or later; the server is {version}")
 
 
+GATEWAY_MODE = "com.docker.network.bridge.gateway_mode_ipv4"
+
+
+def network_problem(name: str) -> str | None:
+    """Why the router cannot route into the Docker network `name`, if it cannot. Docker's
+    default gateway mode drops routed packets addressed to a container, and every call then
+    times out without a word."""
+    cmd = ["docker", "network", "inspect", name, "--format", "{{json .Options}}"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return f"no answer from Docker in 30 s about network {name!r}"
+    if res.returncode and "not found" in res.stderr:
+        return f"{name!r} is not a Docker network on this host (docker network ls)"
+    if res.returncode:
+        return f"docker network inspect {name} failed: {res.stderr.strip()}"
+    mode = (json.loads(res.stdout) or {}).get(GATEWAY_MODE)
+    if mode in ("nat-unprotected", "routed"):
+        return None
+    return (
+        f"network {name!r} drops packets routed into it (gateway mode {mode or 'default'!r}); "
+        f"create it with `docker network create -o {GATEWAY_MODE}=nat-unprotected {name}`, or in "
+        f"compose.yaml give it `driver_opts: {{ {GATEWAY_MODE}: nat-unprotected }}`"
+    )
+
+
 def _image_tag() -> str:
     h = hashlib.sha256((ROOT / "Dockerfile").read_bytes())
     for f in sorted([*(ROOT / "src").rglob("*.py"), *(ROOT / "corpus").rglob("*.wav")]):
