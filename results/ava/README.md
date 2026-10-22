@@ -92,25 +92,35 @@ clean network, 40-41 ms under `lte` and `lte-bad`, the profiles' own delay):
 
 The engine's share is the mock's fixed 1501 ms. On a clean network AVA adds 87 ms to a turn
 with either transport, 16 ms of it the pacer's; in the baseline, AI Voice Connector CE adds 11 ms
-and LiveKit 332 ms. The greeting is heard 690-736 ms after the 200 OK; AVA asks the engine for it
+and LiveKit 332 ms. These are the median turn less the engine's 1501 ms; the
+[front page](../../README.md) adds the medians of uplink and downlink instead (88, 9 and
+335 ms). The greeting is heard 690-736 ms after the 200 OK; AVA asks the engine for it
 140-155 ms after answering.
 
 ## The pacer cuts every answer short
 
 With the pacer on, AVA stops sending each answer about 0.8 s before its end: 162-166 packets of
 the 204-205 it sends with the pacer off, in all 130 answers of the clean latency calls of each
-transport, the greeting included. The last packets it sends carry speech (-24 to -33 dBFS), where
-without the pacer an answer ends in silence. The pacer also makes the stream uneven: over
-AudioSocket on a clean network, AVA's packets arrived up to 442 ms behind their timestamps (p99,
-median call) in the latency and barge-in calls, against 2.7 ms without it.
+transport, the greeting included. The last packets it sends carry speech (the loudest of the last
+three: -24 to -33 dBFS), where without the pacer an answer ends in silence. The pacer also makes
+the stream uneven: over AudioSocket on a clean network, AVA's packets arrived up to 442 ms behind
+their timestamps (p99, median of the 20 latency and barge-in calls), against 2.7 ms without it
+(the same 20 calls; the set's summary gives 200 ms, over all 176 clean calls of every case).
+
+```sh
+uv run --extra vad python results/ava/answers.py ava-audiosocket-direct ava-externalmedia-direct \
+  ava-audiosocket-direct-nopacer   # these numbers and the next section's, on the unpacked archives
+```
 
 ## Barge-in
 
 AVA did not stop for interjections: of 900 (100 per profile and set, both transports, pacer on
-or off), the answer ended within 2 s of one only once, on its own. The engine never heard them.
+or off), the answer ended within 2 s of one only once, on its own, as the mock's answer ended.
 AVA holds back the caller's audio while it plays (an echo gate, always on in its OpenAI Realtime
-provider): the mock cancelled none of its answers, and of the 32 lines the caller says in a
-latency and a barge-in call, the 22 said outside AVA's answers reached it.
+provider): the mock never heard the caller over one of its answers, and of the 32 lines the
+caller says in a latency and a barge-in call, the 22 said outside AVA's answers reached it and
+the 10 said during one did not, but for the tail of that one interjection, heard after its
+answer was over.
 
 ## The RTP clock across AVA's pauses
 

@@ -70,10 +70,10 @@ echo hyperv_clocksource_tsc_page | sudo tee /sys/devices/system/clocksource/cloc
 
 ## Running stacks in parallel
 
-Each run brings up its own containers and network, so several can run at once. On an 8-core
-host, 12 reference stacks at once kept wire timing exact, no packet more than 10 ms late and no
-capture drop ([table](../results/baseline#timing-on-this-host)). Target stacks weigh more:
-calibrate at the concurrency you intend to publish at, and watch the load.
+Each run brings up its own containers and network, so several can run at once. On an 8-core,
+16-thread host, 12 reference stacks at once kept wire timing exact, no packet more than 10 ms
+late and no capture drop ([table](../results/baseline#timing-on-this-host)). Target stacks
+weigh more: calibrate at the concurrency you intend to publish at, and watch the load.
 
 ## Network profiles
 
