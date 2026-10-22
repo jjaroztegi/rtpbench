@@ -116,12 +116,15 @@ uv run --extra vad python results/ava/answers.py ava-audiosocket-direct ava-exte
 ## Barge-in
 
 AVA did not stop for interjections: of 900 (100 per profile and set, both transports, pacer on
-or off), an answer ended within 2 s of one only once, and then because the mock's answer ended.
-AVA holds back the caller's audio while it plays (an echo gate, always on in its OpenAI Realtime
-provider), so the mock never heard the caller during one of AVA's answers. Of the 32 lines the
-caller says in a latency and a barge-in call, the 22 said outside AVA's answers reached the mock
-and the 10 said during one did not; only the tail of that one interjection arrived, after the
-answer was over.
+or off), an answer ended within 2 s of one only once: ExternalMedia, clean, run 10, 1.3 s into a
+1.9 s interjection that began 16.571 s after the call's INVITE. The answer's RTP ended at
+17.882 s, as the mock's answer did (17.885 s). AVA holds back the caller's audio while it plays
+(an echo gate, always on in its OpenAI Realtime provider), so the mock cancelled no answer for
+the caller's voice, in any set. In that call the first voiced audio of the interjection reached
+the mock at 17.892 s, 7 ms after its answer ended; it heard a turn ending at 18.528 s. On a
+clean network the mock heard all 220 lines the caller said outside AVA's answers (22 of the 32 in
+a latency and a barge-in call), and of the 100 said during one, only that interjection's tail.
+`answers.py` prints the times of the event and these counts.
 
 ## The RTP clock across AVA's pauses
 
