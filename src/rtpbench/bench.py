@@ -352,7 +352,8 @@ def conditions(
     governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
-        "commit": _host("git describe --always --dirty"),
+        # counted from a release: results' wave tags would otherwise name the commit
+        "commit": _host("git describe --always --dirty --match 'v[0-9]*'"),
         "image": _image_tag(),  # the code the stacks ran, whatever the history
         "kernel": sh("uname -r"),
         "cpus": os.cpu_count(),  # how many, not which model: published conditions name no hardware
