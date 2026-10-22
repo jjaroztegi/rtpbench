@@ -10,7 +10,8 @@ steps: 0 were seen. Summaries, records and reports are in this folder; the raw r
 (captures, logs, the reference agent's truth) are [archived](#raw-runs). The image tag is a hash
 of `src`, the `Dockerfile` and the corpus, so it names this code in any clone; `commit` in
 `conditions.json` is `git describe` in the checkout that ran it. The git tag `baseline` is a
-commit with this code: `git checkout baseline` to run it again.
+commit with this code: `git checkout baseline` to run it again. The commands below are that tag's:
+main has moved on, AI Voice Connector CE included (the baseline ran 09e14d0).
 
 ```sh
 uv run rtpbench calibrate [--carrier]
@@ -21,11 +22,11 @@ uv run --extra vad rtpbench target livekit --mock --carrier --profiles clean,lte
 # the same for aivc
 ```
 
-Conditions: 16 CPUs, kernel 6.8.0-147-generic, CPU governor `performance`, Docker 29.9.1;
-python 3.14.8 and tcpdump 4.99.5 in the containers. The six case sets ran at once, each
+Conditions: 8 cores, 16 threads, kernel 6.8.0-147-generic, CPU governor `performance`, Docker
+29.9.1; python 3.14.8 and tcpdump 4.99.5 in the containers. The six case sets ran at once, each
 its own stack; the load average reached 8.9. The calibrations ran alone, after them.
 Engine: the mock, which waits 1000 ms of silence and answers 500 ms later. AI Voice
-Connector CE and LiveKit at the versions in [targets](../../docs/targets.md), every Python
+Connector CE and LiveKit at the pins in `targets/*/compose.yaml` at the tag, every Python
 package pinned.
 
 ## Timing on this host
@@ -44,12 +45,19 @@ carrier, 20 turns per profile, and the time the carrier adds per packet:
 | lte-bad | 20 | 0.00 | 0.00 | 0.05 / 0.09 / 0.9 |
 
 Sender lateness, both ends, direct, 57017 packets: p50 0.010, p99 0.050, max 2.65 ms
+(`uv run python results/baseline/lateness.py calibrate`, on the unpacked calibrations). These
+are the packets each sender's own capture saw leave. The summaries' `lost/sent` add up to 57015:
+there "sent" ends at the last packet the receiver got, and the agent's last was lost in two calls
+(`loss`, `mobile`).
 
 How far concurrent stacks can go before timing suffers: N reference stacks at once, 60 turns
 each, clean (an earlier wave, image `rtpbench:ba330eecbd02`; the caller, the reference agent
 and their stacks have changed since only by a progress line the caller prints). Wire against
 truth; the reference agent's scheduling error; how late each sender's
-packets left against its own 20 ms grid (from its capture); capture drops; load average (1 min):
+packets left against its own 20 ms grid (from its capture); capture drops; load average (1 min).
+`uv run python results/baseline/capacity.py capacity-e37a944` on the unpacked archive prints this
+table with three columns more: stacks that finished (N of N in every row), the capture
+timestamps' error against the kernel's (0.000 ms) and wall-clock steps (0).
 
 | N | turns | wire-truth p99 / max | agent sched p99 / max | late caller p99 / max | late agent p99 / max | > 10 ms late | drops | load mean / max |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -70,7 +78,8 @@ The speech onset and barge-in stop bars in the code are the p5..p95 of seeds 1-5
 (`calibrate --speech`, `calibrate --barge-in`, pooled with `rtpbench analyze`). Seeds 6-10, run
 the same way with image `rtpbench:965085c223d2` (the detector, the caller and the reference
 agent have changed since only by that progress line), against them: a p5..p95 bar leaves about
-10% outside.
+10% outside. `uv run --extra vad python results/baseline/heldout.py pub` on the unpacked archive
+prints this table, against the bars in `src/rtpbench/cases.py`, as at the tag.
 
 | bar | profile | codec | shipped | turns | below | above | outside |
 | --- | --- | --- | --- | --- | --- | --- | --- |
