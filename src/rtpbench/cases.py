@@ -1154,8 +1154,12 @@ def check_timer(w: Wire) -> Result:
     r = Result()
     ok = w.find(_is_2xx_invite, sent=False)
     expires = ok[1].get("session-expires") if ok else ""
-    took = True if expires else None if ok else False
-    detail = "" if expires else NO_TIMER if ok else "no 2xx"
+    tags = {t.strip().lower() for h in ok[1].all("require") for t in h.split(",")} if ok else set()
+    # without it, an agent that does not take timers, unless it says it requires them
+    took = True if expires else None if ok and "timer" not in tags else False
+    detail = (
+        "" if expires else "no 2xx" if not ok else NO_TIMER if took is None else "Require: timer"
+    )
     r.checks.append(Check("Session-Expires in the 2xx", took, detail))
     if not ok or not expires:
         return r

@@ -510,4 +510,7 @@ def test_timer_without_the_extension_is_inconclusive() -> None:
     assert r.verdict == "inconclusive"
     assert r.checks[0].detail == cases.NO_TIMER
     assert cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite)], [], [])).verdict == "fail"
+    ok.headers.append(("Require", "100rel, timer"))  # says it takes timers, gives no interval
+    broken = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
+    assert broken.verdict == "fail"
     assert cases.expected("unsupported") == "inconclusive"
