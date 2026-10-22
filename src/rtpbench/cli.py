@@ -145,7 +145,7 @@ results.json, report.html (a timeline of every call) and the captures to --out. 
 agent, use `rtpbench target`.""",
         epilog="""\
 examples:
-  uv run --extra vad rtpbench cases                      # every case: about 14 minutes
+  uv run --extra vad rtpbench cases                      # every case: about 17 minutes
   uv run --extra vad rtpbench cases --only hold,refer --profiles clean,lte --runs 3
 """,
         formatter_class=Help,
