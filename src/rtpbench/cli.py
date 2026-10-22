@@ -257,8 +257,13 @@ examples:
     p = sub.add_parser("operator", description="run the transfer target (inside a container)")
     p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
-    p = sub.add_parser("realtime", description="run the mock engine (inside a container)")
+    p = sub.add_parser(
+        "realtime",
+        description="run the mock engine, a plain-ws OpenAI Realtime server: in the stack's "
+        "container, or on this host for an agent of your own",
+    )
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--port", type=int, help="ws port (default: 8000)")
     p.add_argument("--ready", type=Path, default=Path("/tmp/ready"))
 
     p = sub.add_parser(
@@ -491,7 +496,10 @@ example:
     elif args.cmd == "realtime":
         from rtpbench import realtime
 
-        realtime.serve(args.out, ready=args.ready)
+        port = realtime.PORT if args.port is None else args.port
+        if not 1 <= port <= 65535:
+            parser.error("--port: 1-65535")
+        realtime.serve(args.out, port, args.ready)
     elif args.cmd == "report":
         from rtpbench.bench import judge
 

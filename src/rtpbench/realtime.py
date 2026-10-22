@@ -23,6 +23,7 @@ import base64
 import hashlib
 import json
 import math
+import os
 import secrets
 import statistics
 import struct
@@ -536,7 +537,13 @@ def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
             writer.close()
 
     async def main() -> None:
-        server = await asyncio.start_server(connection, "0.0.0.0", port)
+        try:
+            server = await asyncio.start_server(connection, "0.0.0.0", port)
+        except OSError as e:
+            why = os.strerror(e.errno or 0)
+            raise SystemExit(
+                f"realtime: cannot listen on port {port}: {why} (--port picks another)"
+            ) from None
         if ready:
             await asyncio.to_thread(ready.touch)
         async with server:
