@@ -1,3 +1,6 @@
+import os
+import signal
+
 import pytest
 
 from rtpbench import progress
@@ -43,3 +46,26 @@ def test_without_a_terminal_a_plain_line_per_event(
     assert lines[5].startswith("FAILED [2/2] clean greeting/stale: pass, expected fail")
     assert lines[6:] == ["starting the stack", "failed while starting the stack after 0:00:00"]
     assert not any(c in "".join(lines) for c in "\r\x1b")
+
+
+def _terminated(torn_down: list[bool]) -> None:
+    with Progress() as p:
+        p.phase("calling")
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        finally:
+            os.kill(os.getpid(), signal.SIGINT)  # while tearing down
+            torn_down.append(True)
+
+
+def test_sigterm_unwinds_the_run_and_a_second_signal_waits_for_the_teardown(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    before = signal.getsignal(signal.SIGTERM)
+    torn_down: list[bool] = []
+    with pytest.raises(SystemExit) as e:
+        _terminated(torn_down)
+    assert e.value.code == 128 + signal.SIGTERM
+    assert torn_down
+    assert "interrupted while calling" in capsys.readouterr().out
+    assert signal.getsignal(signal.SIGTERM) == before
