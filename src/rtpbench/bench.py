@@ -162,11 +162,11 @@ def network_problem(name: str) -> str | None:
     """Why the router cannot route into the Docker network `name`, if it cannot. Docker's
     default gateway mode drops routed packets addressed to a container, and every call then
     times out without a word."""
-    res = subprocess.run(
-        ["docker", "network", "inspect", name, "--format", "{{json .Options}}"],
-        capture_output=True,
-        text=True,
-    )
+    cmd = ["docker", "network", "inspect", name, "--format", "{{json .Options}}"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return f"no answer from Docker in 30 s about network {name!r}"
     if res.returncode:
         return f"{name!r} is not a Docker network on this host (docker network ls)"
     mode = (json.loads(res.stdout) or {}).get(GATEWAY_MODE)
