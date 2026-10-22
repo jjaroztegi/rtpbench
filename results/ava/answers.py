@@ -35,7 +35,7 @@ ANSWER_MIN = 50  # packets (1 s): ExternalMedia opens a call with one silent pac
 HEARD_NS = 500_000_000  # the mock's turn ends within this of the end of the line it heard
 
 
-def answers(down: analyze.Timed) -> list[analyze.Timed]:
+def answers(down: analyze.Timed, shortest: int = ANSWER_MIN) -> list[analyze.Timed]:
     out: list[analyze.Timed] = []
     for t, p in down:
         if p.pt in g711.NAMES:
@@ -43,7 +43,7 @@ def answers(down: analyze.Timed) -> list[analyze.Timed]:
                 out[-1].append((t, p))
             else:
                 out.append([(t, p)])
-    return [a for a in out if len(a) >= ANSWER_MIN]
+    return [a for a in out if len(a) >= shortest]
 
 
 def level(p: rtp.Packet) -> float:
@@ -83,7 +83,8 @@ def stopped_for(
         return f"{(t - t0) / 1e9:.3f}"
 
     stop = a + round(turn["measured_ms"]["wire/gate"] * 1e6)
-    sent = next(x for x in answers(w.down) if x[0][0] <= a <= x[-1][0])
+    # any length: an answer the agent stopped soon after it began is short
+    sent = next(x for x in answers(w.down, 1) if x[0][0] <= a <= x[-1][0])
     over = next(
         (r for r in records if r.get("first_audio_ns", a + 1) <= a <= r.get("end_ns", a - 1)), None
     )
