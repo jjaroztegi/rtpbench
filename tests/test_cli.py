@@ -86,6 +86,33 @@ def test_docker_preflight_names_the_cause(
     assert says in str(e.value)
 
 
+@pytest.mark.parametrize(
+    ("code", "out", "says"),
+    [
+        (1, "", "not a Docker network"),
+        (0, "{}\n", "drops packets routed into it"),
+        (0, "null\n", "drops packets routed into it"),
+        (0, '{"com.docker.network.bridge.gateway_mode_ipv4":"nat"}\n', "'nat'"),
+        (0, '{"com.docker.network.bridge.gateway_mode_ipv4":"routed"}\n', None),
+        (0, '{"com.docker.network.bridge.gateway_mode_ipv4":"nat-unprotected"}\n', None),
+    ],
+)
+def test_network_preflight_names_the_gateway_mode(
+    code: int, out: str, says: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def run(*a: object, **k: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], code, out, "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    problem = bench.network_problem("myagent_default")
+    if says is None:
+        assert problem is None
+    else:
+        assert problem is not None
+        assert says in problem
+        assert "myagent_default" in problem
+
+
 def test_target_lists_every_unusable_line_before_it_starts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

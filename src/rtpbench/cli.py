@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rtpbench import analyze, cases, pcap
-from rtpbench.bench import PROFILES, TARGETS, docker, is_uri
+from rtpbench.bench import PROFILES, TARGETS, docker, is_uri, network_problem
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
 
@@ -458,6 +458,8 @@ example:
             parser.error(LARGE_INVITE_TLS)
         profiles = args.profiles.split(",")
         docker()
+        if args.network and (problem := network_problem(args.network)):
+            parser.error(f"--network: {problem}")
         with progress:
             summary = target(
                 out,

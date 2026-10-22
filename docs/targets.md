@@ -61,7 +61,9 @@ where ours comes from (symmetric RTP, as AI Voice Connector CE does) needs nothi
 that sends it to the offered address (LiveKit) needs an address that reaches the caller:
 - `--network NAME`: the agent runs in Docker on this host, on that network (Docker drops traffic
   between its networks otherwise). The router joins it, and the caller advertises the router's
-  address there.
+  address there. The network needs gateway mode `nat-unprotected` or `routed` (`docker network
+  create -o com.docker.network.bridge.gateway_mode_ipv4=nat-unprotected NAME`), or Docker drops
+  every routed packet and each call times out; rtpbench refuses a network without it.
 - `--advertise HOST:PORT`: an address of this host the agent can reach. The host publishes PORT
   and the next 7 (UDP and TCP), the caller's SIP and RTP ports; forward them to it if a NAT is in
   between.
