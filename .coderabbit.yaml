@@ -1,23 +1,27 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # AGENTS.md is read as the review guidelines (a CodeRabbit default). What follows adds what a
 # reviewer of this repository must know: published numbers rest on archived wire captures.
+# On CodeRabbit's open-source plan, a public repository with fewer than 10 stars is reviewed
+# only on request (`@coderabbitai review`), and few reviews an hour are allowed.
 language: en-US
 tone_instructions: >-
   Terse. Lead with the defect and what it breaks; no praise, no restating the diff.
 
 reviews:
   profile: chill
-  request_changes_workflow: false
   high_level_summary: false # the PR body already states problem, change and verification
   review_status: false
   poem: false
   in_progress_fortune: false
   sequence_diagrams: false
+  estimate_code_review_effort: false # one author, no reviewer to schedule
+  related_prs: false
   suggested_labels: false
   suggested_reviewers: false
   auto_review:
     enabled: true
     drafts: false
+    auto_incremental_review: false # the opening push, then `@coderabbitai review` when ready
   finishing_touches: # both go against AGENTS.md: comments say why, no test suites
     docstrings:
       enabled: false
@@ -41,10 +45,9 @@ reviews:
           results/ need a new wave. Fail if it edits a number under results/ or a number quoted
           from results/ in README.md or docs/ without the regenerated records (summary.md,
           results.json) that produce it. Otherwise pass.
-  path_filters:
+  path_filters: # lock files and .wav are ignored by default
     - "!results/**/report.html" # generated from results.json
     - "!results/**/results.json"
-    - "!uv.lock"
     - "!corpus/**"
   path_instructions:
     - path: "**"
