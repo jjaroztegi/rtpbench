@@ -503,8 +503,8 @@ def codec_pcma(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
 
 
 def timer(dial: Dial, seed: int, lines: Lines) -> dict[str, Any]:
-    """Offer session timers (90 s, refresher=uac), refresh once at half time, then stop
-    refreshing and wait for the agent to end the expired session."""
+    """Offer session timers (90 s, refresher=uac; after a 422, the agent's Min-SE), refresh once
+    at half time, then stop refreshing and wait for the agent to end the expired session."""
     s = dial(headers=[*TIMER, ("Min-SE", str(SESSION_S))])
     ok = s.answer()
     m = Script(s.pt)
@@ -692,9 +692,10 @@ def load(run: Path, profile: str = "clean") -> Wire:
             continue
         me = me or src  # the caller sends the first message, its INVITE
         msgs.append((t, src == me, msg))
-    # a request answered with a digest challenge (and its 100, challenge and ACK, which share its
-    # branch) left the agent as it was: judge the sequence as it would be without credentials
-    challenged = {m.branch for _, _, m in msgs if m.status in (401, 407)}
+    # a request answered with a digest challenge or a 422 (and its 100, that response and the
+    # ACK, which share its branch) left the agent as it was: judge the sequence as it would be
+    # without credentials, or with the session interval the 422 asked for
+    challenged = {m.branch for _, _, m in msgs if m.status in (401, 407, 422)}
     msgs = [x for x in msgs if x[2].branch not in challenged]
     # SRTP: opened with the keys the captured SDP gave, each side's for its own packets
     rings = srtp.keyrings([(sent, m.body) for _, sent, m in msgs])
