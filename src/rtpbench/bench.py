@@ -324,7 +324,7 @@ class Stack:
             ) from None
 
     def down(self) -> None:
-        self.compose("down", "-t", "0", "--remove-orphans", check=False)
+        self.compose("down", "-t", "0", "-v", "--remove-orphans", check=False)
         # the test certificate's key is no use to judging; the CAs stay with the results
         (Path(self.env["RTPBENCH_OUT"]) / "tls" / "server.key").unlink(missing_ok=True)
 
