@@ -41,7 +41,9 @@ def _ip_offset(link: int, frame: bytes) -> int | None:
     return 0 if link == _RAW else None
 
 
-def read(path: Path) -> list[Datagram]:
+def read(path: Path, partial: bool = False) -> list[Datagram]:
+    """Its TCP segments that carry data and its UDP datagrams; with `partial`, also a datagram
+    the snaplen cut short, with what the capture kept of it."""
     data = path.read_bytes()
     if len(data) < 24 or data[:4] not in _MAGIC:
         raise ValueError(f"{path}: not a classic pcap file")
@@ -79,7 +81,7 @@ def read(path: Path) -> list[Datagram]:
         if len(frame) < l4 + 8:
             continue
         sport, dport, length = struct.unpack_from("!HHH", frame, l4)
-        if length < 8 or len(frame) < l4 + length:  # cut short by the snaplen
+        if length < 8 or (len(frame) < l4 + length and not partial):  # cut by the snaplen
             continue
         out.append(Datagram(t, src, sport, dst, dport, frame[l4 + 8 : l4 + length]))
     return out

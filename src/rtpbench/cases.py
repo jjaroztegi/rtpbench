@@ -1759,9 +1759,9 @@ def _sent(capture: Path) -> Sent:
     """Each G.711 RTP packet the capture taken at the agent saw, and when, by SSRC, sequence
     number and timestamp; None where two packets share those (which of them arrived is
     unknown). A packet seen twice within SAME_PACKET_NS (on two interfaces) counts once, at its
-    first."""
+    first. A capture cut to the headers (tcpdump -s) is enough: its payloads are what it kept."""
     out: Sent = {}
-    for g in pcap.read(capture):
+    for g in pcap.read(capture, partial=True):
         if g.tcp or (p := rtp.parse(g.payload)) is None or p.pt not in g711.NAMES:
             continue
         key = (p.ssrc, p.seq, p.ts)
@@ -1780,12 +1780,13 @@ def _split(
     MATCHED_MIN of the packets the caller received (something between rewrote their SSRC,
     sequence numbers or timestamps, as a repacketizing media relay does, or the capture missed
     the call). A packet pairs by SSRC, sequence number and timestamp, never where those are
-    ambiguous, and with the same payload unless the call is SRTP (`encrypted`)."""
+    ambiguous, and with the same payload, as far as the capture kept it, unless the call is SRTP
+    (`encrypted`)."""
     packets = [(t, p) for t, p in down if p.pt in g711.NAMES]
     pairs = []
     for t, p in packets:
         mine = sent.get((p.ssrc, p.seq, p.ts))
-        if mine is not None and (encrypted or mine[1].payload == p.payload):
+        if mine is not None and (encrypted or p.payload.startswith(mine[1].payload)):
             pairs.append((mine[0], t))
     if not packets or len(pairs) < MATCHED_MIN * len(packets):
         return None
