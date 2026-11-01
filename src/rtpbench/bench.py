@@ -867,8 +867,11 @@ def target(
                     logs.wait(timeout=30)
                 except subprocess.TimeoutExpired:
                     logs.kill()
-                log = out / "target.log"  # "<service> exited" lines come after a line erase
-                log.write_bytes(log.read_bytes().replace(b"\r\x1b[K", b""))
+                # "<service> exited" lines come after a line erase; the log can run to GBs
+                log, tmp = out / "target.log", out / "target.log.tmp"
+                with log.open("rb") as src, tmp.open("wb") as dst:
+                    dst.writelines(line.replace(b"\r\x1b[K", b"") for line in src)
+                tmp.replace(log)
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     progress.phase("judging")
     return judge(out, done)[0]
