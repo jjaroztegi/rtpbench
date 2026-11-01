@@ -61,7 +61,9 @@ number alone, a reply would run on from the speech before the pause, and its ons
 ## Through the carrier
 
 With `--carrier`, four more cases are what real trunks send; the carrier rewrites the call and
-the agent must answer and reply to a question within 10 s:
+the agent must answer and reply to a question within 10 s. The carrier runs in the stack, in
+front of the reference agent or a bundled target, so an agent of your own (a URI) gets neither
+it nor these cases:
 
 | case | what reaches the agent |
 | --- | --- |
