@@ -319,18 +319,25 @@ def pacing(packets: Timed) -> tuple[float, float] | None:
     """How evenly a sender's RTP arrived (one call, one direction, G.711): the median of the
     RFC 3550 interarrival jitter estimate (A.8) as it runs, and the p99 of how much later than its
     timestamp says each packet arrived, against the earliest before it (the jitter buffer a
-    receiver needs to play 99% of them in time), ms. A new SSRC, or a pause of over a second (a
-    hold), starts afresh. None for fewer than 50 packets past the first of their stretch."""
+    receiver needs to play 99% of them in time), ms. A new SSRC, a pause of over a second (a
+    hold), or timestamps that jump a second or more away from the arrival times (a B2BUA such as
+    FreeSWITCH sends a few packets on its own clock, then the bridged leg's on the same SSRC)
+    starts afresh. None for fewer than 50 packets past the first of their stretch."""
     jitter: list[float] = []
     late: list[float] = []
     j, t0, ts, least, prev = 0.0, 0, 0, 0, None
     for t, p in packets:
         if p.pt not in g711.NAMES:
             continue
-        if prev is None or p.ssrc != prev[1].ssrc or t - prev[0] > 1e9:
+        step = 0 if prev is None else signed(p.ts - prev[1].ts, 32)
+        if (
+            prev is None
+            or p.ssrc != prev[1].ssrc
+            or t - prev[0] > 1e9
+            or abs(t - prev[0] - step * S) > 1e9
+        ):
             t0, ts, j, least = t, 0, 0.0, 0
         else:
-            step = signed(p.ts - prev[1].ts, 32)
             ts += step
             j += (abs(t - prev[0] - step * S) / 1e6 - j) / 16
             jitter.append(j)

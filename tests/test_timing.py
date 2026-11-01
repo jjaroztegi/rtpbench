@@ -157,3 +157,14 @@ def test_pacing_buffer_covers_a_slip_but_not_an_early_burst() -> None:
     renumbered = [(t, Packet(PT, p.seq, p.ts, 2, False, SIL)) for t, p in slipped[200:]]
     assert analyze.pacing(sent[:200] + renumbered) == (0.0, 0.0)
     assert analyze.pacing(sent[:49]) is None
+
+
+def test_pacing_starts_afresh_where_the_timestamps_jump() -> None:
+    """A B2BUA's first packets on its own clock, then the bridged leg's timestamps on the same
+    SSRC and sequence: an even stream, not one late by the jump."""
+    own = [(n * PTIME_NS, Packet(PT, n, 160 * (n + 1), 1, False, SIL)) for n in range(2)]
+    base = 1_234_567_890
+    bridged = [
+        (n * PTIME_NS, Packet(PT, n, base + (n - 2) * FRAME, 1, False, SIL)) for n in range(2, 300)
+    ]
+    assert analyze.pacing(own + bridged) == (0.0, 0.0)
