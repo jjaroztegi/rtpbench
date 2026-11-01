@@ -132,7 +132,8 @@ def note(steps: list[dict[str, Any]] | None) -> str:
 def rate_note(out: Path) -> str:
     """A warning when the run's wall clock ran more than RATE_PPM off between its steps (its
     `clock_rate_ppm`); a single step is no rate."""
-    conds = json.loads((out / "conditions.json").read_text())
+    path = out / "conditions.json"
+    conds = json.loads(path.read_text()) if path.exists() else {}
     ppm, steps = conds.get("clock_rate_ppm"), conds.get("clock_steps") or []
     if ppm is None or abs(ppm) <= RATE_PPM or len(steps) == 1:
         return ""
