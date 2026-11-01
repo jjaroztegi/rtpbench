@@ -61,10 +61,12 @@ step across a webrtcvad onset bar of -133/+11 ms).
 
 A clock stepped back again and again runs fast in between, and nothing marks that drift: late,
 transit against the earliest packet, grows with it until the next step. Each run records the
-wall clock's rate between steps (`clock_rate_ppm`, from the steps' net size), and `calibrate`
-warns above 100 ppm. Virtual machines are prone to both: one WSL2 guest's clock stepped back
+wall clock's rate between steps (`clock_rate_ppm`, from the steps' net size), and summaries
+warn above 100 ppm. Virtual machines are prone to both. One WSL2 guest's clock stepped back
 25-80 ms about every 30 s, so it ran 800-2,700 ppm fast and late read up to 25-80 ms high just
-before each step. On WSL2, a `calibrate` run before and after switching from the default `tsc`
+before each step; Hyper-V's clocksource brought its steps down to about 4 ms. Another lost 6% of
+real time and was stepped forward about 1.6 s every 31 s on either clocksource, so no timing
+taken on it holds. On WSL2, a `calibrate` run before and after switching from the default `tsc`
 clocksource to Hyper-V's shows whether that helps:
 
 ```sh

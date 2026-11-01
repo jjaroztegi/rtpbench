@@ -55,8 +55,9 @@ misses the network (80 ms on an LTE path); an energy rule on a recording reads t
 
 ## Quick start
 
-Needs Linux (WSL2 works), Docker 28 or later with Compose, and
-[uv](https://docs.astral.sh/uv/).
+Needs Linux, Docker 28 or later with Compose, and [uv](https://docs.astral.sh/uv/). WSL2 runs
+it, but its clock can drift and step by far more than the error bars: read what `calibrate`
+warns about first ([clock steps and rate](docs/calibration.md#clock-steps-and-rate)).
 
 ```sh
 uv run rtpbench calibrate --profiles clean --turns 5      # how exactly this host times the wire
