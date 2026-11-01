@@ -273,6 +273,19 @@ class Stack:
             raise RuntimeError(f"{' '.join(args)} failed:\n{err}")
         return out.strip()
 
+    def follow(self, path: Path) -> subprocess.Popen[bytes]:
+        """Every service's log into `path` as it is written, until `down` stops them: read only
+        at the end, a log the Docker daemon rotates (log-opts max-size) has lost its start."""
+        files = [a for f in self.files for a in ("-f", str(f))]
+        cmd = ["docker", "compose", "--ansi", "never", "-p", self.project, *files, "logs", "-f"]
+        with path.open("wb") as f:
+            return subprocess.Popen(
+                [*cmd, "--no-color", "--timestamps"],
+                env=self.env,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+            )
+
     def sh(self, service: str, cmd: str, check: bool = True) -> str:
         return self.compose("exec", "-T", service, "sh", "-c", cmd, check=check)
 
@@ -764,8 +777,10 @@ def target(
         else:
             proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
+        logs = None
         try:
             stack.up(progress.phase, profiles)
+            logs = stack.follow(out / "target.log")
             caller_ip = stack.ip("caller")
             where = out / "tls"
             conds = conditions(
@@ -843,11 +858,17 @@ def target(
                         for c in names
                         if c in cs.CASES
                     ]
-            (out / "target.log").write_text(stack.compose("logs", "--no-color", "--timestamps"))
         finally:
             if hasattr(os, "getuid"):  # tcpdump wrote as root; hand the results back
                 stack.sh("caller", f"chown -R {os.getuid()}:{os.getgid()} /out", check=False)
             stack.down()
+            if logs:  # ends with the containers
+                try:
+                    logs.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    logs.kill()
+                log = out / "target.log"  # "<service> exited" lines come after a line erase
+                log.write_bytes(log.read_bytes().replace(b"\r\x1b[K", b""))
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     progress.phase("judging")
     return judge(out, done)[0]
