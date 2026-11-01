@@ -1890,5 +1890,5 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
     bars = {b for r in records for t in r["timings"] for b in [Bar(*t["bar"])]}
     text += "\nError bars: true value = measured - error, error within\n\n"
     text += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))
-    text += "\n" + clock.note(steps)
+    text += "\n" + clock.note(steps) + clock.rate_note(out)
     return text, records, proven(records)
