@@ -41,6 +41,7 @@ services:
         RUN apt-get update \
             && apt-get install -y --no-install-recommends opensips-auth-modules=3.6.9-1 \
                 opensips-tls-module=3.6.9-1 opensips-tls-openssl-module=3.6.9-1 \
+                opensips-tlsmgm-module=3.6.9-1 \
             && rm -rf /var/lib/apt/lists/*
     image: rtpbench-opensips:3.6.9-1-tls
     network_mode: service:carrier
