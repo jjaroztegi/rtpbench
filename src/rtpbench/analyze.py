@@ -33,6 +33,10 @@ from typing import Any
 from rtpbench import g711, pcap, rtp, sip, srtp
 from rtpbench.voice import GATE
 
+# wire timing's max abs error against the truth, clean, on the host the bars come from: the bar
+# every wire timing in the cases carries (cases.WIRE)
+WIRE_MS = 0.41
+
 METHODS = ("wire", "packet", "rtp", "concat")
 CALLER_GAP_NS = 1_000_000_000  # pauses inside one caller turn are shorter than this
 AGENT_GAP_NS = 250_000_000
@@ -423,6 +427,7 @@ def summarize(runs: dict[str, list[Path]]) -> str:
     with a carrier capture, the carrier's own transit time. The runs under one name (one per
     seed) pool into one row."""
     latency, errors, budget, relay = [], [], [], []
+    worst = (0.0, "")  # wire's largest miss of the truth where the onset packet arrived, and run
     for name, dirs in runs.items():
         ways: dict[str, list[float]] = {}
         recs = []
@@ -454,6 +459,9 @@ def summarize(runs: dict[str, list[Path]]) -> str:
             vs_delay = _stats([r[m + "_ms"] - r["delay_ms"] for r in got])
             vs_truth = _stats([r[m + "_ms"] - r["truth_ms"] for r in got])
             errors.append([name, m, f"{len(got)}/{len(recs)}", *vs_delay, *vs_truth])
+        for r in ok:
+            if r["wire_ms"] is not None and not r["onset_lost"]:
+                worst = max(worst, (abs(r["wire_ms"] - r["truth_ms"]), name))
         up, down = Counter[str](), Counter[str]()
         for run in dirs:
             up.update(stream_stats(load(run / "agent.pcap").up))
@@ -476,6 +484,14 @@ def summarize(runs: dict[str, list[Path]]) -> str:
     if not errors:
         return out
     stat = ["mean", "p95 abs", "max abs"]
+    miss, where = worst
+    warn = (
+        f"\nWire timing read up to {miss:.2f} ms off the truth ({where}), outside the "
+        f"±{WIRE_MS} ms bar the cases' wire timings carry: this host held packets on their way "
+        "between containers (docs/calibration.md, how the truth is known).\n"
+        if miss > WIRE_MS
+        else ""
+    )
     return (
         out
         + "\nError, ms: measured - injected delay | measured - truth\n\n"
@@ -493,4 +509,5 @@ def summarize(runs: dict[str, list[Path]]) -> str:
             ],
             budget,
         )
+        + warn
     )
