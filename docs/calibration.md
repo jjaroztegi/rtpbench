@@ -16,7 +16,10 @@ The caller and a reference agent ([`agent.py`](../src/rtpbench/agent.py)) run in
 either side of a `tc netem` router. The agent answers each turn after a random delay it chooses
 and logs to the sample. Both ends capture with `tcpdump`, and every container shares one kernel
 clock. Wire timing is therefore exact against the agent's log, and the calibration's real job
-is the other error: how far speech detection moves an onset or a stop.
+is the other error: how far speech detection moves an onset or a stop. The exception is a host
+that holds packets between containers: a virtual machine that loses its CPU now and then (steal
+time) delays the turns it held by that long, and `calibrate` warns when wire timing misses its
+±0.41 ms bar.
 
 For the speech calibration, the clips in [`corpus/`](../corpus/README.md) carry speech boundaries
 labelled on the clean audio. For barge-in, the caller and agent share a script of who cuts in

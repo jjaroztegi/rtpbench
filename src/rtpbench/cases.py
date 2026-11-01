@@ -79,7 +79,9 @@ class Bar(NamedTuple):
 LABEL_END = Bar(
     -17.0, 17.0, "caller's labelled end; ±5 dB of label threshold, median (calibrate --speech)"
 )
-WIRE = Bar(-0.41, 0.41, "capture times; wire timing max abs error, clean (calibrate)")
+WIRE = Bar(
+    -analyze.WIRE_MS, analyze.WIRE_MS, "capture times; wire timing max abs error, clean (calibrate)"
+)
 # speech detection error per netem profile and codec, from the calibrations under that profile
 # (seeds 1-5 pooled, 215 replies each); a profile without its own calibration (or a target
 # outside the router) takes the clean bar. ONSET once the detector has heard speech in the
