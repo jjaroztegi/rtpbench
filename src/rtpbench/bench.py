@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import textwrap
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import partial
@@ -284,11 +284,31 @@ class Stack:
         cmd = ["exec", "-T", *env, "caller", "python", "-m", "rtpbench", *args]
         return self.compose(*cmd, lines=lines)
 
-    def up(self, phase: Callable[[str], None]) -> None:
+    def up(self, phase: Callable[[str], None], profiles: Sequence[str] = ()) -> None:
+        """Build and start the stack; with an impaired profile among `profiles`, exit before the
+        first call if the kernel lacks what `netem` needs, not after the clean calls."""
         phase("building images")
         self.compose("build", "-q")
         phase("starting the stack")
         self.compose("up", "-d", "--wait", *self.services)
+        impaired = [p for p in profiles if PROFILES[p]]
+        if not impaired:
+            return
+        probe = (
+            "tc qdisc add dev lo root handle 1: prio"
+            " && tc qdisc add dev lo parent 1:3 handle 30: netem delay 1ms"
+            " && tc filter add dev lo parent 1: protocol ip prio 1 u32 match ip protocol 17 0xff"
+            " flowid 1:1; r=$?; tc qdisc del dev lo root 2>/dev/null; exit $r"
+        )
+        try:
+            self.sh("router", probe)
+        except RuntimeError as e:
+            said = str(e).partition("failed:\n")[2].strip()
+            raise SystemExit(
+                f"--profiles {','.join(impaired)} need the kernel's prio and netem qdiscs and u32 "
+                f"filter (sch_prio, sch_netem, cls_u32), and this kernel refused: {said}\n"
+                "Only the clean profile runs on this host."
+            ) from None
 
     def down(self) -> None:
         self.compose("down", "-t", "0", "--remove-orphans", check=False)
@@ -452,7 +472,7 @@ def calibrate(
     progress.plan(len(runs))
     stack = Stack(out, carrier="agent" if carrier else None, tls=tls, srtp=srtp)
     try:
-        stack.up(progress.phase)
+        stack.up(progress.phase, profiles)
         caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
         uri, sip, agent_args = _reference(stack, agent_ip, tls, agent_args)
         conds = conditions(partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp)
@@ -526,7 +546,7 @@ def cases(
     with clock.watch() as steps:
         stack = Stack(out, carrier="agent" if carrier else None, tls=tls, srtp=srtp)
         try:
-            stack.up(progress.phase)
+            stack.up(progress.phase, profiles)
             caller_ip, agent_ip = stack.ip("caller"), stack.entry("agent")
             proxy = stack.entry("operator")  # the transferee's next hop for a transfer
             uri, sip, agent_args = _reference(stack, agent_ip, tls, [])
@@ -745,7 +765,7 @@ def target(
             proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
         try:
-            stack.up(progress.phase)
+            stack.up(progress.phase, profiles)
             caller_ip = stack.ip("caller")
             where = out / "tls"
             conds = conditions(
