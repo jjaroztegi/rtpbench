@@ -336,3 +336,30 @@ def test_agent_side_split_pairs_the_same_packets_only(tmp_path: Path) -> None:
     # headers sent again a second later: which copy arrived is unknown, so neither pairs
     reused = _agent_side(tmp_path / "reused.pcap", wire + [(t + 10**9, b) for t, b in wire])
     assert set(reused.values()) == {None}
+
+
+def test_agent_side_split_takes_a_capture_cut_to_the_headers(tmp_path: Path) -> None:
+    """tcpdump -s keeps the RTP header and a few bytes of audio: enough to pair, and those
+    bytes must still match."""
+    sent = [
+        (
+            n * rtp.PTIME_NS,
+            rtp.Packet(g711.PCMU, n, n * rtp.FRAME, 7, False, bytes([n % 256]) * 160),
+        )
+        for n in range(200)
+    ]
+    path = tmp_path / "cut.pcap"
+    data = struct.pack("<IHHiIII", 0xA1B23C4D, 2, 4, 0, 0, 64, 101)
+    for t, p in sent:
+        payload = rtp.pack(p.pt, p.seq, p.ts, p.ssrc, p.payload)
+        udp = struct.pack("!HHHH", 40000, 4000, 8 + len(payload), 0) + payload
+        addrs = [bytes([10, 0, 0, 2]), bytes([10, 0, 0, 1])]
+        ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, 17, 0, *addrs)
+        cut = (ip + udp)[:44]  # the RTP header and 4 bytes of audio
+        data += struct.pack("<IIII", *divmod(t, 1_000_000_000), len(cut), len(ip + udp)) + cut
+    path.write_bytes(data)
+    side = cases._sent(path)
+    down = [(t + 30_000_000, p) for t, p in sent]
+    assert cases._split(down, side, False) is not None
+    other = [(t, rtp.Packet(p.pt, p.seq, p.ts, p.ssrc, False, b"x" * 160)) for t, p in down]
+    assert cases._split(other, side, False) is None

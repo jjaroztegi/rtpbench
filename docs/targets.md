@@ -92,14 +92,15 @@ captures name the URI and the addresses on the path. A `sips:` URI, or one with
 `;transport=tls`, puts SIP on TLS, and `--srtp` the media on SRTP ([below](#tls-and-srtp)).
 
 The summary's RTP pacing is what reached the caller: the agent's own pacing plus the real path's
-jitter. To split the two, capture whole packets at the agent for the length of the run
-(`tcpdump -i any -w agent.pcap udp`: a classic pcap, not pcapng) and judge again with
-`rtpbench report DIR --agent-pcap agent.pcap`. Packets pair by SSRC, sequence number and
-timestamp, and by payload unless the call is SRTP, so a call through a media relay that rewrites
-them (one that repacketizes to another ptime, say) is reported as not matched. The two hosts'
-clocks need no sync: the path's figure is taken against a line that follows their offset and
-rate difference. The capture is copied into DIR as `agent-side.pcap`, so it ships with the run
-and any archive of it, with the addresses it saw and, without SRTP, the call audio.
+jitter. To split the two, capture at the agent for the length of the run (`tcpdump -i any -s 64
+-w agent.pcap udp`: a classic pcap, not pcapng; `-s 64` keeps the RTP headers and no more than
+4 bytes of audio a packet) and judge again with `rtpbench report DIR --agent-pcap agent.pcap`.
+Packets pair by SSRC, sequence number and timestamp, and by as much payload as the capture kept
+unless the call is SRTP, so a call through a media relay that rewrites them (one that
+repacketizes to another ptime, say) is reported as not matched. The two hosts' clocks need no
+sync: the path's figure is taken against a line that follows their offset and rate difference.
+The capture is copied into DIR as `agent-side.pcap`, so it ships with the run and any archive of
+it, with the addresses it saw and, captured whole without SRTP, the call audio.
 
 ## TLS and SRTP
 
