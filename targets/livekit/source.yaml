@@ -1,0 +1,10 @@
+# `rtpbench target livekit --source DIR`: the SIP bridge built from a checkout DIR of
+# livekit/sip with upstream's own Dockerfile, in place of its pinned image; the server and the
+# Agents worker stay pinned. Merged over compose.yaml; the tag follows the checkout's commit and,
+# as every build's, a hash of the build.
+services:
+  sip:
+    build:
+      context: ${RTPBENCH_SOURCE:?}
+      dockerfile: build/sip/Dockerfile
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-livekit-sip:${RTPBENCH_SOURCE_COMMIT:?}${RTPBENCH_BUILD_SIP:-}

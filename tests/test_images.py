@@ -1,6 +1,7 @@
 import json
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -62,3 +63,32 @@ def test_editing_a_build_changes_its_image_s_tag_and_an_unrelated_file_none(root
     constraints = root / "targets" / "ava" / "constraints.txt"  # the engine's pins context
     constraints.write_text(constraints.read_text() + "\n")
     assert builds(root, "ava")["engine"] != after["engine"]
+
+
+@pytest.mark.parametrize(
+    ("target", "service"), [("aivc", "engine"), ("ava", "engine"), ("livekit", "sip")]
+)
+def test_a_target_built_from_a_checkout_is_tagged_by_its_commit_and_content(
+    root: Path, tmp_path: Path, target: str, service: str
+) -> None:
+    src = tmp_path / "checkout"
+    src.mkdir()
+    (src / "main.py").write_text("print('hi')\n")
+    git = ["git", "-C", str(src), "-c", "user.name=t", "-c", "user.email=t@t"]
+    for cmd in (["init", "-q"], ["add", "."], ["commit", "-qm", "x"]):
+        subprocess.run([*git, *cmd], check=True)
+    commit = bench.checkout(src)
+    assert commit["dirty"] is False
+
+    def tag() -> str:
+        return Stack(root / "out", target, carrier="agent", source=src).builds()[service]
+
+    pinned = builds(root, target).get(service, "")
+    clean = tag()
+    assert re.fullmatch(rf".+:{commit['commit'][:7]}-[0-9a-f]{{12}}", clean), clean
+    assert clean != pinned
+    (src / "main.py").write_text("print('changed')\n")  # uncommitted: same commit, new content
+    assert bench.checkout(src)["dirty"] is True
+    assert tag() != clean
+    with pytest.raises(ValueError, match="not a git checkout"):
+        bench.checkout(tmp_path)

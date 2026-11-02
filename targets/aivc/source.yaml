@@ -1,0 +1,9 @@
+# `rtpbench target aivc --source DIR`: the connector built from the checkout DIR with upstream's
+# own Dockerfile, as the project builds it, in place of the pinned commit. Merged over
+# compose.yaml; the tag follows the checkout's commit and, as every build's, a hash of the build.
+services:
+  engine:
+    build: !override
+      context: ${RTPBENCH_SOURCE:?}
+      dockerfile: docker/Dockerfile
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-aivc:${RTPBENCH_SOURCE_COMMIT:?}${RTPBENCH_BUILD_ENGINE:-}

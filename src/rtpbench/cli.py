@@ -8,8 +8,8 @@ import textwrap
 from datetime import datetime
 from pathlib import Path
 
-from rtpbench import analyze, cases, pcap
-from rtpbench.bench import PROFILES, TARGETS, docker, is_uri, network_problem
+from rtpbench import ROOT, analyze, cases, pcap
+from rtpbench.bench import PROFILES, TARGETS, checkout, docker, is_uri, network_problem
 from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
 
@@ -62,9 +62,16 @@ def _target_args(args: argparse.Namespace) -> str | None:
             return "--tls, --srtp: with a URI, or through the carrier (--carrier)"
         if args.lines and args.mock:
             return "--lines: not with --mock, which recognises only the bundled lines"
+        if args.source:
+            if not (ROOT / "targets" / args.name / "source.yaml").exists():
+                return f"--source: {args.name} does not build from a checkout"
+            try:
+                checkout(args.source)
+            except ValueError as e:
+                return f"--source {args.source}: {e}"
         return None
-    if args.mock or args.tls:
-        return "--mock, --tls: with a bundled target only (a URI gives TLS as sips:)"
+    if args.mock or args.tls or args.source:
+        return "--mock, --tls, --source: with a bundled target only (a URI gives TLS as sips:)"
     if args.carrier:
         from rtpbench.sip import transport
 
@@ -236,6 +243,13 @@ examples:
     p.add_argument("--seed", type=int, default=1, help=seed)
     p.add_argument("--carrier", action="store_true", help="call through the carrier (Docker)")
     p.add_argument("--mock", action="store_true", help="the mock engine instead of the AI engine")
+    p.add_argument(
+        "--source",
+        type=Path,
+        metavar="DIR",
+        help="a bundled target built from this git checkout instead of its pinned version: of"
+        " AI Voice Connector CE (aivc), AVA (ava) or livekit/sip (livekit)",
+    )
     p.add_argument(
         "--lines",
         type=Path,
@@ -507,6 +521,7 @@ example:
                 args.ca,
                 _suites(args.srtp),
                 args.tls,
+                args.source,
                 progress=progress,
             )
         print(summary)
