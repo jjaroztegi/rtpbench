@@ -4,7 +4,7 @@
 # on agentnet, so caller <-> carrier crosses the netem router and carrier <-> agent does not.
 # rtpbench sets RTPBENCH_CARRIER_NEXT to the agent's host (and RTPBENCH_CARRIER_PORT, its SIP
 # port, for an agent outside the stack, which the carrier reaches through Docker's gateway).
-# Paths are relative to the repository root, the first compose file's directory.
+# Paths are relative to the first compose file's directory.
 services:
   carrier:
     image: ${RTPBENCH_IMAGE:?}
@@ -22,7 +22,7 @@ services:
         RUN apt-get update \
             && apt-get install -y --no-install-recommends rtpengine-daemon=12.5.1.31-1 \
             && rm -rf /var/lib/apt/lists/*
-    image: rtpbench-rtpengine:12.5.1.31
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-rtpengine:12.5.1.31
     network_mode: service:carrier
     depends_on: [carrier]
     # userspace forwarding (no kernel module in a container), media on the agentnet address
@@ -44,7 +44,7 @@ services:
                 opensips-tls-module=3.6.9-1 opensips-tls-openssl-module=3.6.9-1 \
                 opensips-tlsmgm-module=3.6.9-1 \
             && rm -rf /var/lib/apt/lists/*
-    image: rtpbench-opensips:3.6.9-1-tls
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-opensips:3.6.9-1-tls
     network_mode: service:carrier
     depends_on:
       carrier-media: {condition: service_healthy}

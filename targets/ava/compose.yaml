@@ -4,8 +4,8 @@
 # egress to the AI engine), and the engine reaches ARI and the call audio (AudioSocket,
 # ExternalMedia RTP or Asterisk's WebSocket channel, AVA_TRANSPORT) on 127.0.0.1.
 # rtpbench routes the caller via the router, so SIP and RTP cross netem. Needs OPENAI_API_KEY
-# (and OPENAI_BASE_URL for another Realtime endpoint). Paths are relative to the repository
-# root, the first compose file's directory.
+# (and OPENAI_BASE_URL for another Realtime endpoint). Paths are relative to the first compose
+# file's directory.
 services:
   target:
     image: ${RTPBENCH_IMAGE:?}
@@ -46,7 +46,7 @@ services:
         COPY --from=modules /usr/src/asterisk/res/res_audiosocket.so \
             /usr/src/asterisk/channels/chan_audiosocket.so \
             /usr/src/asterisk/apps/app_audiosocket.so /usr/lib/asterisk/modules/
-    image: rtpbench-ava-asterisk:22.8-cert4
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava-asterisk:22.8-cert4
     network_mode: service:target
     depends_on: [target]
     volumes:
@@ -97,7 +97,7 @@ services:
         ENV PATH="/opt/venv/bin:$$PATH"
         USER appuser
         CMD ["python", "main.py"]
-    image: rtpbench-ava:ba52df9
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava:ba52df9
     network_mode: service:target
     depends_on:
       asterisk: { condition: service_healthy }

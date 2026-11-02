@@ -13,7 +13,9 @@ import wave
 from array import array
 from pathlib import Path
 
-CORPUS = Path(__file__).resolve().parents[2] / "corpus"
+from rtpbench import ROOT
+
+CORPUS = ROOT / "corpus"
 WINDOW = 32  # samples, 4 ms
 STEP = 8  # samples, 1 ms
 BELOW_ACTIVE_DB = 35.0
