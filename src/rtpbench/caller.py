@@ -536,10 +536,13 @@ def call(
     stream (sample k is sample k % 160 of the packet with seq seq0 + k // 160).
     """
     labels = [(n, speech.label(u)) for n, u in utterances] if utterances else []
+    # before the call: encoding takes about a second, and the agent's first packets find no way
+    # back through a NAT until ours open it
+    pcm, spans = script(turns, seed, [u for _, u in utterances or []], lead, gap)
+    encoded = {pt: g711.encode(pt, pcm) for pt in g711.NAMES}
     s = Session(uri, codecs)
     s.answer()
-    pcm, spans = script(turns, seed, [u for _, u in utterances or []], lead, gap)
-    audio = g711.encode(s.pt, pcm)
+    audio = encoded[s.pt]
     gate = g711.gate(s.pt, GATE)
     silence = bytes([g711.SILENCE[s.pt]]) * FRAME
     frames = [audio[i : i + FRAME].ljust(FRAME, silence[:1]) for i in range(0, len(audio), FRAME)]
@@ -752,9 +755,10 @@ def converse(
         said = clips[used[step["kind"]] % len(clips)]
         lines.append((labelled(prompts[i % len(prompts)]), labelled(said), step))
         used[step["kind"]] += 1
+    convs = {pt: Conversation(pt, lines, round(lead * 1e9)) for pt in g711.NAMES}  # as in `call`
     s = Session(uri, codecs)
     s.answer()
-    conv = Conversation(s.pt, lines, round(lead * 1e9))
+    conv = convs[s.pt]
     announce = Turns(turns)
     # as in `call`: no packet by the end of the first prompt's reply time, none at all
     t0 = CLOCK.now() + PTIME_NS
