@@ -4,6 +4,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 # TLS records and SRTP need AES, which the standard library lacks; pinned as uv.lock pins them
 RUN pip install --no-cache-dir cryptography==50.0.2 cffi==2.1.1 pycparser==3.11
-COPY src /app/src
+# the package in the build context: a checkout's src/rtpbench, or an installed rtpbench's own
+# directory (.), which holds this file and the corpus too
+ARG RTPBENCH_SRC=src/rtpbench
+COPY ${RTPBENCH_SRC}/*.py /app/src/rtpbench/
 COPY corpus /app/corpus
 ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1

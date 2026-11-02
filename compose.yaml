@@ -1,6 +1,9 @@
 # caller | router | agent (and operator). netem runs only on the router, so both captures sit at
 # true endpoints.
 # Driven by `rtpbench calibrate`, which sets RTPBENCH_IMAGE, RTPBENCH_OUT and a unique project name.
+# RTPBENCH_IMAGE, and the images the other files build (tagged with a hash of their build,
+# RTPBENCH_BUILD_<SERVICE>), come from RTPBENCH_REGISTRY when this host lacks them, else are
+# built (Compose does both, pull first, for a service with `build`).
 x-node: &node
   image: ${RTPBENCH_IMAGE:?}
   cap_add: [NET_ADMIN]
@@ -9,7 +12,9 @@ x-node: &node
 services:
   router:
     <<: *node
-    build: .
+    build:
+      context: .
+      args: [RTPBENCH_SRC]
     sysctls:
       net.ipv4.ip_forward: 1
     networks: [callnet, agentnet]

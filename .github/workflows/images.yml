@@ -1,0 +1,62 @@
+name: Images
+
+# The images rtpbench builds, on GHCR, where a host missing one pulls it before building it:
+# rtpbench under its content hash, the carrier's and the bundled targets' under their pinned
+# tags followed by a hash of their build. A tag already there is not pushed again.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images
+  cancel-in-progress: false
+
+jobs:
+  push:
+    name: Push
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          # what the compose files need set to be read; no stack starts here
+          OPENAI_API_KEY: "-"
+          AZURE_OPENAI_ENDPOINT: "-"
+          AZURE_OPENAI_API_KEY: "-"
+        run: |
+          RTPBENCH_REGISTRY="ghcr.io/${OWNER,,}" uv run --locked python - <<'EOF'
+          import subprocess
+          from pathlib import Path
+
+          from rtpbench.bench import TARGETS, Stack
+
+          # every stack's images under the tags a run pulls them by (Stack.builds)
+          for target in (None, *TARGETS):
+              stack = Stack(Path("/tmp/images"), target, carrier="-")
+              for service, image in stack.builds().items():
+                  inspect = ["docker", "buildx", "imagetools", "inspect", image]
+                  if subprocess.run(inspect, capture_output=True).returncode == 0:
+                      print(f"{image}: pushed already", flush=True)
+                  else:
+                      stack.compose("build", "--push", service, lines=lambda s: print(s, end=""))
+          EOF

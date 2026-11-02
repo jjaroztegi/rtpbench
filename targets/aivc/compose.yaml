@@ -2,7 +2,7 @@
 # `target` owns the network namespace (agentnet, plus egress to the AI engine); OpenSIPS and the
 # connector share it, as upstream's example shares the host's. rtpbench routes the caller via
 # the router, so SIP and RTP cross netem. Needs OPENAI_API_KEY (and OPENAI_URL for a gateway).
-# Paths are relative to the repository root, the first compose file's directory.
+# Paths are relative to the first compose file's directory.
 services:
   target:
     image: ${RTPBENCH_IMAGE:?}
@@ -35,7 +35,7 @@ services:
         COPY --from=pins constraints.txt /tmp/constraints.txt
         RUN pip install --no-cache-dir -r requirements.txt -c /tmp/constraints.txt
         CMD ["python3", "-u", "src/main.py"]
-    image: rtpbench-aivc:b95f5af
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-aivc:b95f5af${RTPBENCH_BUILD_ENGINE:-}
     network_mode: service:target
     depends_on:
       opensips: { condition: service_healthy }

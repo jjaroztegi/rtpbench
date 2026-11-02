@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from rtpbench import analyze, bargein, clock, speech, speechcal
+from rtpbench import PACKAGE, ROOT, analyze, bargein, clock, speech, speechcal
 from rtpbench.agent import SPEECH_DELAY_RANGE
 from rtpbench.sip import TLS_PORT
 from rtpbench.tls import certificates
@@ -27,7 +27,6 @@ from rtpbench.tls import certificates
 if TYPE_CHECKING:  # the CLI's help imports this module for its names; keep that import light
     from rtpbench.progress import Progress
 
-ROOT = Path(__file__).resolve().parents[2]
 LINES = ROOT / "corpus" / "lines" / "en"  # the caller's lines against a target
 # compose targets, targets/<name>/compose.yaml: the SIP user to dial, and the variables that set
 # its AI engine with their defaults (of a URL only its domain and query go into the conditions)
@@ -181,17 +180,45 @@ def network_problem(name: str) -> str | None:
     )
 
 
+# where the stacks' images are pulled from when missing here; else they are built
+REGISTRY = os.environ.get("RTPBENCH_REGISTRY", "ghcr.io/jjaroztegi")
+
+
 def _image_tag() -> str:
+    """`rtpbench:` and a hash of what the image holds, by the paths it holds them at: the same
+    from a checkout and from an installed rtpbench."""
+    files = {f"src/rtpbench/{f.name}": f for f in PACKAGE.glob("*.py")}
+    corpus = ROOT / "corpus"
+    files |= {f"corpus/{f.relative_to(corpus).as_posix()}": f for f in corpus.rglob("*.wav")}
     h = hashlib.sha256((ROOT / "Dockerfile").read_bytes())
-    for f in sorted([*(ROOT / "src").rglob("*.py"), *(ROOT / "corpus").rglob("*.wav")]):
-        h.update(f.relative_to(ROOT).as_posix().encode() + f.read_bytes())
+    for name in sorted(files):
+        h.update(name.encode() + files[name].read_bytes())
     return "rtpbench:" + h.hexdigest()[:12]
+
+
+def _build_hash(build: dict[str, Any]) -> str:
+    """A hash of a compose `build` section as `config` resolves it, with each local context's
+    files (all of them: the build may copy any) in place of its path, so the same from any
+    checkout or installed rtpbench. A git context is its URL, which pins the commit."""
+    build = dict(build)
+    contexts = {"": build.pop("context", "."), **(build.pop("additional_contexts", None) or {})}
+    h = hashlib.sha256(json.dumps(build, sort_keys=True).encode())
+    for name, where in sorted(contexts.items()):
+        root = Path(where)
+        h.update(f"\0{name}\0".encode())
+        if not root.is_absolute():  # a git URL
+            h.update(where.encode())
+            continue
+        files = (f for f in root.rglob("*") if f.is_file() and "__pycache__" not in f.parts)
+        for f in sorted(files):
+            h.update(f"\0{f.relative_to(root).as_posix()}\0".encode() + f.read_bytes())
+    return h.hexdigest()[:12]
 
 
 class Stack:
     """caller | router | agent, plus a target's services when given (on the mock engine with
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
-    are relative to the repository root). With `uri`, caller | router | operator (and the
+    are relative to ROOT). With `uri`, caller | router | operator (and the
     carrier), for an agent outside the stack: the router also joins the Docker network
     `network`, and with `ports` (first-last) the host publishes that range on the router. With
     `tls`, out/tls holds a test certificate for the stack's TLS servers, and ca.pem, what the
@@ -212,7 +239,12 @@ class Stack:
         srtp: list[str] | None = None,
     ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
-        self.env = os.environ | {"RTPBENCH_IMAGE": _image_tag(), "RTPBENCH_OUT": str(out)}
+        self.env = os.environ | {
+            "RTPBENCH_IMAGE": f"{REGISTRY}/{_image_tag()}",
+            "RTPBENCH_REGISTRY": REGISTRY,
+            "RTPBENCH_SRC": PACKAGE.relative_to(ROOT).as_posix(),  # in the image's build context
+            "RTPBENCH_OUT": str(out),
+        }
         self.files = [ROOT / "compose.yaml"]
         self.services = ["router", "caller", "operator"] if uri else []
         self.passed: list[str] = []  # variables passed to the caller's commands, by name only
@@ -238,6 +270,7 @@ class Stack:
             for k in ("USER", "PASSWORD"):
                 self.env[f"RTPBENCH_CARRIER_{role}_{k}"] = os.environ.get(f"RTPBENCH_SIP_{k}", "")
         self.carrier = carrier is not None
+        self.built: dict[str, str] = {}  # each image the stack builds, by service: builds()
         if tls:
             where = out / "tls"
             certificates(where, TLS_NAMES)
@@ -304,11 +337,31 @@ class Stack:
         cmd = ["exec", "-T", *env, "caller", "python", "-m", "rtpbench", *args]
         return self.compose(*cmd, lines=lines)
 
+    def builds(self) -> dict[str, str]:
+        """Each image the stack builds, by service, as it pulls or builds them: rtpbench's own
+        (RTPBENCH_IMAGE), and the rest with their pinned tag followed by `-` and their
+        _build_hash, which the compose files take from RTPBENCH_BUILD_<SERVICE>."""
+        for k in [k for k in self.env if k.startswith("RTPBENCH_BUILD_")]:
+            del self.env[k]
+        services = json.loads(self.compose("config", "--format", "json"))["services"]
+        for name, service in services.items():
+            if "build" not in service:
+                continue
+            image = service["image"]
+            if image != self.env["RTPBENCH_IMAGE"]:
+                suffix = f"-{_build_hash(service['build'])}"
+                self.env[f"RTPBENCH_BUILD_{name.upper().replace('-', '_')}"] = suffix
+                image += suffix
+            self.built[name] = image
+        return self.built
+
     def up(self, phase: Callable[[str], None], profiles: Sequence[str] = ()) -> None:
-        """Build and start the stack; with an impaired profile among `profiles`, exit before the
-        first call if the kernel lacks what `netem` needs, not after the clean calls."""
-        phase("building images")
-        self.compose("build", "-q")
+        """Pull or else build the images missing here and start the stack; with an impaired
+        profile among `profiles`, exit before the first call if the kernel lacks what `netem`
+        needs, not after the clean calls."""
+        phase("pulling or building images")
+        self.builds()
+        self.compose("create", "--quiet-pull", *self.services)
         phase("starting the stack")
         self.compose("up", "-d", "--wait", *self.services)
         impaired = [p for p in profiles if PROFILES[p]]
@@ -398,6 +451,16 @@ def _host(cmd: str) -> str:
     return subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=ROOT).stdout.strip()
 
 
+def _commit() -> str:
+    """Counted from a release (results' wave tags would otherwise name the commit); installed,
+    the release itself: there is no checkout to describe."""
+    if ROOT == PACKAGE:
+        from importlib.metadata import version
+
+        return f"v{version('rtpbench')}"
+    return _host("git describe --always --dirty --match 'v[0-9]*'")
+
+
 def conditions(
     sh: Callable[[str], str],
     seed: int,
@@ -418,8 +481,7 @@ def conditions(
     governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
     return {
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
-        # counted from a release: results' wave tags would otherwise name the commit
-        "commit": _host("git describe --always --dirty --match 'v[0-9]*'"),
+        "commit": _commit(),
         "image": _image_tag(),  # the code the stacks ran, whatever the history
         "kernel": sh("uname -r"),
         "cpus": os.cpu_count(),  # how many, not which model: published conditions name no hardware
@@ -500,6 +562,7 @@ def calibrate(
         conds |= {"codecs": codecs, "speech": real, "barge": barge, "carrier": carrier}
         if replies:
             conds["replies"] = sorted(clips or {})
+        conds["builds"] = stack.built
         if carrier:
             conds["images"] = stack.compose("images")
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
@@ -574,6 +637,7 @@ def cases(
                 partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
             )
             conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
+            conds["builds"] = stack.built
             if carrier:
                 conds["images"] = stack.compose("images")
             for profile in profiles:
@@ -860,6 +924,7 @@ def target(
                     for f in sorted(said.glob("*.wav"))
                 }
             conds["images"] = stack.compose("images")
+            conds["builds"] = stack.built
             transfer = ["--proxy", proxy] if proxy else []
             turns = wavs("turn-*.wav")
             latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]

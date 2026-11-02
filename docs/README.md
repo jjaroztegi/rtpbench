@@ -7,6 +7,17 @@
 - [CI](ci.md): pass or fail a target run against a policy: the cases it may fail, latency and
   barge-in limits, regression from an earlier run
 
+Commands here run from a clone (`uv run`); installed, `rtpbench` alone does the same.
+
+## Images
+
+A run pulls the images it lacks from GHCR (`ghcr.io/jjaroztegi/`, or `RTPBENCH_REGISTRY`) and
+builds those it cannot pull, so a fork or an offline host builds them as before. Every tag names
+its content: rtpbench's own a hash of what it holds; the carrier's and the bundled targets' their
+pinned version followed by a hash of their build (its compose `build` section and every file in
+its local contexts), so an edit to one gets a new tag. `conditions.json` records each as `builds`;
+[images.yml](../.github/workflows/images.yml) pushes those GHCR lacks.
+
 ## Published results
 
 Each comes from one version of the code, named by its image tag (`rtpbench:` and a hash of

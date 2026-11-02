@@ -1,6 +1,7 @@
 name: Quick start
 
-# The README's first two commands, from a clean checkout on a GitHub runner (about 14 minutes).
+# The README's first two commands, as a clean checkout runs them, on a GitHub runner (about 14
+# minutes).
 # Pull requests run only the fast checks; run it on a branch by hand when it matters.
 on:
   push:

@@ -60,16 +60,17 @@ it, but its clock can drift and step by far more than the error bars: read what 
 warns about first ([clock steps and rate](docs/calibration.md#clock-steps-and-rate)).
 
 ```sh
-uv run rtpbench calibrate --profiles clean --turns 5      # how exactly this host times the wire
-uv run --extra vad rtpbench cases                         # prove every case against the reference agent
-uv run --extra vad rtpbench target livekit --mock         # a bundled target, no AI account needed
-uv run --extra vad rtpbench target sip:agent@host         # an agent of your own, the same way
+uvx rtpbench calibrate --profiles clean --turns 5     # how exactly this host times the wire
+uvx 'rtpbench[vad]' cases                             # prove every case against the reference agent
+uvx 'rtpbench[vad]' target livekit --mock             # a bundled target, no AI account needed
+uvx 'rtpbench[vad]' target sip:agent@host             # an agent of your own, the same way
 ```
 
-From a fresh clone the first three take about 1, 17 and 11 minutes, building or pulling about
-2.5 GB of Docker images on first use. The last needs an agent that answers SIP; [your own
-agent](docs/targets.md#your-own-agent) says what it needs, such as `--network` for one in Docker
-on this host.
+The first three take about 1, 17 and 11 minutes, after pulling about 0.4 GB of Docker images
+(compressed) on first use; every target and the carrier take 1.5 GB
+([images](docs/README.md#images)). The last needs an agent that answers SIP; [your own
+agent](docs/targets.md#your-own-agent) says what it needs, such as `--network` for one in Docker on
+this host.
 
 Each run writes `results/<timestamp>/` with the captures, `summary.md` and, for cases,
 `report.html`: a timeline of every call's SIP, speech and RTP. `rtpbench index` links every run
@@ -84,6 +85,9 @@ defaults and valid names.
 - [CI](docs/ci.md): pass or fail your agent's run against a policy
 
 ## Development
+
+From a clone, `uv run rtpbench` (`uv run --extra vad rtpbench` for `[vad]`) runs the checkout's
+code, as the docs show it:
 
 ```sh
 uv sync

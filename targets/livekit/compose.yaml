@@ -3,8 +3,8 @@
 # --dev, sip; host networking there), but in the network namespace of `target` (agentnet, plus
 # egress to the AI engine), so everything is on 127.0.0.1 as upstream's is. rtpbench routes the
 # caller via the router, so SIP and RTP cross netem. Needs AZURE_OPENAI_ENDPOINT
-# (https://<resource>.openai.azure.com) and AZURE_OPENAI_API_KEY. Paths are relative to the
-# repository root, the first compose file's directory.
+# (https://<resource>.openai.azure.com) and AZURE_OPENAI_API_KEY. Paths are relative to the first
+# compose file's directory.
 services:
   target:
     image: ${RTPBENCH_IMAGE:?}
@@ -58,7 +58,7 @@ services:
         RUN pip install --no-cache-dir "livekit-agents[openai]==1.8.7" -c /tmp/constraints.txt
         WORKDIR /app
         COPY agent.py .
-    image: rtpbench-livekit-agent:1.8.7
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-livekit-agent:1.8.7${RTPBENCH_BUILD_AGENT_WORKER:-}
     network_mode: service:target
     depends_on: [livekit, sip]
     environment:
