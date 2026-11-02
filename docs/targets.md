@@ -67,6 +67,57 @@ file in it (`.git` too): a changed file builds a new image, an unchanged checkou
 Upstream's Dockerfile pins less than the published build does (packages resolve when it
 builds), so a run from a checkout of the pinned commit is not the published target.
 
+## Adding a target
+
+A target is `targets/NAME/compose.yaml`, merged over the stack's [`compose.yaml`](../compose.yaml)
+(and [`mock/compose.yaml`](../mock/compose.yaml) with `--mock`, the carrier's with `--carrier`),
+plus its entries in `TARGETS` and `MOCK` in [`bench.py`](../src/rtpbench/bench.py): the SIP user
+the caller dials, and the variables that set its AI engine with their defaults, then pointed at
+the mock. `conditions.json` records those variables as compose resolves them, a URL cut to its
+domain and query, never a key (one compose reads as `${VAR-default}`, where empty is a value,
+also goes in `EMPTY_IS_A_VALUE`). The three bundled targets are the examples. What each
+follows:
+
+- **A `target` service owns the network namespace.** Image `${RTPBENCH_IMAGE}`, `cap_add:
+  [NET_ADMIN]`, `networks: [agentnet, egress]`, `command: sleep infinity`; every container of the
+  agent joins it with `network_mode: service:target` and reaches the others on 127.0.0.1.
+  rtpbench routes the caller's traffic back through the router itself.
+- **SIP and the SDP face the router.** The agent answers `sip:USER@<target>` on UDP 5060 (TCP and
+  TLS too if it takes them), with no registration and no authentication on the caller's leg, and
+  sends plain RTP. The address in its SDP is the target's address on `agentnet`, the side facing
+  the router, not the egress one or one found by STUN (`RTP_IP` in
+  [`aivc`](../targets/aivc/compose.yaml), `nat_1_to_1_ip` in
+  [`livekit`](../targets/livekit/compose.yaml)).
+- **Health checks mean ready for a call.** rtpbench starts the stack with `up --wait` and places
+  the first call right after, so each service's health check passes only once it would answer
+  one: the LiveKit worker registered, the connector subscribed to OpenSIPS's call events, AVA's
+  health endpoint answering.
+- **The engine is reached only through variables.** Its URL, model and key come from the
+  variables in `TARGETS`, which `MOCK` points at `ws://realtime:8000` on `--mock`; the mock then
+  removes `egress`, so a target that reaches its engine any other way fails there instead of
+  calling a paid one. The engine has to speak the OpenAI Realtime GA protocol over a URL it takes
+  from a variable ([what the mock expects](#an-agent-of-your-own-on-the-mock)); one that takes
+  only `wss://` under its provider's host names cannot be bundled.
+- **Nothing fixed on the host.** No `container_name`, no published ports, no fixed subnets or
+  `ipv4_address`, no `network_mode: host`: several runs share a host, each under its own project
+  name.
+
+Pinning, so a published run can be reproduced: images by digest, builds from a pinned commit
+(the git URL's `#commit`), the base image by digest, and every package the build installs fixed
+(`constraints.txt` for pip, a Debian snapshot for apt). A build's image is tagged with its pin
+followed by `${RTPBENCH_BUILD_<SERVICE>}`, which rtpbench fills with a hash of the build. The
+configuration is upstream's as shipped; each change goes in the target's row or notes above,
+with its reason; a file derived from upstream's keeps its licence, named in the
+[README](../README.md#licence). `targets/NAME/source.yaml`, if the project builds from a
+checkout, swaps the pinned build for one ([built from a checkout](#built-from-a-checkout)).
+
+A pull request that adds a target includes `targets/NAME/`, its entries in `bench.py`, a row in
+the table above, and the summary of `rtpbench target NAME --mock` from the submitter's host. CI
+places a greeting, a hang-up and a latency call to each bundled target on the mock
+([`targets.yml`](../.github/workflows/targets.yml)), which must pass. Published results come
+from the maintainer's reference host, where the [calibration](calibration.md) holds, with the
+commands and conditions in their README.
+
 ## Your own agent
 
 ```sh
