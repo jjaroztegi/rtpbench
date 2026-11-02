@@ -13,6 +13,7 @@ import json
 import statistics
 import threading
 import time
+from bisect import bisect_right
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from itertools import pairwise
@@ -71,6 +72,34 @@ class Clock:
 
 
 CLOCK = Clock()
+
+
+class Steps:
+    """The wall clock's steps since `clock` started, read every `every_s` (None: by `poll`).
+    `wall` gives a time on the clock as CLOCK_REALTIME read it then, which is what a capture
+    stamps: the two part at each step."""
+
+    def __init__(self, clock: Clock = CLOCK, every_s: float | None = WATCH_S) -> None:
+        self.clock = clock
+        self.at: list[int] = []  # clock time of each step
+        self.by: list[int] = []  # CLOCK_REALTIME - clock after it
+        if every_s is not None:
+            threading.Thread(target=self._run, args=(every_s,), daemon=True).start()
+
+    def _run(self, every_s: float) -> None:
+        while True:
+            time.sleep(every_s)
+            self.poll()
+
+    def poll(self) -> None:
+        stepped = self.clock.offset() - self.clock.base
+        if abs(stepped - (self.by[-1] if self.by else 0)) >= STEP_NS:
+            self.at.append(self.clock.now())
+            self.by.append(stepped)
+
+    def wall(self, t_ns: int) -> int:
+        i = bisect_right(self.at, t_ns)
+        return t_ns + (self.by[i - 1] if i else 0)
 
 
 @contextmanager

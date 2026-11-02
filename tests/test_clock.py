@@ -91,6 +91,23 @@ def test_kernel_stamps_land_on_the_clock_across_a_step() -> None:
     assert abs(c.now() - (host.realtime() - STEP_NS)) < 10_000
 
 
+def test_steps_put_clock_times_back_on_the_wall_clock() -> None:
+    """What the mock logs lands where a capture stamps it, before and after the step: a time
+    taken before the step stays put, one taken after moves with the wall clock."""
+    host = Host()
+    c = clock.Clock(host.realtime, host.monotonic, host.sleep)
+    steps = clock.Steps(c, every_s=None)
+    host.mono = AT_NS - 10_000_000
+    before = c.now()
+    assert abs(steps.wall(before) - host.realtime()) < 10_000
+    steps.poll()
+    host.mono = AT_NS + 10_000_000
+    steps.poll()
+    after = c.now()
+    assert abs(steps.wall(after) - host.realtime()) < 10_000
+    assert steps.wall(before) == before
+
+
 def test_reference_reply_keeps_its_delay_in_real_time_across_a_step() -> None:
     """The reference agent hears the caller stop (kernel stamps), the wall clock steps back,
     then it replies: in real time the reply still comes the injected delay after the end. Its
