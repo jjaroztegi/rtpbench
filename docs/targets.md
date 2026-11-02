@@ -62,7 +62,8 @@ that sends it to the offered address (LiveKit) needs an address that reaches the
 - `--network NAME`: the agent runs in Docker on this host, on that network (Docker drops traffic
   between its networks otherwise). The router joins it, and the caller advertises the router's
   address there. The network needs gateway mode `nat-unprotected` or `routed` (`docker network
-  create -o com.docker.network.bridge.gateway_mode_ipv4=nat-unprotected NAME`), or Docker drops
+  create -o com.docker.network.bridge.gateway_mode_ipv4=nat-unprotected NAME`; in compose, the
+  network's `driver_opts`, with `name: NAME` so compose does not prefix it), or Docker drops
   every routed packet and each call times out; rtpbench refuses a network without it.
 - `--advertise HOST:PORT`: an address of this host the agent can reach. The host publishes PORT
   and the next 7 (UDP and TCP), the caller's SIP and RTP ports; forward them to it if a NAT is in
@@ -176,8 +177,11 @@ whether a digit reaches it at all.
 
 `--mock` wires the mock into the bundled targets only. Your own agent can use it if its engine
 URL can lead there: `uv run rtpbench realtime --out DIR` serves it as plain `ws` on port 8000
-(`--port` picks another). The agent then relays audio and the mock recognises rtpbench's own
-lines, so leave out `--lines`. What the agent has to meet:
+(`--port` picks another). An agent in a container on this host reaches it at
+`ws://host.docker.internal:8000` once its compose service has `extra_hosts:
+["host.docker.internal:host-gateway"]` (Docker on Linux defines that name only on request). The
+agent then relays audio and the mock recognises rtpbench's own lines, so leave out `--lines`.
+What the agent has to meet:
 
 - The session shape of the OpenAI Realtime GA API. The mock reads the audio format from
   `session.audio.input.format.type` (`audio/pcmu`, `audio/pcma`, else 24 kHz PCM16) only; an
@@ -195,9 +199,10 @@ lines, so leave out `--lines`. What the agent has to meet:
 
 The split of turn latency into uplink, engine and downlink needs the mock's log on the
 captures' clock: run the mock on the host that runs `rtpbench target`, and write its log into
-the run's directory (DIR is the run's `--out`, or copy `realtime.jsonl` and `realtime/` there
-and run `rtpbench report`). End-to-end turn latency comes from the caller's capture alone and
-does not depend on where the mock runs.
+the run's directory (DIR is the run's `--out`, which also has `conditions.json` record the mock
+as the engine; or copy `realtime.jsonl` and `realtime/` there and run `rtpbench report`).
+End-to-end turn latency comes from the caller's capture alone and does not depend on where the
+mock runs.
 
 ## Carrier
 
