@@ -116,13 +116,13 @@ Every call's SIP, speech and RTP on one timeline: reference [direct](https://jja
 | `bye` | 60/60 | 60/60 | pass 30/30 | pass 30/30 | pass 30/30 | pass 30/30 | yes |
 | `cancel` | 60/60 | 60/60 | pass 30/30 | pass 30/30 | inconclusive 30/30 | inconclusive 30/30 | yes |
 | `hold` | 90/90 | 90/90 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | yes |
-| `dtmf-rfc4733` | 60/60 | 60/60 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | digit reaches the engine |
-| `dtmf-info` | 60/60 | 60/60 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | **fail** 30/30 | digit reaches the engine |
+| `dtmf-rfc4733` | 60/60 | 60/60 | **fail** 30/30 | **fail** 30/30 | unsupported 30/30 | unsupported 30/30 | digit reaches the engine |
+| `dtmf-info` | 60/60 | 60/60 | unsupported 30/30 | unsupported 30/30 | **fail** 30/30 | **fail** 30/30 | digit reaches the engine |
 | `refer` | 90/90 | 90/90 | pass 30/30 | flips: pass 29, fail 1 | pass 30/30 | pass 30/30 | transfer mechanics |
 | `refer-fail` | 90/90 | 90/90 | pass 30/30 | pass 30/30 | **fail** 30/30 | **fail** 30/30 | failure handed back |
 | `codec-pcmu` | 60/60 | – | pass 30/30 | – | pass 30/30 | – | yes |
 | `codec-pcma` | 60/60 | – | pass 30/30 | – | pass 30/30 | – | yes |
-| `timer` | 90/90 | 90/90 | inconclusive 30/30 | inconclusive 30/30 | inconclusive 30/30 | inconclusive 30/30 | yes |
+| `timer` | 90/90 | 90/90 | unsupported 30/30 | unsupported 30/30 | unsupported 30/30 | unsupported 30/30 | yes |
 | `compact-headers` | – | 60/60 | – | pass 30/30 | – | **fail** 30/30 | yes |
 | `sdp-ssrc` | – | 60/60 | – | pass 30/30 | – | **fail** 30/30 | yes |
 | `late-offer` | – | 60/60 | – | **fail** 30/30 | – | **fail** 30/30 | yes |
@@ -141,6 +141,10 @@ Every call's SIP, speech and RTP on one timeline: reference [direct](https://jja
   REFER once the tool is called; `refer-fail`, whether the failure goes back to the engine so the
   agent can speak; the DTMF cases, whether a digit reaches the engine at all. Whether a model
   greets in time, asks for the transfer or stops for a backchannel, it cannot say.
+- Declines, unsupported: LiveKit answers a DTMF INFO 405 and AI Voice Connector CE negotiates no
+  telephone-event; neither puts Session-Expires in its 2xx, so neither takes session timers.
+  LiveKit negotiates telephone-event, yet the digit never reaches the engine; AI Voice Connector
+  CE leaves the INFO unanswered until the caller's transaction gives up (487): both fail.
 - One verdict flipped between repeats: LiveKit `refer` through the carrier, lte
   repeat 6: the carrier relayed the 202 Accepted to LiveKit
   0.7 ms after its REFER and the first NOTIFY 0.2 ms after that; LiveKit logged the REFER as

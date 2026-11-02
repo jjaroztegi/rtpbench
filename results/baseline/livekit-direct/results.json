@@ -322,22 +322,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792269502897983885,
-     1792269507897983885
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -581,13 +573,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -1267,22 +1260,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792270096993261961,
-     1792270101993261961
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -1526,13 +1511,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -2212,22 +2198,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792270692028288622,
-     1792270697028288622
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -2471,13 +2449,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -3157,22 +3136,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792271290291967786,
-     1792271295291967786
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -3416,13 +3387,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -4102,22 +4074,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792271882661515314,
-     1792271887661515314
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -4361,13 +4325,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5047,22 +5012,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792272478577624335,
-     1792272483577624335
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -5306,13 +5263,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5992,22 +5950,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792273071841216153,
-     1792273076841216153
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -6251,13 +6201,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6937,22 +6888,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792273664380616032,
-     1792273669380616032
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -7196,13 +7139,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7882,22 +7826,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792274261819712408,
-     1792274266819712408
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -8141,13 +8077,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -8827,22 +8764,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792274859204963226,
-     1792274864204963226
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -9086,13 +9015,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9772,22 +9702,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792275455060794569,
-     1792275460060794569
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -10031,13 +9953,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -10717,22 +10640,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792276052130656119,
-     1792276057130656119
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -10976,13 +10891,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -11662,22 +11578,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792276650542009690,
-     1792276655542009690
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -11921,13 +11829,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -12607,22 +12516,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792277251377112150,
-     1792277256377112150
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -12866,13 +12767,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -13552,22 +13454,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792277847119753704,
-     1792277852119753704
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -13811,13 +13705,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -14497,22 +14392,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792278446069814940,
-     1792278451069814940
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -14756,13 +14643,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -15442,22 +15330,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792279042450924186,
-     1792279047450924186
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -15701,13 +15581,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -16387,22 +16268,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792279638504720221,
-     1792279643504720221
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -16646,13 +16519,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -17332,22 +17206,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792280238785577778,
-     1792280243785577778
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -17591,13 +17457,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -18277,22 +18144,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792280838885958643,
-     1792280843885958643
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -18536,13 +18395,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19222,22 +19082,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792281437407337674,
-     1792281442407337674
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -19481,13 +19333,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -20167,22 +20020,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792282037544219784,
-     1792282042544219784
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -20426,13 +20271,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -21112,22 +20958,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792282638041908595,
-     1792282643041908595
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -21371,13 +21209,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -22057,22 +21896,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792283251244587385,
-     1792283256244587385
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -22316,13 +22147,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23002,22 +22834,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792283849195852989,
-     1792283854195852989
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -23261,13 +23085,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23947,22 +23772,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792284452004913139,
-     1792284457004913139
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -24206,13 +24023,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -24892,22 +24710,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792285053131390402,
-     1792285058131390402
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -25151,13 +24961,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25837,22 +25648,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792285652647055833,
-     1792285657647055833
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -26096,13 +25899,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -26782,22 +26586,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792286258073993151,
-     1792286263073993151
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -27041,13 +26837,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -27727,22 +27524,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 405 Method Not Allowed",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792286862754527071,
-     1792286867754527071
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -27986,13 +27775,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],

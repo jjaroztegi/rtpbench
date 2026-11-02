@@ -360,13 +360,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -623,13 +624,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -1294,13 +1296,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -1557,13 +1560,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -2228,13 +2232,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -2491,13 +2496,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -3162,13 +3168,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -3425,13 +3432,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -4096,13 +4104,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -4359,13 +4368,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5030,13 +5040,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5293,13 +5304,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5964,13 +5976,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6227,13 +6240,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6898,13 +6912,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7161,13 +7176,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7832,13 +7848,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -8095,13 +8112,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -8766,13 +8784,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9029,13 +9048,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9700,13 +9720,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9963,13 +9984,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -10634,13 +10656,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -10897,13 +10920,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -11568,13 +11592,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -11831,13 +11856,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -12502,13 +12528,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -12765,13 +12792,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -13436,13 +13464,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -13699,13 +13728,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -14370,13 +14400,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -14633,13 +14664,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -15304,13 +15336,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -15567,13 +15600,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -16238,13 +16272,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -16501,13 +16536,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -17172,13 +17208,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -17435,13 +17472,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -18106,13 +18144,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -18369,13 +18408,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19040,13 +19080,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19303,13 +19344,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19974,13 +20016,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -20237,13 +20280,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -20908,13 +20952,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -21171,13 +21216,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -21842,13 +21888,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -22105,13 +22152,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -22776,13 +22824,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23039,13 +23088,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23710,13 +23760,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23973,13 +24024,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -24644,13 +24696,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -24907,13 +24960,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25578,13 +25632,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25841,13 +25896,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -26512,13 +26568,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -26775,13 +26832,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -27446,13 +27504,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -27709,13 +27768,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],

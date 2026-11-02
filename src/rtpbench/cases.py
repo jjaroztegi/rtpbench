@@ -59,6 +59,11 @@ SIPFRAG = "message/sipfrag;version=2.0"
 SESSION_S = 90  # RFC 4028 minimum
 TIMER = [("Supported", "timer"), ("Session-Expires", f"{SESSION_S};refresher=uac")]
 NO_TIMER = "timers not supported (RFC 4028 9, optional; the caller may refresh alone)"
+# no acceptable media in the offer (RFC 3261 21.4.26, 21.6.4)
+DECLINE_OFFER = (488, 606)
+# refusals of a legacy INFO (no Info Package, RFC 6086): Method Not Allowed, Unsupported Media
+# Type, Bad Info Package, Not Implemented
+DECLINE_INFO = (405, 415, 469, 501)
 MEDIA_GAP_MS = 100  # agent RTP paused this long around a refresh: media was disturbed
 LARGE = 1300  # bytes: a request larger than this MUST go over TCP (RFC 3261 18.1.1)
 PADDING = 820  # bytes of header that take an INVITE (~560) past LARGE, under one 1500 MTU
@@ -156,6 +161,7 @@ class Check:
     ok: bool | None  # None: the case could not get far enough to tell
     detail: str = ""
     span: tuple[int, int] | None = None  # capture times a time limit it judges runs between
+    declined: bool = False  # not ok, but a decline of an optional feature an RFC allows
 
 
 @dataclass
@@ -165,9 +171,13 @@ class Result:
 
     @property
     def verdict(self) -> str:
-        if any(c.ok is False for c in self.checks):
+        """fail over inconclusive (what a decline left unchecked may still be wrong) over
+        unsupported over pass."""
+        if any(c.ok is False and not c.declined for c in self.checks):
             return "fail"
-        return "inconclusive" if any(c.ok is None for c in self.checks) else "pass"
+        if any(c.ok is None for c in self.checks):
+            return "inconclusive"
+        return "unsupported" if any(c.declined for c in self.checks) else "pass"
 
 
 class Script(Media):
@@ -979,11 +989,13 @@ def _reaction(w: Wire, r: Result, t: int) -> Result:
 
 def check_dtmf_rfc4733(w: Wire) -> Result:
     """telephone-event in the answer; the agent reacts to the digit (timed from the first
-    packet with the end bit)."""
+    packet with the end bit). An answer without it declines the offer's (RFC 4733 is optional):
+    unsupported."""
     r = Result()
     ok = w.find(_is_2xx_invite, sent=False)
     pt = sip.parse_sdp(ok[1].body).dtmf if ok else None
-    r.checks.append(Check("telephone-event negotiated", pt is not None))
+    declined = ok is not None and pt is None
+    r.checks.append(Check("telephone-event negotiated", pt is not None, declined=declined))
     end = next(
         (t for t, p in w.up if p.pt == pt and len(p.payload) >= 4 and p.payload[1] & 0x80), None
     )
@@ -993,24 +1005,28 @@ def check_dtmf_rfc4733(w: Wire) -> Result:
 
 
 def check_dtmf_info(w: Wire) -> Result:
-    """INFO answered 2xx; the agent reacts to the digit (timed from the INFO)."""
+    """INFO answered 2xx; the agent reacts to the digit (timed from the INFO). A refusal in
+    DECLINE_INFO turns down legacy INFO, which it may: unsupported. A 2xx and no reaction is a
+    digit taken and lost."""
     r = Result()
     info = w.find(lambda m: m.method == "INFO", sent=True)
     if info is None:
         r.checks.append(Check("INFO sent", None))
         return r
     resp = w.find(_final_to(info[1]), sent=False)
+    declined = resp is not None and resp[1].status in DECLINE_INFO
     r.checks.append(
         Check(
             "INFO answered 2xx",
             resp is not None and resp[1].status < 300,
             resp[1].first if resp else "no response",
+            declined=declined,
         )
     )
     if resp:
         ms = (resp[0] - info[0]) / 1e6
         r.timings.append(Timing("INFO to its response", ms, WIRE, span=(info[0], resp[0])))
-    return _reaction(w, r, info[0])
+    return r if declined else _reaction(w, r, info[0])
 
 
 def check_refer(w: Wire) -> Result:
@@ -1156,9 +1172,9 @@ def _transfer(w: Wire, r: Result) -> int | None:
 def check_codec(w: Wire) -> Result:
     """The offer had one G.711 law: answered 2xx with that law (RFC 3264 6.1: the answer MUST
     have a format from the offer, and MAY list others it cannot use yet), and the agent's RTP
-    carries it."""
+    carries it. Refused with DECLINE_OFFER instead (`judge`): unsupported."""
     r = Result()
-    pt = w.log["offered"][0]
+    pt = _offered(w)
     name = g711.NAMES[pt]
     ok = w.find(_is_2xx_invite, sent=False)
     r.checks.append(Check(f"{name}-only offer answered 2xx", ok is not None))
@@ -1172,21 +1188,38 @@ def check_codec(w: Wire) -> Result:
     return r
 
 
+def _offered(w: Wire) -> int:
+    """The single law a codec case offered: from the caller's log, or, when the call failed
+    (whose log lacks it), from the INVITE it sent."""
+    if "offered" in w.log:
+        return int(w.log["offered"][0])
+    invite = w.find(lambda m: m.method == "INVITE", sent=True)
+    assert invite is not None  # a final response came to it
+    return sip.parse_sdp(invite[1].body).pts[0]
+
+
+def _refused(w: Wire) -> Result | None:
+    """A codec case's offer refused with DECLINE_OFFER, the check named as in `check_codec`."""
+    final = w.find(_final("INVITE"), sent=False)
+    if final is None or final[1].status not in DECLINE_OFFER:
+        return None
+    name = g711.NAMES[_offered(w)]
+    return Result([Check(f"{name}-only offer answered 2xx", False, final[1].first, declined=True)])
+
+
 def check_timer(w: Wire) -> Result:
     """RFC 4028: the 2xx takes the timer (Session-Expires, refresher=uac kept, Require: timer);
     the refresh is answered 2xx with media undisturbed; the agent, not refreshed again, sends
     BYE after half the interval and before it expires. A 2xx without Session-Expires is an
-    agent without the extension, which the offer only says the caller supports: inconclusive."""
+    agent without the extension, which the offer only says the caller supports: unsupported."""
     r = Result()
     ok = w.find(_is_2xx_invite, sent=False)
     expires = ok[1].get("session-expires") if ok else ""
     tags = {t.strip().lower() for h in ok[1].all("require") for t in h.split(",")} if ok else set()
     # without it, an agent that does not take timers, unless it says it requires them
-    took = True if expires else None if ok and "timer" not in tags else False
-    detail = (
-        "" if expires else "no 2xx" if not ok else NO_TIMER if took is None else "Require: timer"
-    )
-    r.checks.append(Check("Session-Expires in the 2xx", took, detail))
+    declined = ok is not None and not expires and "timer" not in tags
+    detail = "" if expires else "no 2xx" if not ok else NO_TIMER if declined else "Require: timer"
+    r.checks.append(Check("Session-Expires in the 2xx", bool(expires), detail, declined=declined))
     if not ok or not expires:
         return r
     interval = int(expires.split(";")[0])
@@ -1343,7 +1376,9 @@ def check_reinvite(w: Wire) -> Result:
 
 def check_codec_change(w: Wire) -> Result:
     """A re-INVITE offering the other G.711 law alone: 2xx with that law (RFC 3264 6.1), agent
-    RTP in it from then on, and the agent replies to a question asked in it within 10 s."""
+    RTP in it from then on, and the agent replies to a question asked in it within 10 s. A 488
+    instead leaves the session as it was (RFC 3261 14.2): unsupported, if the agent's RTP stays
+    in the call's law and it replies to the question asked in that."""
     r = Result()
     invites: dict[str, tuple[int, sip.Message]] = {}
     for t, out, m in w.msgs:
@@ -1357,11 +1392,16 @@ def check_codec_change(w: Wire) -> Result:
     name = g711.NAMES[law]
     resp = w.find(_final_to(change[0][1]), sent=False)
     ok = resp is not None and resp[1].status < 300
-    r.checks.append(Check(f"{name} re-INVITE answered 2xx", ok, resp[1].first if resp else ""))
-    if resp is None or not ok:
+    declined = resp is not None and resp[1].status == 488
+    first = resp[1].first if resp else ""
+    r.checks.append(Check(f"{name} re-INVITE answered 2xx", ok, first, declined=declined))
+    if resp is None or not (ok or declined):
         return r
-    answer = sip.parse_sdp(resp[1].body).pts
-    r.checks.append(Check(f"answer has {name}", law in answer, " ".join(map(str, answer))))
+    if ok:
+        answer = sip.parse_sdp(resp[1].body).pts
+        r.checks.append(Check(f"answer has {name}", law in answer, " ".join(map(str, answer))))
+    else:  # the session goes on in the call's law
+        law, name = w.log["pt"], g711.NAMES[w.log["pt"]]
     after = {p.pt for u, p in w.down if u > resp[0] + MEDIA_GRACE_MS * 1e6}
     detail = "payload types " + (" ".join(map(str, sorted(after))) or "none")
     r.checks.append(Check(f"agent RTP is {name} after it", after == {law}, detail))
@@ -1429,9 +1469,17 @@ CASES = {
         {"ignore": Behaviour(hold=False), "clock": Behaviour(clock=False)},
     ),
     "dtmf-rfc4733": Case(
-        dtmf_rfc4733, check_dtmf_rfc4733, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}
+        dtmf_rfc4733,
+        check_dtmf_rfc4733,
+        Behaviour(dtmf_s=0.8),
+        {"deaf": Behaviour(), "no-events": Behaviour(dtmf_s=0.8, events=False)},
     ),
-    "dtmf-info": Case(dtmf_info, check_dtmf_info, Behaviour(dtmf_s=0.8), {"deaf": Behaviour()}),
+    "dtmf-info": Case(
+        dtmf_info,
+        check_dtmf_info,
+        Behaviour(dtmf_s=0.8),
+        {"deaf": Behaviour(), "declines": Behaviour(dtmf_s=0.8, info=False)},
+    ),
     "refer": Case(
         refer,
         check_refer,
@@ -1454,14 +1502,20 @@ CASES = {
         codec_pcmu,
         check_codec,
         Behaviour(greet_s=0.5),
-        {"pcma-anyway": Behaviour(greet_s=0.5, codec=g711.PCMA)},
+        {
+            "pcma-anyway": Behaviour(greet_s=0.5, codec=g711.PCMA),
+            "declines": Behaviour(greet_s=0.5, only=g711.PCMA),
+        },
         route="direct",  # rtpengine transcodes a wrong-law answer to the offered law
     ),
     "codec-pcma": Case(
         codec_pcma,
         check_codec,
         Behaviour(greet_s=0.5),
-        {"pcmu-anyway": Behaviour(greet_s=0.5, codec=g711.PCMU)},
+        {
+            "pcmu-anyway": Behaviour(greet_s=0.5, codec=g711.PCMU),
+            "declines": Behaviour(greet_s=0.5, only=g711.PCMU),
+        },
         route="direct",
     ),
     "timer": Case(
@@ -1535,7 +1589,10 @@ CASES = {
         codec_change,
         check_codec_change,
         Behaviour(greet_s=0.5, reply_s=1.0),
-        {"stale": Behaviour(greet_s=0.5, reply_s=1.0, recodec=False)},
+        {
+            "stale": Behaviour(greet_s=0.5, reply_s=1.0, recodec=False),
+            "declines": Behaviour(greet_s=0.5, reply_s=1.0, only=g711.PCMU),
+        },
         route="direct",  # rtpengine transcodes a stale answer to the offered law
     ),
     "refer-lost": Case(
@@ -1602,6 +1659,9 @@ def judge(run: Path, profile: str = "clean") -> Result:
     """The case's verdict from a run directory."""
     w = load(run, profile)
     if "error" in w.log:
+        # a single-law offer refused as RFC 3261 allows: the agent does not take that law alone
+        if CASES[w.log["case"]].check is check_codec and (refused := _refused(w)):
+            return refused
         return Result([Check("call completed", False, w.log["error"])])
     r = CASES[w.log["case"]].check(w)
     if (silent := no_media(w)) is not None:
@@ -1641,11 +1701,14 @@ def groups(records: list[dict[str, Any]]) -> dict[Group, list[dict[str, Any]]]:
     return out
 
 
+DECLINES = ("unsupported", "declines", "no-events")  # reference behaviours that decline
+
+
 def expected(behaviour: str | None) -> str | None:
     if behaviour is None:
         return None
-    if behaviour == "unsupported":  # without an optional extension: nothing to judge
-        return "inconclusive"
+    if behaviour in DECLINES:  # an optional feature declined as an RFC allows
+        return "unsupported"
     return "pass" if behaviour == "good" else "fail"
 
 
@@ -1896,7 +1959,12 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
         r = judge(out / run.run, run.profile)
         timed: list[Check | Timing] = [*r.checks, *r.timings]
         names = sorted({x.name for x in timed if stepped(x)})
-        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": names})
+        record = run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": names}
+        # `declined` only where true, so records of sets without a decline stay as they were
+        record["checks"] = [
+            {k: v for k, v in c.items() if k != "declined" or v} for c in record["checks"]
+        ]
+        records.append(record)
     reference = bool(records) and records[0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]
     head += ["result", "timings, ms (error bar)", "failed checks"]
@@ -1913,7 +1981,7 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
         repeats = max(r["repeat"] for r in records)
         ok = proven(records)
         text += f"Every case {'proven' if ok else 'NOT proven'} over {repeats} repeat(s): "
-        text += "good passes, bad fails.\n"
+        text += "good passes, bad fails, a decline is unsupported.\n"
     bars = {b for r in records for t in r["timings"] for b in [Bar(*t["bar"])]}
     text += "\nError bars: true value = measured - error, error within\n\n"
     text += "".join(f"- [{b.lo:+.1f}, {b.hi:+.1f}] ms: {b.source}\n" for b in sorted(bars))

@@ -6,11 +6,11 @@
 | bye | pass | BYE to its response: 1.6 ms (-0.4/+0.4)<br>BYE to the agent's last RTP: 1.4 ms (-0.4/+0.4) | - |
 | cancel | inconclusive | - | CANCEL sent while ringing (final response 3 ms after the first provisional, before a CANCEL) |
 | hold | fail | sendonly hold: re-INVITE to 2xx: 3.1 ms (-0.4/+0.4)<br>resume from sendonly: re-INVITE to 2xx: 2.8 ms (-0.4/+0.4)<br>resume from sendonly: 2xx to agent RTP: -0.3 ms (-0.4/+0.4)<br>resume from sendonly: RTP clock drift: -0.0 ms (-0.4/+0.4)<br>inactive hold: re-INVITE to 2xx: 2.6 ms (-0.4/+0.4)<br>resume from inactive: re-INVITE to 2xx: 2.8 ms (-0.4/+0.4)<br>resume from inactive: 2xx to agent RTP: 14.0 ms (-0.4/+0.4)<br>resume from inactive: RTP clock drift: 0.0 ms (-0.4/+0.4) | inactive hold: answer inactive (recvonly) |
-| dtmf-rfc4733 | fail | - | telephone-event negotiated |
+| dtmf-rfc4733 | unsupported | - | telephone-event negotiated |
 | dtmf-info | fail | INFO to its response: 30700.8 ms (-0.4/+0.4) | INFO answered 2xx (SIP/2.0 408 Request Timeout); agent reacts within 5000 ms |
 | refer | pass | end of the request to REFER: 1503.8 ms (-17.0/+17.0)<br>final NOTIFY to agent BYE: 17.4 ms (-0.4/+0.4) | - |
 | refer-fail | fail | end of the request to REFER: 1503.3 ms (-17.0/+17.0) | agent keeps the call for 10 s (BYE 19 ms after it); agent speaks within 5000 ms |
-| timer | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
+| timer | unsupported | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) |
 | compact-headers | fail | - | call completed (SIP/2.0 500 Server Internal Error) |
 | sdp-ssrc | fail | - | call completed (INVITE timed out) |
 | late-offer | fail | - | call completed (SIP/2.0 500 Server Internal Error) |

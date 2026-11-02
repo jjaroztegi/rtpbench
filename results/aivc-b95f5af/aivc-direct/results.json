@@ -360,13 +360,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -378,22 +379,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792517783680649898,
-     1792517788680649898
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -637,13 +630,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -1308,13 +1302,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -1326,22 +1321,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792518395071999429,
-     1792518400071999429
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -1585,13 +1572,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -2256,13 +2244,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -2274,22 +2263,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792519009012001990,
-     1792519014012001990
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -2533,13 +2514,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -3204,13 +3186,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -3222,22 +3205,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792519625786023942,
-     1792519630786023942
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -3481,13 +3456,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -4152,13 +4128,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -4170,22 +4147,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792520235733418422,
-     1792520240733418422
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -4429,13 +4398,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5100,13 +5070,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -5118,22 +5089,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792520849725171800,
-     1792520854725171800
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -5377,13 +5340,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6048,13 +6012,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6066,22 +6031,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792521460548886647,
-     1792521465548886647
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -6325,13 +6282,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -6996,13 +6954,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7014,22 +6973,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792522071217940535,
-     1792522076217940535
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -7273,13 +7224,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7944,13 +7896,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -7962,22 +7915,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792522686456606396,
-     1792522691456606396
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -8221,13 +8166,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -8892,13 +8838,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -8910,22 +8857,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "clean/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792523300902107277,
-     1792523305902107277
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -9169,13 +9108,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9840,13 +9780,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -9858,22 +9799,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792523913783411669,
-     1792523918783411669
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -10117,13 +10050,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -10788,13 +10722,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -10806,22 +10741,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792524524522302656,
-     1792524529522302656
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -11065,13 +10992,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -11736,13 +11664,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -11754,22 +11683,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792525136750490002,
-     1792525141750490002
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -12013,13 +11934,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -12684,13 +12606,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -12702,22 +12625,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792525752022136580,
-     1792525757022136580
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -12961,13 +12876,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -13632,13 +13548,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -13650,22 +13567,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792526361118659661,
-     1792526366118659661
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -13909,13 +13818,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -14580,13 +14490,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -14598,22 +14509,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792526974495035036,
-     1792526979495035036
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -14857,13 +14760,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -15528,13 +15432,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -15546,22 +15451,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792527585188087940,
-     1792527590188087940
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -15805,13 +15702,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -16476,13 +16374,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -16494,22 +16393,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792528195028581238,
-     1792528200028581238
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -16753,13 +16644,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -17424,13 +17316,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -17442,22 +17335,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792528817189072573,
-     1792528822189072573
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -17701,13 +17586,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -18372,13 +18258,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -18390,22 +18277,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792529431550749664,
-     1792529436550749664
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -18649,13 +18528,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19320,13 +19200,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -19338,22 +19219,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/01/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792530045008281957,
-     1792530050008281957
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -19597,13 +19470,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -20268,13 +20142,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/02/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -20286,22 +20161,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/02/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792530656071695583,
-     1792530661071695583
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -20545,13 +20412,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/02/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -21216,13 +21084,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/03/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -21234,22 +21103,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/03/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792531269259839497,
-     1792531274259839497
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -21493,13 +21354,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/03/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -22164,13 +22026,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/04/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -22182,22 +22045,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/04/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792531884989142778,
-     1792531889989142778
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -22441,13 +22296,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/04/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23112,13 +22968,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/05/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -23130,22 +22987,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/05/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792532494963049199,
-     1792532499963049199
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -23389,13 +23238,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/05/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -24060,13 +23910,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/06/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -24078,22 +23929,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/06/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792533109104825472,
-     1792533114104825472
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -24337,13 +24180,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/06/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25008,13 +24852,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/07/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25026,22 +24871,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/07/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792533721099641914,
-     1792533726099641914
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -25285,13 +25122,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/07/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25956,13 +25794,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/08/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -25974,22 +25813,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/08/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792534331726193049,
-     1792534336726193049
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -26233,13 +26064,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/08/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -26904,13 +26736,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/09/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -26922,22 +26755,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/09/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792534946739717253,
-     1792534951739717253
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -27181,13 +27006,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/09/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -27852,13 +27678,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "lte-bad/10/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -27870,22 +27697,14 @@
   "case": "dtmf-info",
   "behaviour": null,
   "run": "lte-bad/10/dtmf-info",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 501 Not Implemented",
-    "span": null
-   },
-   {
-    "name": "agent reacts within 5000 ms",
-    "ok": false,
-    "detail": "",
-    "span": [
-     1792535561132403429,
-     1792535566132403429
-    ]
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [
@@ -28129,13 +27948,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "lte-bad/10/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],

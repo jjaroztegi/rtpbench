@@ -360,13 +360,14 @@
   "case": "dtmf-rfc4733",
   "behaviour": null,
   "run": "clean/01/dtmf-rfc4733",
-  "verdict": "fail",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "telephone-event negotiated",
     "ok": false,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],
@@ -563,13 +564,14 @@
   "case": "timer",
   "behaviour": null,
   "run": "clean/01/timer",
-  "verdict": "inconclusive",
+  "verdict": "unsupported",
   "checks": [
    {
     "name": "Session-Expires in the 2xx",
-    "ok": null,
+    "ok": false,
     "detail": "timers not supported (RFC 4028 9, optional; the caller may refresh alone)",
-    "span": null
+    "span": null,
+    "declined": true
    }
   ],
   "timings": [],

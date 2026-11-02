@@ -57,7 +57,7 @@ def _policy(tmp_path: Path, text: str) -> Path:
     [
         ("[latncy.clean]\np50 = 1\n", "latncy unknown"),
         ("[cases]\nholdd = 'fail'\n", "holdd unknown"),
-        ("[cases]\nhold = 'flaky'\n", "pass or fail"),
+        ("[cases]\nhold = 'flaky'\n", "pass, unsupported, fail"),
         ("[latency.wifi]\np50 = 1\n", "wifi unknown"),
         ("[latency.clean]\np90 = 1\n", "p90 unknown"),
         ("[latency.clean]\np50 = '1'\n", "a finite number"),
@@ -92,6 +92,25 @@ def test_verdicts_against_the_policy(tmp_path: Path) -> None:
     rows, ok = check.evaluate(now, {"cases": {"hold": "fail"}}, fixed)
     assert not ok
     assert "previous run" in rows[1][3]
+
+
+def test_a_case_allowed_to_decline(tmp_path: Path) -> None:
+    def run(verdict: str) -> dict[str, Any]:
+        return check.measure(_run(tmp_path / verdict, {"timer": verdict}))
+
+    def judged(now: dict[str, Any], before: dict[str, Any] | None = None) -> tuple[list[str], bool]:
+        rows, ok = check.evaluate(now, {"cases": {"timer": "unsupported"}}, before)
+        return rows[0], ok
+
+    declined, passed = run("unsupported"), run("pass")
+    assert judged(declined) == (["clean", "timer", "pass", "unsupported, allowed to decline"], True)
+    assert not judged(run("fail"))[1]
+    assert not judged(run("inconclusive"))[1]
+    assert judged(passed)[0][2] == "note"
+    assert not check.evaluate(declined, {})[1]  # by default every case must pass
+    row, ok = judged(declined, passed)  # it passed before: a regression all the same
+    assert not ok
+    assert "previous run" in row[3]
 
 
 def test_a_limit_reads_the_error_bar_in_the_agents_favour(tmp_path: Path) -> None:

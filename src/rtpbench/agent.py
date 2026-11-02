@@ -62,6 +62,8 @@ class Behaviour:
     hold: bool = True  # answer a re-INVITE's direction as offered; else sendrecv, never pause
     clock: bool = True  # RTP timestamps keep time while paused; else resume where they stopped
     dtmf_s: float | None = None  # answer a digit (RFC 4733 or INFO) with speech this long after
+    events: bool = True  # telephone-event in the answer when offered; else leave it out
+    info: bool = True  # take a DTMF INFO (200); else 405 Method Not Allowed
     refer_s: float | None = None  # blind REFER this long after the caller's first turn ends
     # then: "complete" answers NOTIFYs and hangs up after a final one reporting 2xx; "always"
     # hangs up after the final one whatever it reports; "stay" answers them and stays; "early"
@@ -69,6 +71,7 @@ class Behaviour:
     transfer: str = "complete"
     retake_s: float | None = None  # a transfer failed (final NOTIFY not 2xx): speak this long after
     codec: int | None = None  # answer with this payload type whatever the offer
+    only: int | None = None  # take this G.711 law alone: 488 to an offer, or re-offer, without it
     timer: bool = False  # take session timers (RFC 4028) with the caller as refresher
     expire: bool = True  # with timer: BYE when the session expires unrefreshed
     reply_s: float | None = None  # answer the caller's first turn with speech this long after
@@ -406,6 +409,9 @@ class Uas:
             elif final and not ok and self.case.retake_s is not None and (r := self.responder):
                 retake = round(self.case.retake_s * 1e9)
                 r.speak(CLOCK.now() + retake, (self.greeting + 1) % len(r.replies), "retake")
+        elif msg.method == "INFO" and not self.case.info:  # RFC 3261 21.4.6: Allow lists ours
+            allow = [("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, NOTIFY")]
+            self._send(sip.response(msg, 405, "Method Not Allowed", self.to_tag, extra=allow))
         elif msg.method == "INFO" and "dtmf-relay" in msg.get("content-type").lower():
             self._send(sip.response(msg, 200, "OK", self.to_tag))
             body = dict(
@@ -447,6 +453,7 @@ class Uas:
         elif not self.late and (
             (malformed and not self.case.lenient_sdp)
             or not [pt for pt in sip.parse_sdp(msg.body).pts if pt in g711.NAMES]
+            or self.case.only not in (None, *sip.parse_sdp(msg.body).pts)
             or (_savp(sip.parse_sdp(msg.body)) and not _usable(sip.parse_sdp(msg.body)))
         ):
             self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
@@ -463,8 +470,8 @@ class Uas:
         assert self.invite is not None
         offer = sip.parse_sdp(self.invite.body)
         pt = next((pt for pt in offer.pts if pt in g711.NAMES), g711.PCMU)
-        self.pt = pt if self.case.codec is None else self.case.codec
-        self.dtmf = offer.dtmf is not None
+        self.pt = next(c for c in (self.case.codec, self.case.only, pt) if c is not None)
+        self.dtmf = offer.dtmf is not None and self.case.events
         self._prepare(offer)  # before the 2xx: it takes a while (encodes every clip)
         self._send(self._ok(self.invite, "sendrecv"), final=True)
         self.dialog = sip.Dialog.uas(
@@ -555,7 +562,9 @@ class Uas:
         answer says the agent does not send."""
         offer = sip.parse_sdp(msg.body)
         self.reinvite = msg.branch  # a retransmission gets the same answer
-        if self.suite and _savp(offer) and all(c[1] != self.suite for c in _usable(offer)):
+        if (self.suite and _savp(offer) and all(c[1] != self.suite for c in _usable(offer))) or (
+            msg.body and self.case.only not in (None, *offer.pts)
+        ):
             self._send(sip.response(msg, 488, "Not Acceptable Here", self.to_tag), final=True)
             return
         direction = sip.ANSWER[offer.direction] if self.case.hold else "sendrecv"
