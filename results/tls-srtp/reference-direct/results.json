@@ -1536,7 +1536,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMU alone",
+    "name": "answer has PCMU",
     "ok": true,
     "detail": "0",
     "span": null
@@ -1566,7 +1566,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMU alone",
+    "name": "answer has PCMU",
     "ok": false,
     "detail": "8",
     "span": null
@@ -1596,7 +1596,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMA alone",
+    "name": "answer has PCMA",
     "ok": true,
     "detail": "8",
     "span": null
@@ -1626,7 +1626,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMA alone",
+    "name": "answer has PCMA",
     "ok": false,
     "detail": "0",
     "span": null
@@ -2371,7 +2371,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMA alone",
+    "name": "answer has PCMA",
     "ok": true,
     "detail": "8",
     "span": null
@@ -2425,7 +2425,7 @@
     "span": null
    },
    {
-    "name": "answer has PCMA alone",
+    "name": "answer has PCMA",
     "ok": false,
     "detail": "0",
     "span": null

@@ -23,9 +23,9 @@
 | refer-fail | hangs-up | fail | fail | end of the request to REFER: 1310.1 ms (-17.0/+17.0) | agent keeps the call for 10 s (BYE 0 ms after it); agent speaks within 5000 ms | - |
 | refer-fail | silent | fail | fail | end of the request to REFER: 1309.8 ms (-17.0/+17.0) | agent speaks within 5000 ms | - |
 | codec-pcmu | good | pass | pass | - | - | - |
-| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU alone (8); agent RTP is PCMU (payload types 8) | - |
+| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU (8); agent RTP is PCMU (payload types 8) | - |
 | codec-pcma | good | pass | pass | - | - | - |
-| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
+| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.4 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60016.2 ms (-0.4/+0.4) | - | - |
 | timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
@@ -40,7 +40,7 @@
 | hold-zero | good | pass | pass | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: 2xx to agent RTP: 37.7 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: RTP clock drift: -0.0 ms (-0.4/+0.4) | - | - |
 | hold-zero | ignores-address | fail | fail | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | c=0.0.0.0 hold: no agent RTP (125 packets) | - |
 | codec-change | good | pass | pass | end of the question to agent speech: 1126.0 ms (-64.9/-1.1) | - | +27.5 |
-| codec-change | stale | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
+| codec-change | stale | fail | fail | - | answer has PCMA (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
 
 ### lte
 
@@ -67,9 +67,9 @@
 | refer-fail | hangs-up | fail | fail | end of the request to REFER: 1353.3 ms (-17.0/+17.0) | agent keeps the call for 10 s (BYE 0 ms after it); agent speaks within 5000 ms | - |
 | refer-fail | silent | fail | fail | end of the request to REFER: 1348.9 ms (-17.0/+17.0) | agent speaks within 5000 ms | - |
 | codec-pcmu | good | pass | pass | - | - | - |
-| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU alone (8); agent RTP is PCMU (payload types 8) | - |
+| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU (8); agent RTP is PCMU (payload types 8) | - |
 | codec-pcma | good | pass | pass | - | - | - |
-| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
+| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60003.3 ms (-0.4/+0.4) | - | - |
 | timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
@@ -84,7 +84,7 @@
 | hold-zero | good | pass | pass | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: 2xx to agent RTP: 72.7 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: RTP clock drift: -3.8 ms (-0.4/+0.4) | - | - |
 | hold-zero | ignores-address | fail | fail | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | c=0.0.0.0 hold: no agent RTP (124 packets) | - |
 | codec-change | good | pass | pass | end of the question to agent speech: 1202.4 ms (-67.7/+2.5) | - | +21.2 |
-| codec-change | stale | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
+| codec-change | stale | fail | fail | - | answer has PCMA (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
 
 ### lte-bad
 
@@ -111,9 +111,9 @@
 | refer-fail | hangs-up | fail | fail | end of the request to REFER: 1348.3 ms (-17.0/+17.0) | agent keeps the call for 10 s (BYE 0 ms after it); agent speaks within 5000 ms | - |
 | refer-fail | silent | fail | fail | end of the request to REFER: 1349.9 ms (-17.0/+17.0) | agent speaks within 5000 ms | - |
 | codec-pcmu | good | pass | pass | - | - | - |
-| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU alone (8); agent RTP is PCMU (payload types 8) | - |
+| codec-pcmu | pcma-anyway | fail | fail | - | answer has PCMU (8); agent RTP is PCMU (payload types 8) | - |
 | codec-pcma | good | pass | pass | - | - | - |
-| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA (payload types 0) | - |
+| codec-pcma | pcmu-anyway | fail | fail | - | answer has PCMA (0); agent RTP is PCMA (payload types 0) | - |
 | timer | good | pass | pass | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>refresh 2xx to agent BYE: 60013.9 ms (-0.4/+0.4) | - | - |
 | timer | unsupported | inconclusive | inconclusive | - | Session-Expires in the 2xx (timers not supported (RFC 4028 9, optional; the caller may refresh alone)) | - |
 | timer | no-expiry | fail | fail | refresh re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | agent ends the session in (45, 90] s | - |
@@ -128,7 +128,7 @@
 | hold-zero | good | pass | pass | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: 2xx to agent RTP: 97.0 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: RTP clock drift: 7.9 ms (-0.4/+0.4) | - | - |
 | hold-zero | ignores-address | fail | fail | c=0.0.0.0 hold: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4)<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 ms (-0.4/+0.4) | c=0.0.0.0 hold: no agent RTP (116 packets) | - |
 | codec-change | good | pass | pass | end of the question to agent speech: 1193.1 ms (-102.9/+13.1) | - | +4.1 |
-| codec-change | stale | fail | fail | - | answer has PCMA alone (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
+| codec-change | stale | fail | fail | - | answer has PCMA (0); agent RTP is PCMA after it (payload types 0); agent replies within 10000 ms | - |
 
 Every case proven over 1 repeat(s): good passes, bad fails.
 
