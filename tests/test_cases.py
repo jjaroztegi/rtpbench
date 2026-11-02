@@ -1,3 +1,4 @@
+import json
 import random
 import socket
 import struct
@@ -514,3 +515,29 @@ def test_timer_without_the_extension_is_inconclusive() -> None:
     broken = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
     assert broken.verdict == "fail"
     assert cases.expected("unsupported") == "inconclusive"
+
+
+def test_untransferable_only_when_no_session_offered_a_callable_tool(tmp_path: Path) -> None:
+    """The mock logs, per session update, the tool it would call to transfer: a target that
+    never offered one gets its tools named; one that did in any session, or a log from before
+    the mock recorded it, gets nothing (the REFER check stands)."""
+    run = tmp_path / "clean" / "01" / "refer"
+    run.mkdir(parents=True)
+    log = tmp_path / "realtime.jsonl"
+
+    def sessions(*rows: dict[str, Any]) -> str:
+        log.write_text("".join(json.dumps({"event": "session"} | r) + "\n" for r in rows))
+        return cases._untransferable(run)
+
+    queue = {"tools": ["hangup", "transfer_to_agent"], "transfer": None}
+    assert sessions(queue, queue) == "hangup, transfer_to_agent"
+    assert (
+        sessions(
+            {"tools": [], "transfer": None},
+            {"tools": ["transfer_call"], "transfer": "transfer_call"},
+        )
+        == ""
+    )
+    assert sessions({"tools": ["transfer_to_agent"]}) == ""  # logged before the key existed
+    log.unlink()
+    assert cases._untransferable(run) == ""

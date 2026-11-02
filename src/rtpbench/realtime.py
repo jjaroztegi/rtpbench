@@ -296,7 +296,22 @@ class Session:
         if "tools" in update:
             self.tools = list(update["tools"])
         names = [t.get("name", "") for t in self.tools]
-        self.note({"event": "session", "format": fmt or None, "tools": names})
+        tool = self.transfer_tool()
+        self.note(
+            {
+                "event": "session",
+                "format": fmt or None,
+                "tools": names,
+                "transfer": tool.get("name") if tool else None,
+            }
+        )
+
+    def transfer_tool(self) -> dict[str, Any] | None:
+        """The offered tool the mock calls to transfer: named as in TOOLS, its arguments able to
+        name the operator (`_arguments`); None if the target offers none."""
+        return next(
+            (t for t in self.tools if t.get("name") in TOOLS and _arguments(t) is not None), None
+        )
 
     async def added(self, item: dict[str, Any], done: bool = True) -> None:
         """conversation.item.added, and with `done` its conversation.item.done."""
@@ -415,9 +430,7 @@ class Session:
     ) -> None:
         """Answer DELAY_NS after `since`: a clip, or a call to the target's transfer tool."""
         await asyncio.sleep(max(0, since + DELAY_NS - CLOCK.now()) / 1e9)
-        tool = next(
-            (t for t in self.tools if t.get("name") in TOOLS and _arguments(t) is not None), None
-        )
+        tool = self.transfer_tool()
         if what == TOOL and tool is None:
             what = SHORT
         rid, item_id = _id("resp"), _id("item")

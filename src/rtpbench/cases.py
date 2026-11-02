@@ -617,6 +617,7 @@ class Wire:
     down: analyze.Timed  # RTP the caller received
     profile: str = "clean"  # netem profile, for the error bars
     unopened: int = 0  # SRTP packets no key in the SDP authenticated
+    untransferable: str = ""  # on the mock: the tools the target offered, none callable to transfer
 
     def onset(self, t: int) -> Bar:
         """Error bar of the agent's speech onset at capture time `t`."""
@@ -701,7 +702,24 @@ def load(run: Path, profile: str = "clean") -> Wire:
     rings = srtp.keyrings([(sent, m.body) for _, sent, m in msgs])
     cap = analyze.split(grams, (me, port), rings)
     unopened = sum(r.failed for r in rings) if rings else 0
-    return Wire(log, agent, msgs, cap.up, cap.down, profile, unopened)
+    return Wire(log, agent, msgs, cap.up, cap.down, profile, unopened, _untransferable(run))
+
+
+def _untransferable(run: Path) -> str:
+    """With the mock's log beside the run (`--mock`, or `realtime --out` the run's): the tools
+    the target offered the engine, if no session offered one the mock can call to transfer
+    (`realtime.Session.transfer_tool`); else ""."""
+    log = run.parents[2] / "realtime.jsonl" if len(run.parents) > 2 else None
+    if log is None or not log.exists():
+        return ""
+    sessions = [
+        r
+        for line in log.read_text().splitlines()
+        if (r := json.loads(line)).get("event") == "session"
+    ]
+    if not sessions or any(r.get("transfer", "") is not None for r in sessions):
+        return ""
+    return ", ".join(sorted({n for r in sessions for n in r.get("tools", [])})) or "none"
 
 
 def _is_2xx_invite(m: sip.Message) -> bool:
@@ -1100,6 +1118,10 @@ def _transfer(w: Wire, r: Result) -> int | None:
     """The REFER and the NOTIFYs that report on it; when the last NOTIFY went (the REFER's time
     if none did), or None without a REFER."""
     ref = w.find(lambda m: m.method == "REFER", sent=False)
+    if ref is None and w.untransferable:  # the mock could not ask the target to transfer
+        tools = f"the engine was offered no transfer tool the mock can call ({w.untransferable})"
+        r.checks.append(Check("agent transfers (REFER)", None, tools))
+        return None
     r.checks.append(Check("agent transfers (REFER)", ref is not None))
     if ref is None:
         return None
