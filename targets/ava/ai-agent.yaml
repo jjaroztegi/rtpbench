@@ -47,12 +47,33 @@ active_pipeline: local_hybrid  # Don't change - uses provider override via conte
 default_provider: openai_realtime
 
 # Audio Transport - AudioSocket for OpenAI Realtime
-# rtpbench: AudioSocket as shipped, or ExternalMedia (RTP), from targets/ava/compose.yaml
+# rtpbench: AudioSocket as shipped, ExternalMedia (RTP) or WebSocket, from
+# targets/ava/compose.yaml
 audio_transport: ${AVA_TRANSPORT}
 audiosocket:
   format: slin
   host: 0.0.0.0
   port: 8090
+# rtpbench: WebSocket's listener, as docs/WebSocket-Transport.md configures it on one host,
+# matching targets/ava/websocket_client.conf
+websocket_media:
+  connection_mode: asterisk_outbound
+  connection_name: aava_media
+  bind_host: 127.0.0.1
+  advertise_host: 127.0.0.1
+  port: 8787
+  path: /media
+  format_policy: profile
+  fallback_format: ulaw
+  control_format: json
+  direction: both
+  allowed_remote_hosts: [127.0.0.1]
+  auth:
+    required: true
+    username: aava_media
+    password_env: ASTERISK_MEDIA_WS_PASSWORD
+  tls:
+    enabled: false
 
 # Playback Mode
 downstream_mode: stream
@@ -119,6 +140,19 @@ profiles:
   default: telephony_responsive
   # rtpbench: the golden openai_realtime_24k, as shipped for AudioSocket
   openai_realtime_24k_audiosocket:
+    chunk_ms: 20
+    idle_cutoff_ms: 0
+    internal_rate_hz: 24000
+    provider_pref:
+      input_encoding: pcm16
+      input_sample_rate_hz: 24000
+      output_encoding: pcm16
+      output_sample_rate_hz: 24000
+    transport_out:
+      encoding: slin
+      sample_rate_hz: 8000
+  # rtpbench: the same for WebSocket, which takes its wire format (slin) from the profile
+  openai_realtime_24k_websocket:
     chunk_ms: 20
     idle_cutoff_ms: 0
     internal_rate_hz: 24000
