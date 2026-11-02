@@ -16,7 +16,8 @@ builds those it cannot pull, so a fork or an offline host builds them as before.
 its content: rtpbench's own a hash of what it holds; the carrier's and the bundled targets' their
 pinned version followed by a hash of their build (its compose `build` section and every file in
 its local contexts), so an edit to one gets a new tag. `conditions.json` records each as `builds`;
-[images.yml](../.github/workflows/images.yml) pushes those GHCR lacks.
+[images.yml](../.github/workflows/images.yml) pushes those GHCR lacks. A target built from a
+checkout (`--source`) is built here, tagged with the checkout's commit, and never pushed.
 
 ## Published results
 

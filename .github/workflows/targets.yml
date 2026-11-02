@@ -1,0 +1,47 @@
+name: Targets
+
+# Each bundled target on the mock engine, as `rtpbench target NAME --mock` brings it up: a
+# greeting, a hang-up and a latency call, which must pass (about 5 minutes each, images pulled).
+on:
+  pull_request:
+    paths:
+      - compose.yaml
+      - targets/**
+      - mock/**
+      - src/rtpbench/bench.py
+      - src/rtpbench/realtime.py
+      - .github/workflows/targets.yml
+  push:
+    branches: [main]
+    paths:
+      - compose.yaml
+      - targets/**
+      - mock/**
+      - src/rtpbench/bench.py
+      - src/rtpbench/realtime.py
+      - .github/workflows/targets.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aivc, ava, livekit]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./
+        with:
+          target: ${{ matrix.target }}
+          mock: true
+          only: greeting,bye,latency
+          artifact-name: ${{ matrix.target }}
