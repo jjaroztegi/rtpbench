@@ -14,7 +14,7 @@ from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
 
 CODECS = {"pcmu": 0, "pcma": 8}
-LARGE_INVITE_TLS = "large-invite: not over TLS (it checks the switch from UDP to TCP)"
+LARGE_INVITE_STREAM = "large-invite: not over TCP or TLS (it checks the switch from UDP to TCP)"
 TLS_HELP = "SIP over TLS to the agent (or the carrier), certified by the stack's test CA"
 SRTP_HELP = (
     "SRTP keyed in the SDP (SDES), offering these suites in this order (default: "
@@ -190,8 +190,8 @@ examples:
     p.add_argument(
         "name",
         metavar="NAME|URI",
-        help=f"{', '.join(TARGETS)}, or the agent's URI: sip:user@host[:port], over TLS with"
-        " sips: or ;transport=tls",
+        help=f"{', '.join(TARGETS)}, or the agent's URI: sip:user@host[:port], over TCP with"
+        " ;transport=tcp, over TLS with sips: or ;transport=tls",
     )
     p.add_argument(
         "--only",
@@ -425,7 +425,7 @@ example:
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
         names = args.only.split(",") if args.only else cases.names(args.carrier, args.tls)
         if args.tls and "large-invite" in names:
-            parser.error(LARGE_INVITE_TLS)
+            parser.error(LARGE_INVITE_STREAM)
         docker()
         with progress:
             summary, proven = run_cases(
@@ -449,18 +449,18 @@ example:
         if problem := _target_args(args):
             parser.error(problem)
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        from rtpbench.sip import secure
+        from rtpbench.sip import transport
 
-        tls = secure(args.name) if is_uri(args.name) else args.tls
+        stream = transport(args.name) != "UDP" if is_uri(args.name) else args.tls
         names = (
             args.only.split(",")
             if args.only
-            else [*cases.names(args.carrier, tls), "latency", "barge-in"]
+            else [*cases.names(args.carrier, stream), "latency", "barge-in"]
         )
         if args.lines and (problems := check_lines(args.lines, names)):
             parser.error(f"--lines {args.lines}:\n  " + "\n  ".join(problems))
-        if tls and "large-invite" in names:
-            parser.error(LARGE_INVITE_TLS)
+        if stream and "large-invite" in names:
+            parser.error(LARGE_INVITE_STREAM)
         profiles = args.profiles.split(",")
         docker()
         if args.network and (problem := network_problem(args.network)):

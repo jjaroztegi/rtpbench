@@ -156,7 +156,9 @@ class Session:
             probe.connect(peer)
             local_ip, ports = probe.getsockname()[0], range(1)  # port 0: any
         sock: socket.socket | sip.Tcp
-        if sip.secure(proxy or uri):  # the next hop's transport
+        hop = sip.transport(proxy or uri)  # the next hop's
+        tcp = tcp or hop == "TCP"
+        if hop == "TLS":
             sock = _bind(lambda p: _tls(p, host), ports)
         else:
             sock = _bind(sip.Tcp, ports) if tcp else _bind(_udp, ports)
@@ -195,7 +197,7 @@ class Session:
         try:
             self.dialog.send(self.invite)
         except OSError as e:  # over TCP the caller may retry over UDP; over TLS it cannot
-            if sip.secure(proxy or uri):
+            if hop == "TLS":
                 raise sip.SipError(f"TLS to {peer[0]}:{peer[1]}: {type(e).__name__}: {e}") from e
             how = {
                 TimeoutError: "connection timed out",

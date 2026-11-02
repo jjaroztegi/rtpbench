@@ -1562,15 +1562,17 @@ CASES = {
         route="direct",  # the carrier's own transaction answers the copy
     ),
 }
-# not over TLS: `large-invite`'s INVITE goes over TCP because UDP cannot take it; over a reliable
-# transport nothing is retransmitted (RFC 3261 17.1.1.2, 17.1.2.2)
-NOT_TLS = ("large-invite", "refer-lost", "bye-lost", "invite-retransmit")
+# not over TCP or TLS: `large-invite`'s INVITE goes over TCP because UDP cannot take it; over a
+# reliable transport nothing is retransmitted (RFC 3261 17.1.1.2, 17.1.2.2)
+NOT_STREAM = ("large-invite", "refer-lost", "bye-lost", "invite-retransmit")
 
 
-def names(carrier: bool, tls: bool = False) -> list[str]:
-    """The cases to run by default with or without the carrier, and over TLS or not."""
+def names(carrier: bool, stream: bool = False) -> list[str]:
+    """The cases to run by default with or without the carrier, and over TCP or TLS or not."""
     skip = "direct" if carrier else "carrier"
-    return [n for n, case in CASES.items() if case.route != skip and not (tls and n in NOT_TLS)]
+    return [
+        n for n, case in CASES.items() if case.route != skip and not (stream and n in NOT_STREAM)
+    ]
 
 
 def run(

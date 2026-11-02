@@ -98,10 +98,17 @@ def uri_of(value: str) -> str:
     return value.split("<", 1)[1].split(">", 1)[0] if "<" in value else value.split(";")[0]
 
 
-def secure(uri: str) -> bool:
-    """Whether a URI asks for TLS: a sips: URI, or transport=tls (RFC 3261 19.1.1)."""
+def transport(uri: str) -> str:
+    """What a URI asks for: TLS for a sips: URI or transport=tls, TCP for transport=tcp, else
+    UDP (RFC 3261 19.1.1)."""
     params = uri.split(">", 1)[0].lower().split(";")
-    return params[0].startswith("sips:") or "transport=tls" in params[1:]
+    if params[0].startswith("sips:") or "transport=tls" in params[1:]:
+        return "TLS"
+    return "TCP" if "transport=tcp" in params[1:] else "UDP"
+
+
+def secure(uri: str) -> bool:
+    return transport(uri) == "TLS"
 
 
 def contact(user: str, ip: str, port: int, transport: str, sips: bool = False) -> str:
@@ -285,16 +292,18 @@ class Tcp:
     """SIP over TCP behind a UDP socket's interface (`sendto`, `recvfrom`, `settimeout`,
     `getsockname`), so a dialog runs on either. Listens on `port`; `sendto` uses the connection
     to or from that address, or opens one; messages are framed by Content-Length (RFC 3261
-    18.3). The peer of an accepted connection is its address, so answers go back on it."""
+    18.3). The peer of an accepted connection is its address, so answers go back on it.
+
+    Its connections leave from the port it listens on, which its Contact and Via give: a far end
+    that sends its own requests to the Contact finds the connection already open to that address
+    and reuses it, instead of opening one back through the NATs and port forwards on the way."""
 
     transport = "TCP"
-    reuse_port = False  # SO_REUSEPORT on the listener, so connections can leave from its port
 
     def __init__(self, port: int = 0) -> None:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if self.reuse_port:
-            self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        for opt in (socket.SO_REUSEADDR, socket.SO_REUSEPORT):
+            self.server.setsockopt(socket.SOL_SOCKET, opt, 1)
         self.server.bind(("0.0.0.0", port))
         self.server.listen(16)
         self.conns: dict[tuple[str, int], socket.socket] = {}
@@ -321,7 +330,17 @@ class Tcp:
 
     def _open(self, addr: tuple[str, int]) -> socket.socket:
         """A connection to `addr`, ready for SIP."""
-        return socket.create_connection(addr, timeout=5)
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        for opt in (socket.SO_REUSEADDR, socket.SO_REUSEPORT):
+            conn.setsockopt(socket.SOL_SOCKET, opt, 1)
+        conn.settimeout(5)
+        try:
+            conn.bind(("0.0.0.0", self.getsockname()[1]))
+            conn.connect(addr)
+        except OSError:
+            conn.close()
+            raise
+        return conn
 
     def _accept(self, conn: socket.socket) -> socket.socket | None:
         """A connection the far end opened, ready for SIP; None to refuse it."""
@@ -376,14 +395,9 @@ class Tcp:
 
 class Tls(Tcp):
     """SIP over TLS (RFC 3261 26.2.1): `Tcp` on TLS connections. Opens them with `client`,
-    checking the certificate of `hostname`; accepts them with `server`, or refuses them.
-
-    Its connections leave from the port it listens on, which its Contact and Via give: a far end
-    that sends its own requests to the Contact finds the connection already open to that address
-    and reuses it, instead of opening one back through the NATs and port forwards on the way."""
+    checking the certificate of `hostname`; accepts them with `server`, or refuses them."""
 
     transport = "TLS"
-    reuse_port = True
 
     def __init__(
         self,
@@ -399,13 +413,8 @@ class Tls(Tcp):
     def _open(self, addr: tuple[str, int]) -> socket.socket:
         if self.client is None:
             raise ConnectionRefusedError("no TLS client context")
-        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        for opt in (socket.SO_REUSEADDR, socket.SO_REUSEPORT):
-            conn.setsockopt(socket.SOL_SOCKET, opt, 1)
-        conn.settimeout(5)
+        conn = super()._open(addr)
         try:
-            conn.bind(("0.0.0.0", self.getsockname()[1]))
-            conn.connect(addr)
             tls_conn = self.client.wrap_socket(conn, server_hostname=self.hostname)
         except OSError:
             conn.close()

@@ -88,8 +88,9 @@ authentication gets it from `RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`
 
 The URI's host is looked up as an address record (no SRV or NAPTR, so give its port), and not on
 loopback: from Docker, this host is its own address. `conditions.json`, the summary and the
-captures name the URI and the addresses on the path. A `sips:` URI, or one with
-`;transport=tls`, puts SIP on TLS, and `--srtp` the media on SRTP ([below](#tls-and-srtp)).
+captures name the URI and the addresses on the path. `;transport=tcp` puts SIP on
+TCP; a `sips:` URI, or one with `;transport=tls`, on TLS, and `--srtp` the media on SRTP
+([below](#tls-and-srtp)).
 
 The summary's RTP pacing is what reached the caller: the agent's own pacing plus the real path's
 jitter. To split the two, capture at the agent for the length of the run (`tcpdump -i any -s 64

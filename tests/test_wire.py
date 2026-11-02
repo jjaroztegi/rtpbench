@@ -186,6 +186,7 @@ def test_tcp_transport_frames_and_answers_on_the_same_connection() -> None:
     client.sendto(big[10:], addr)
     data, peer = server.recvfrom()
     assert data == big
+    assert peer[1] == client.getsockname()[1]  # from the port its Contact gives
     server.sendto(b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n", peer)
     assert client.recvfrom() == (b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n", addr)
     assert len(server.conns) == len(client.conns) == 1
