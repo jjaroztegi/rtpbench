@@ -187,7 +187,10 @@ lines, so leave out `--lines`. What the agent has to meet:
   both overridden on its side: that host name resolving to the mock (a hosts entry or DNS),
   and a TLS proxy in front of the mock with a certificate for that name from a CA the agent
   trusts. The token it fetches then travels inside TLS.
-- For `refer`, a transfer tool named as above.
+- For `refer`, `refer-fail` and `refer-lost`, a transfer tool named as above. With none the
+  mock can call (one named otherwise, or whose required argument cannot be `operator`, such as
+  a queue from a fixed list), it answers the transfer line with speech and those cases are
+  inconclusive, naming the tools offered.
 
 The split of turn latency into uplink, engine and downlink needs the mock's log on the
 captures' clock: run the mock on the host that runs `rtpbench target`, and write its log into
