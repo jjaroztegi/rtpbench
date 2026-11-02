@@ -191,12 +191,12 @@ def _image_tag() -> str:
 class Stack:
     """caller | router | agent, plus a target's services when given (on the mock engine with
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
-    are relative to the repository root). With `uri`, caller | router | operator, for an agent
-    outside the stack: the router also joins the Docker network `network`, and with `ports`
-    (first-last) the host publishes that range on the router. With `tls`, out/tls holds a test
-    certificate for the stack's TLS servers, and ca.pem, what the caller trusts: `ca`, or with no
-    `uri` the stack's test CA; else the caller trusts the system's certificates. With `srtp`, the
-    caller offers SRTP with these suites."""
+    are relative to the repository root). With `uri`, caller | router | operator (and the
+    carrier), for an agent outside the stack: the router also joins the Docker network
+    `network`, and with `ports` (first-last) the host publishes that range on the router. With
+    `tls`, out/tls holds a test certificate for the stack's TLS servers, and ca.pem, what the
+    caller trusts: `ca`, or with no `uri` the stack's test CA; else the caller trusts the
+    system's certificates. With `srtp`, the caller offers SRTP with these suites."""
 
     def __init__(
         self,
@@ -230,6 +230,8 @@ class Stack:
         if carrier:
             self.files.append(ROOT / "carrier" / "compose.yaml")
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
+            if uri:
+                self.services += ["carrier", "carrier-media", "carrier-sip"]
         self.carrier = carrier is not None
         if tls:
             where = out / "tls"
@@ -699,6 +701,20 @@ def _reach(
     return ip, advertise
 
 
+def _carry(stack: Stack, caller_ip: str, host: str) -> str:
+    """Set the carrier up for an agent outside the stack, at `host`: the caller's leg through
+    the router, the agent's through Docker's gateway, which keeps it out of netem as with a
+    bundled target. Returns the carrier's address, where the caller sends its calls."""
+    stack.env["RTPBENCH_RESOLVE"] = f"{host}={_resolve(stack, host)}"  # refused here if not
+    stack.passed.append("RTPBENCH_RESOLVE")
+    net = json.loads(_host(f"docker network inspect {stack.project}_agentnet"))
+    gateway = net[0]["IPAM"]["Config"][0]["Gateway"]
+    router = stack.sh("carrier", "getent hosts router").split()[0]
+    stack.sh("carrier", f"ip route replace default via {gateway}")
+    stack.sh("carrier", f"ip route replace {caller_ip} via {router}")
+    return stack.ip("carrier")
+
+
 def _resolve(stack: Stack, host: str) -> str:
     """`host`'s address as the router finds it: a name on the agent's Docker network resolves
     only there."""
@@ -773,7 +789,20 @@ def target(
                 ports = f"{first}-{first + ADVERTISE_PORTS - 1}"
             proxy_tls = bool(proxy and secure(proxy))
             trust = tls or proxy_tls  # the caller's TLS setup, and --ca
-            stack = Stack(out, uri=True, network=network, ports=ports, tls=trust, ca=ca, srtp=srtp)
+            next_hop = host if carrier else None
+            stack = Stack(
+                out,
+                None,
+                next_hop,
+                uri=True,
+                network=network,
+                ports=ports,
+                tls=trust,
+                ca=ca,
+                srtp=srtp,
+            )
+            if carrier:
+                stack.env["RTPBENCH_CARRIER_PORT"] = str(port)
         else:
             proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
@@ -792,9 +821,15 @@ def target(
             )
             conds |= {"profiles": profiles, "runs": runs, "target": name, "carrier": carrier}
             conds["mock"] = mock
-            if is_uri(name):
+            sip: tuple[int, ...] = (5060,)  # SIP ports netem lets through
+            if is_uri(name) and carrier:  # the carrier calls `name`'s user at its host and port
+                target_ip = _carry(stack, caller_ip, host)
+                user = name.partition(":")[2].partition("@")[0] if "@" in name else ""
+                uri = f"sip:{user}@{target_ip}" if user else f"sip:{target_ip}"
+            elif is_uri(name):
                 target_ip, advertise = _reach(stack, caller_ip, host, network, advertise)
                 uri, sip = name, tuple(dict.fromkeys((port, 5060)))
+            if is_uri(name):
                 if proxy:  # where a transfer goes: by name (TLS checks it), as the router finds it
                     proxy_host = parse_uri(proxy)[0]
                     stack.env["RTPBENCH_RESOLVE"] += f",{proxy_host}={_resolve(stack, proxy_host)}"
