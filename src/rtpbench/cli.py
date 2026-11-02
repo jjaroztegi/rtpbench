@@ -14,6 +14,7 @@ from rtpbench.caller import GAP_SECONDS, LEAD_SECONDS
 from rtpbench.srtp import SUITES
 
 CODECS = {"pcmu": 0, "pcma": 8}
+CALLS = ("latency", "barge-in")  # `target`'s calls besides the cases
 LARGE_INVITE_STREAM = "large-invite: not over TCP or TLS (it checks the switch from UDP to TCP)"
 TLS_HELP = "SIP over TLS to the agent (or the carrier), certified by the stack's test CA"
 SRTP_HELP = (
@@ -79,6 +80,25 @@ def _target_args(args: argparse.Namespace) -> str | None:
             return "--advertise: HOST:PORT"
         if not 1 <= int(adv_port) <= 65536 - ADVERTISE_PORTS:
             return f"--advertise: PORT 1-{65536 - ADVERTISE_PORTS}, the first of {ADVERTISE_PORTS}"
+    return None
+
+
+def _only(only: str, carrier: bool, stream: bool, calls: tuple[str, ...] = ()) -> str | None:
+    """What is wrong with `--only`, if anything: a name that is neither a case nor in `calls`,
+    or a case that cannot run this way, which would otherwise pass without testing anything."""
+    names = only.split(",")
+    if unknown := [n for n in names if n not in cases.CASES and n not in calls]:
+        return f"--only: {', '.join(unknown)}: no such case"
+    if stream and "large-invite" in names:
+        return LARGE_INVITE_STREAM
+    for n in names:
+        route = cases.CASES[n].route if n in cases.CASES else ""
+        if route == "carrier" and not carrier:
+            return f"{n}: only with --carrier, which applies what it tests"
+        if route == "direct" and carrier:
+            return f"{n}: not with --carrier, which would answer for the agent"
+        if stream and n in cases.NOT_STREAM:
+            return f"{n}: not over TCP or TLS"
     return None
 
 
@@ -197,7 +217,7 @@ examples:
         "--only",
         metavar="NAME,...",
         help="comma-separated cases, latency, barge-in (default: all; a few cases run only direct"
-        " or only with --carrier): " + ", ".join([*cases.CASES, "latency", "barge-in"]),
+        " or only with --carrier): " + ", ".join([*cases.CASES, *CALLS]),
     )
     p.add_argument(
         "--profiles", default="clean", metavar="PROFILE,...", help=f"{profiles} (default: clean)"
@@ -423,9 +443,9 @@ example:
         from rtpbench.bench import cases as run_cases
 
         out = args.out or Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+        if args.only and (problem := _only(args.only, args.carrier, args.tls)):
+            parser.error(problem)
         names = args.only.split(",") if args.only else cases.names(args.carrier, args.tls)
-        if args.tls and "large-invite" in names:
-            parser.error(LARGE_INVITE_STREAM)
         docker()
         with progress:
             summary, proven = run_cases(
@@ -452,15 +472,11 @@ example:
         from rtpbench.sip import transport
 
         stream = transport(args.name) != "UDP" if is_uri(args.name) else args.tls
-        names = (
-            args.only.split(",")
-            if args.only
-            else [*cases.names(args.carrier, stream), "latency", "barge-in"]
-        )
+        if args.only and (problem := _only(args.only, args.carrier, stream, CALLS)):
+            parser.error(problem)
+        names = args.only.split(",") if args.only else [*cases.names(args.carrier, stream), *CALLS]
         if args.lines and (problems := check_lines(args.lines, names)):
             parser.error(f"--lines {args.lines}:\n  " + "\n  ".join(problems))
-        if stream and "large-invite" in names:
-            parser.error(LARGE_INVITE_STREAM)
         profiles = args.profiles.split(",")
         docker()
         if args.network and (problem := network_problem(args.network)):

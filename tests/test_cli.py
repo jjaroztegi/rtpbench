@@ -37,6 +37,11 @@ def test_no_arguments_list_the_commands_and_help_the_valid_names(
         (["sip:agent@203.0.113.7", "--advertise", "40000"], "HOST:PORT"),
         (["sip:agent@203.0.113.7", "--advertise", "198.51.100.1:65530"], "PORT 1-65528"),
         (["livekit", "--network", "n"], "with a URI only"),
+        (["livekit", "--only", "latency,hello"], "hello: no such case"),
+        (["sip:agent@203.0.113.7", "--only", "late-offer"], "only with --carrier"),
+        (["livekit", "--carrier", "--only", "codec-pcmu"], "not with --carrier"),
+        (["sip:agent@203.0.113.7;transport=tcp", "--only", "bye-lost"], "not over TCP"),
+        (["sip:agent@203.0.113.7;transport=tcp", "--only", "large-invite"], "switch from UDP"),
     ],
 )
 def test_target_refuses(argv: list[str], error: str, capsys: pytest.CaptureFixture[str]) -> None:
