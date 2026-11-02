@@ -58,7 +58,7 @@ services:
         RUN pip install --no-cache-dir "livekit-agents[openai]==1.8.7" -c /tmp/constraints.txt
         WORKDIR /app
         COPY agent.py .
-    image: ${RTPBENCH_REGISTRY:?}/rtpbench-livekit-agent:1.8.7
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-livekit-agent:1.8.7${RTPBENCH_BUILD_AGENT_WORKER:-}
     network_mode: service:target
     depends_on: [livekit, sip]
     environment:

@@ -196,6 +196,25 @@ def _image_tag() -> str:
     return "rtpbench:" + h.hexdigest()[:12]
 
 
+def _build_hash(build: dict[str, Any]) -> str:
+    """A hash of a compose `build` section as `config` resolves it, with each local context's
+    files (all of them: the build may copy any) in place of its path, so the same from any
+    checkout or installed rtpbench. A git context is its URL, which pins the commit."""
+    build = dict(build)
+    contexts = {"": build.pop("context", "."), **(build.pop("additional_contexts", None) or {})}
+    h = hashlib.sha256(json.dumps(build, sort_keys=True).encode())
+    for name, where in sorted(contexts.items()):
+        root = Path(where)
+        h.update(f"\0{name}\0".encode())
+        if not root.is_absolute():  # a git URL
+            h.update(where.encode())
+            continue
+        files = (f for f in root.rglob("*") if f.is_file() and "__pycache__" not in f.parts)
+        for f in sorted(files):
+            h.update(f"\0{f.relative_to(root).as_posix()}\0".encode() + f.read_bytes())
+    return h.hexdigest()[:12]
+
+
 class Stack:
     """caller | router | agent, plus a target's services when given (on the mock engine with
     `mock`), and the carrier in front of the host `carrier` names (paths in their compose files
@@ -251,6 +270,7 @@ class Stack:
             for k in ("USER", "PASSWORD"):
                 self.env[f"RTPBENCH_CARRIER_{role}_{k}"] = os.environ.get(f"RTPBENCH_SIP_{k}", "")
         self.carrier = carrier is not None
+        self.built: dict[str, str] = {}  # each image the stack builds, by service: builds()
         if tls:
             where = out / "tls"
             certificates(where, TLS_NAMES)
@@ -317,11 +337,30 @@ class Stack:
         cmd = ["exec", "-T", *env, "caller", "python", "-m", "rtpbench", *args]
         return self.compose(*cmd, lines=lines)
 
+    def builds(self) -> dict[str, str]:
+        """Each image the stack builds, by service, as it pulls or builds them: rtpbench's own
+        (RTPBENCH_IMAGE), and the rest with their pinned tag followed by `-` and their
+        _build_hash, which the compose files take from RTPBENCH_BUILD_<SERVICE>."""
+        for k in [k for k in self.env if k.startswith("RTPBENCH_BUILD_")]:
+            del self.env[k]
+        services = json.loads(self.compose("config", "--format", "json"))["services"]
+        for name, service in services.items():
+            if "build" not in service:
+                continue
+            image = service["image"]
+            if image != self.env["RTPBENCH_IMAGE"]:
+                suffix = f"-{_build_hash(service['build'])}"
+                self.env[f"RTPBENCH_BUILD_{name.upper().replace('-', '_')}"] = suffix
+                image += suffix
+            self.built[name] = image
+        return self.built
+
     def up(self, phase: Callable[[str], None], profiles: Sequence[str] = ()) -> None:
         """Pull or else build the images missing here and start the stack; with an impaired
         profile among `profiles`, exit before the first call if the kernel lacks what `netem`
         needs, not after the clean calls."""
         phase("pulling or building images")
+        self.builds()
         self.compose("create", "--quiet-pull", *self.services)
         phase("starting the stack")
         self.compose("up", "-d", "--wait", *self.services)
@@ -523,6 +562,7 @@ def calibrate(
         conds |= {"codecs": codecs, "speech": real, "barge": barge, "carrier": carrier}
         if replies:
             conds["replies"] = sorted(clips or {})
+        conds["builds"] = stack.built
         if carrier:
             conds["images"] = stack.compose("images")
         (out / "conditions.json").write_text(json.dumps(conds, indent=1))
@@ -597,6 +637,7 @@ def cases(
                 partial(stack.sh, "router"), seed, out / "tls" if tls else None, srtp
             )
             conds |= {"profiles": profiles, "runs": runs, "carrier": carrier}
+            conds["builds"] = stack.built
             if carrier:
                 conds["images"] = stack.compose("images")
             for profile in profiles:
@@ -883,6 +924,7 @@ def target(
                     for f in sorted(said.glob("*.wav"))
                 }
             conds["images"] = stack.compose("images")
+            conds["builds"] = stack.built
             transfer = ["--proxy", proxy] if proxy else []
             turns = wavs("turn-*.wav")
             latency = ["--turns", str(len(turns)), "--lead", "10", "--gap", "15", "--wav", *turns]

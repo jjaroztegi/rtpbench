@@ -35,7 +35,7 @@ services:
         COPY --from=pins constraints.txt /tmp/constraints.txt
         RUN pip install --no-cache-dir -r requirements.txt -c /tmp/constraints.txt
         CMD ["python3", "-u", "src/main.py"]
-    image: ${RTPBENCH_REGISTRY:?}/rtpbench-aivc:b95f5af
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-aivc:b95f5af${RTPBENCH_BUILD_ENGINE:-}
     network_mode: service:target
     depends_on:
       opensips: { condition: service_healthy }

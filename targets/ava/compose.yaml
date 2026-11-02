@@ -46,7 +46,7 @@ services:
         COPY --from=modules /usr/src/asterisk/res/res_audiosocket.so \
             /usr/src/asterisk/channels/chan_audiosocket.so \
             /usr/src/asterisk/apps/app_audiosocket.so /usr/lib/asterisk/modules/
-    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava-asterisk:22.8-cert4
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava-asterisk:22.8-cert4${RTPBENCH_BUILD_ASTERISK:-}
     network_mode: service:target
     depends_on: [target]
     volumes:
@@ -97,7 +97,7 @@ services:
         ENV PATH="/opt/venv/bin:$$PATH"
         USER appuser
         CMD ["python", "main.py"]
-    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava:ba52df9
+    image: ${RTPBENCH_REGISTRY:?}/rtpbench-ava:ba52df9${RTPBENCH_BUILD_ENGINE:-}
     network_mode: service:target
     depends_on:
       asterisk: { condition: service_healthy }

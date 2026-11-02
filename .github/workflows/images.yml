@@ -2,7 +2,7 @@ name: Images
 
 # The images rtpbench builds, on GHCR, where a host missing one pulls it before building it:
 # rtpbench under its content hash, the carrier's and the bundled targets' under their pinned
-# tags. A tag already there stays as pushed, so change what an image builds with its tag.
+# tags followed by a hash of their build. A tag already there is not pushed again.
 on:
   push:
     branches: [main]
@@ -39,25 +39,24 @@ jobs:
       - shell: bash
         env:
           OWNER: ${{ github.repository_owner }}
+          # what the compose files need set to be read; no stack starts here
+          OPENAI_API_KEY: "-"
+          AZURE_OPENAI_ENDPOINT: "-"
+          AZURE_OPENAI_API_KEY: "-"
         run: |
-          export RTPBENCH_REGISTRY="ghcr.io/${OWNER,,}"
-          tag=$(uv run --locked python -c 'from rtpbench.bench import _image_tag; print(_image_tag())')
-          export RTPBENCH_IMAGE="$RTPBENCH_REGISTRY/$tag"
-          # what the compose files need set to be read; nothing runs here
-          export RTPBENCH_OUT=/tmp RTPBENCH_CARRIER_NEXT=- OPENAI_API_KEY=- AZURE_OPENAI_ENDPOINT=- \
-            AZURE_OPENAI_API_KEY=-
-          for target in "" targets/*/; do
-            files=(-f compose.yaml -f carrier/compose.yaml)
-            [ -n "$target" ] && files+=(-f "${target}compose.yaml")
-            config=$(docker compose "${files[@]}" config --format json)
-            mapfile -t built < <(jq -r '.services | to_entries[] | select(.value.build) |
-              "\(.key) \(.value.image)"' <<< "$config")
-            for line in "${built[@]}"; do
-              read -r service image <<< "$line"
-              if docker buildx imagetools inspect "$image" > /dev/null 2>&1; then
-                echo "$image: pushed already"
-              else
-                docker compose "${files[@]}" build --push "$service"
-              fi
-            done
-          done
+          RTPBENCH_REGISTRY="ghcr.io/${OWNER,,}" uv run --locked python - <<'EOF'
+          import subprocess
+          from pathlib import Path
+
+          from rtpbench.bench import TARGETS, Stack
+
+          # every stack's images under the tags a run pulls them by (Stack.builds)
+          for target in (None, *TARGETS):
+              stack = Stack(Path("/tmp/images"), target, carrier="-")
+              for service, image in stack.builds().items():
+                  inspect = ["docker", "buildx", "imagetools", "inspect", image]
+                  if subprocess.run(inspect, capture_output=True).returncode == 0:
+                      print(f"{image}: pushed already", flush=True)
+                  else:
+                      stack.compose("build", "--push", service, lines=lambda s: print(s, end=""))
+          EOF
