@@ -196,6 +196,17 @@ def _image_tag() -> str:
     return "rtpbench:" + h.hexdigest()[:12]
 
 
+def checkout(path: Path) -> dict[str, Any]:
+    """The commit a git checkout is at, and whether it has changes on top: what a target built
+    from it (`--source`) records."""
+    git = ["git", "-C", str(path)]
+    head = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True)
+    if head.returncode:
+        raise ValueError(f"not a git checkout: {head.stderr.strip()}")
+    status = subprocess.run([*git, "status", "--porcelain"], capture_output=True, text=True)
+    return {"commit": head.stdout.strip(), "dirty": bool(status.stdout.strip())}
+
+
 def _build_hash(build: dict[str, Any]) -> str:
     """A hash of a compose `build` section as `config` resolves it, with each local context's
     files (all of them: the build may copy any) in place of its path, so the same from any
@@ -223,7 +234,8 @@ class Stack:
     `network`, and with `ports` (first-last) the host publishes that range on the router. With
     `tls`, out/tls holds a test certificate for the stack's TLS servers, and ca.pem, what the
     caller trusts: `ca`, or with no `uri` the stack's test CA; else the caller trusts the
-    system's certificates. With `srtp`, the caller offers SRTP with these suites."""
+    system's certificates. With `srtp`, the caller offers SRTP with these suites. With
+    `source`, a git checkout, the target builds from it (targets/<name>/source.yaml)."""
 
     def __init__(
         self,
@@ -237,6 +249,7 @@ class Stack:
         tls: bool = False,
         ca: Path | None = None,
         srtp: list[str] | None = None,
+        source: Path | None = None,
     ) -> None:
         self.project = f"rtpbench-{secrets.token_hex(3)}"
         self.env = os.environ | {
@@ -259,6 +272,10 @@ class Stack:
         if target and mock:
             self.files.append(ROOT / "mock" / "compose.yaml")
             self.env |= MOCK[target]
+        if target and source:
+            self.files.append(ROOT / "targets" / target / "source.yaml")
+            self.env["RTPBENCH_SOURCE"] = str(source.resolve())
+            self.env["RTPBENCH_SOURCE_COMMIT"] = checkout(source)["commit"][:7]
         if carrier:
             self.files.append(ROOT / "carrier" / "compose.yaml")
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
@@ -809,6 +826,7 @@ def target(
     ca: Path | None = None,
     srtp: list[str] | None = None,
     tls: bool = False,
+    source: Path | None = None,
     *,
     progress: Progress,
 ) -> str:
@@ -823,7 +841,8 @@ def target(
     next few to it), else with `network` its router's address there; over TLS (a sips: URI or
     proxy, or transport=tls) it trusts the certificates in `ca`, else the system's; with `srtp`
     the caller offers SRTP with these suites. A compose target takes `tls` and `srtp` with
-    `carrier` only, which takes them on the caller's leg."""
+    `carrier` only, which takes them on the caller's leg, and builds from the git checkout
+    `source` if given."""
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
@@ -875,7 +894,8 @@ def target(
                 stack.env["RTPBENCH_CARRIER_TRANSPORT"] = transport(name).lower()
         else:
             proxy_tls = False
-            stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)
+            next_hop = "target" if carrier else None
+            stack = Stack(out, name, next_hop, mock, tls=tls, srtp=srtp, source=source)
         logs = None
         try:
             stack.up(progress.phase, profiles)
@@ -912,6 +932,8 @@ def target(
                 router_ip = stack.sh("target", "getent hosts router").split()[0]
                 stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
                 conds["engine"] = realtime.conditions() if mock else _engine(settings)
+                if source:
+                    conds["source"] = checkout(source)
                 if mock and (own := {k: v for k, v in settings.items() if k not in MOCK[name]}):
                     conds["settings"] = _engine(own)  # the target's own, such as AVA's pacer
                 uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")

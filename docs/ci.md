@@ -95,6 +95,15 @@ workflow](../.github/workflows/action.yml), six calls on one profile, takes abou
 anyone can download it, and the captures of a run with credentials hold the SIP user name and
 a digest of the password that a dictionary attack can test.
 
+### In a bundled target's own repository
+
+A project that is a [bundled target](targets.md) can call itself on every pull request with no
+AI account and no secrets: `target` its name, `mock: true`, and `source: .`, which builds the
+pull request's code in place of the pinned version
+([built from a checkout](targets.md#built-from-a-checkout)). A policy that allows what the main
+branch fails today starts the job green; from then on it fails only when a call that passed
+stops passing.
+
 ### Where the agent runs
 
 - In the same job: a service container, as above, or `docker compose up -d` in an earlier step

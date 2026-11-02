@@ -38,6 +38,11 @@ inputs:
   mock:
     description: A bundled target on the mock engine instead of its AI engine
     default: "false"
+  source:
+    description: >-
+      A git checkout to build the bundled target from instead of its pinned version (aivc, ava,
+      or livekit's SIP bridge)
+    default: ""
   out:
     description: Results directory
     default: rtpbench-results
@@ -79,6 +84,7 @@ runs:
         ADVERTISE: ${{ inputs.advertise }}
         PROXY: ${{ inputs.proxy }}
         MOCK: ${{ inputs.mock }}
+        SOURCE: ${{ inputs.source }}
         OUT: ${{ inputs.out }}
         UPLOAD: ${{ inputs.upload }}
       run: |
@@ -91,6 +97,7 @@ runs:
         [ -n "$ADVERTISE" ] && args+=(--advertise "$ADVERTISE")
         [ -n "$PROXY" ] && args+=(--proxy "$PROXY")
         [ "$MOCK" = true ] && args+=(--mock)
+        [ -n "$SOURCE" ] && args+=(--source "$SOURCE")
         uv run --project "$RTPBENCH" --locked --extra vad rtpbench "${args[@]}"
 
     - id: check
