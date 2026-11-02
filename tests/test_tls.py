@@ -148,9 +148,10 @@ def test_tls_transport_checks_the_name_and_answers_on_the_connection(tmp_path: P
 def test_tls_uris_and_contacts() -> None:
     from rtpbench.caller import parse_uri
 
-    assert sip.secure("sips:agent@host")
-    assert sip.secure("sip:a@h:5070;transport=TLS")
-    assert not sip.secure("sip:agent@host;transport=tcp")
+    assert sip.transport("sips:agent@host") == "TLS"
+    assert sip.transport("sip:a@h:5070;transport=TLS") == "TLS"
+    assert sip.transport("sip:agent@host;transport=tcp") == "TCP"
+    assert sip.transport("sip:agent@host") == "UDP"
     assert parse_uri("sips:agent@host") == ("host", 5061)
     assert parse_uri("sip:proj@sip.example.com;transport=tls") == ("sip.example.com", 5061)
     assert parse_uri("sip:agent@host") == ("host", 5060)
