@@ -52,9 +52,13 @@ services:
     environment:
       CARRIER_NEXT: ${RTPBENCH_CARRIER_NEXT:?}
       CARRIER_NEXT_PORT: ${RTPBENCH_CARRIER_PORT:-5060}
+      CARRIER_NEXT_TRANSPORT: ${RTPBENCH_CARRIER_TRANSPORT:-udp}
       # set, the carrier demands these credentials of the caller, as a trunk may
-      CARRIER_AUTH_USER: ${RTPBENCH_SIP_USER:-}
-      CARRIER_AUTH_PASSWORD: ${RTPBENCH_SIP_PASSWORD:-}
+      CARRIER_AUTH_USER: ${RTPBENCH_CARRIER_AUTH_USER:-}
+      CARRIER_AUTH_PASSWORD: ${RTPBENCH_CARRIER_AUTH_PASSWORD:-}
+      # set, it answers the agent's challenge with these
+      CARRIER_UAC_USER: ${RTPBENCH_CARRIER_UAC_USER:-}
+      CARRIER_UAC_PASSWORD: ${RTPBENCH_CARRIER_UAC_PASSWORD:-}
     healthcheck:
       test: opensips-cli -x mi sr_get_status core | grep -q running
       interval: 1s

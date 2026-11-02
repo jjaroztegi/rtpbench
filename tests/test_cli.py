@@ -32,7 +32,7 @@ def test_no_arguments_list_the_commands_and_help_the_valid_names(
     ("argv", "error"),
     [
         (["sip:agent@203.0.113.7", "--mock"], "--mock, --tls"),
-        (["sips:agent@203.0.113.7", "--carrier"], "over UDP and RTP"),
+        (["sips:agent@203.0.113.7", "--carrier"], "not TLS or SRTP"),
         (["sip:agent@203.0.113.7", "--carrier", "--network", "n"], "not with --network"),
         (["sip:agent:secret@203.0.113.7"], "password"),
         (["sip:agent@127.0.0.1"], "own address"),
