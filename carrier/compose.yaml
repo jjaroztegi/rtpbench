@@ -2,8 +2,9 @@
 # ../compose.yaml: OpenSIPS as an SBC (stateful proxy with topology hiding) and rtpengine
 # anchoring the media, as real trunks put in front of a PBX. `carrier` owns the network namespace
 # on agentnet, so caller <-> carrier crosses the netem router and carrier <-> agent does not.
-# rtpbench sets RTPBENCH_CARRIER_NEXT to the agent's host. Paths are relative to the repository
-# root, the first compose file's directory.
+# rtpbench sets RTPBENCH_CARRIER_NEXT to the agent's host (and RTPBENCH_CARRIER_PORT, its SIP
+# port, for an agent outside the stack, which the carrier reaches through Docker's gateway).
+# Paths are relative to the repository root, the first compose file's directory.
 services:
   carrier:
     image: ${RTPBENCH_IMAGE:?}
@@ -50,6 +51,7 @@ services:
     volumes: ["./carrier/opensips.cfg:/etc/opensips/opensips.cfg:ro"]
     environment:
       CARRIER_NEXT: ${RTPBENCH_CARRIER_NEXT:?}
+      CARRIER_NEXT_PORT: ${RTPBENCH_CARRIER_PORT:-5060}
       # set, the carrier demands these credentials of the caller, as a trunk may
       CARRIER_AUTH_USER: ${RTPBENCH_SIP_USER:-}
       CARRIER_AUTH_PASSWORD: ${RTPBENCH_SIP_PASSWORD:-}

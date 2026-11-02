@@ -63,8 +63,20 @@ def _target_args(args: argparse.Namespace) -> str | None:
         if args.lines and args.mock:
             return "--lines: not with --mock, which recognises only the bundled lines"
         return None
-    if args.mock or args.carrier or args.tls:
-        return "--mock, --carrier, --tls: with a bundled target only (a URI gives TLS as sips:)"
+    if args.mock or args.tls:
+        return "--mock, --tls: with a bundled target only (a URI gives TLS as sips:)"
+    if args.carrier:
+        from rtpbench.bench import CREDENTIALS
+        from rtpbench.sip import transport
+
+        # the carrier calls the agent as it does a bundled one: over UDP, unauthenticated, from
+        # its own address; the agent answers where the carrier's packets come from
+        if transport(args.name) != "UDP" or args.srtp:
+            return "--carrier: the carrier calls the agent over UDP and RTP, not TCP, TLS or SRTP"
+        if args.network or args.advertise:
+            return "--carrier: not with --network or --advertise (the carrier calls the agent)"
+        if all(os.environ.get(k) for k in CREDENTIALS):
+            return "--carrier: the carrier does not authenticate to the agent (RTPBENCH_SIP_USER)"
     if ":" in args.name.split(":", 1)[1].split("@")[0] and "@" in args.name:
         return "the URI has a password: give credentials in the environment, not the URI"
     host, _ = parse_uri(args.name)

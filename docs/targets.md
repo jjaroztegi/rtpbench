@@ -221,6 +221,17 @@ packet: 0.1 ms or less at the median. Which cases change through it is in
 [cases](cases.md#through-the-carrier).
 
 ```sh
+uv run --extra vad rtpbench target sip:agent@203.0.113.7:5080 --carrier
+```
+
+In front of your own agent, the carrier calls the URI's user, host and port over UDP, from its
+address in Docker and through Docker's gateway, so the agent's leg is outside netem as with a
+bundled target. Its offer carries its address inside Docker, so an agent on another host must
+send its replies and audio back to where the carrier's came from (symmetric RTP): the carrier
+takes no `--network` or `--advertise`. Nor does it call over TCP, TLS or SRTP, or answer a digest
+challenge.
+
+```sh
 uv run --extra vad rtpbench cases --carrier --tls --srtp
 uv run --extra vad rtpbench target aivc --mock --carrier --tls --srtp
 ```
