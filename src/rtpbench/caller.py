@@ -220,7 +220,10 @@ class Session:
         if msg.status >= 300:
             if req := self.invites.get(msg.branch):
                 self.dialog.ack_failure(req, msg)
-            if initial and (again := self._authorize(self.invite, msg, self.headers)):
+            if initial and (
+                again := self._authorize(self.invite, msg, self.headers)
+                or self._interval(self.invite, msg)
+            ):
                 self.invite = again
             elif initial:
                 self.final = msg
@@ -301,6 +304,25 @@ class Session:
         again = self.dialog.request(req.method, req.body, hdrs, content_type)
         if again.method == "INVITE":
             self.invites[again.branch] = again
+        self.dialog.send(again)
+        return again
+
+    def _interval(self, req: sip.Message, resp: sip.Message) -> sip.Message | None:
+        """Send the INVITE `req` again (a new CSeq) asking for the session interval the agent's
+        422 names (Min-SE), if it names one above what `req` asked (RFC 4028 6); the new
+        request."""
+        least, asked = resp.get("min-se").split(";")[0].strip(), req.get("session-expires")
+        number = asked.split(";")[0].strip()
+        if resp.status != 422 or not least.isdigit() or not number.isdigit():
+            return None
+        if int(least) <= int(number):
+            return None
+        kept = [
+            (k, v) for k, v in self.headers or [] if k.lower() not in ("session-expires", "min-se")
+        ]
+        self.headers = [*kept, ("Session-Expires", least + asked[len(number) :]), ("Min-SE", least)]
+        again = self.dialog.request("INVITE", req.body, self.headers)
+        self.invites[again.branch] = again
         self.dialog.send(again)
         return again
 
