@@ -32,6 +32,7 @@ timing within 0.5 ms.
 | `large-invite` | **fail** 30/30 | pass 30/30 | | |
 | `compact-headers` | | | **fail** 30/30 | pass 30/30 |
 | `sdp-ssrc` | | | **fail** 30/30 | pass 30/30 |
+| `dtmf-info` | **fail** 30/30 | unsupported 30/30 | **fail** 30/30 | unsupported 30/30 |
 | `refer` | pass 30/30 | pass 30/30 | pass 30/30 | flips: pass 29, fail 1 |
 
 - A failed transfer no longer hangs up on the caller: the connector keeps the call and the engine
@@ -39,14 +40,15 @@ timing within 0.5 ms.
 - An INVITE over 1300 bytes, sent over TCP, is taken: the example configuration listens on TCP.
 - Compact header names and an `a=ssrc` line without an attribute, as a carrier sends them, are
   understood.
+- A DTMF INFO is declined, 501 Not Implemented, where it went unanswered until the caller's
+  transaction gave up: unsupported (legacy INFO, RFC 6086), no longer a failure.
 - The one `refer` failure is new, [below](#an-rtp-port-already-in-use).
 
 Every other verdict is the baseline's. Still failing: `hold` (an `inactive` offer answered
 `recvonly`), `hold-zero` (about 120 packets sent during a `c=0.0.0.0` hold), `codec-change` (the
-old codec in the answer), `reinvite-nosdp`, `late-offer` (500), and both DTMF cases (an INFO
-now gets 501, where it got no answer at all). `cancel` stays inconclusive, and so does `timer`:
-the connector's 2xx carries no Session-Expires, so it does not take session timers, an optional
-extension (RFC 4028 9).
+old codec in the answer), `reinvite-nosdp` and `late-offer` (500). Still unsupported:
+`dtmf-rfc4733` (no telephone-event in the answer) and `timer` (no Session-Expires in the 2xx:
+session timers are optional, RFC 4028 9). `cancel` stays inconclusive.
 
 Timing and audio, measured direct, did not move. Turn latency p50 1511, 1593 and 1604 ms (`clean`, `lte`,
 `lte-bad`) against 1512, 1592 and 1605; the connector's own share 9 ms on a clean network. It

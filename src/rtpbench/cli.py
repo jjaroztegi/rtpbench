@@ -169,9 +169,9 @@ examples:
         help="prove the conformance cases on the reference agent (Docker)",
         description="""\
 Run each case against the reference agent in Docker, behaving well and in each way it should
-fail, and check that every verdict comes out right; exit 1 if one does not. Writes summary.md,
-results.json, report.html (a timeline of every call) and the captures to --out. To judge an
-agent, use `rtpbench target`.""",
+fail or decline, and check that every verdict comes out right; exit 1 if one does not. Writes
+summary.md, results.json, report.html (a timeline of every call) and the captures to --out. To
+judge an agent, use `rtpbench target`.""",
         epilog="""\
 examples:
   uv run --extra vad rtpbench cases                      # every case: about 17 minutes
@@ -321,8 +321,8 @@ example:
         "check",
         help="pass or fail a target run against a policy; exit 1 if it fails (CI)",
         description="""\
-Judge a finished target run against a policy, without placing calls: the cases that may fail,
-limits on turn latency and barge-in, and how far they may grow from an earlier run's
+Judge a finished target run against a policy, without placing calls: the cases that may fail
+or decline, limits on turn latency and barge-in, and how far they may grow from an earlier run's
 check.json. Writes check.md and check.json in DIR; exits 1 if the run fails the policy, 2 if
 the policy, DIR or the previous check.json cannot be used. Without --policy, every case must
 pass.""",

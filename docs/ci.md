@@ -16,6 +16,7 @@ few kilobytes holding what the policy reads (verdicts, and every latency and bar
 ```toml
 [cases]                       # every case run must pass, except these
 hold = "fail"                 # allowed to fail; noted when it passes
+timer = "unsupported"         # allowed to decline (pass or unsupported), not to fail
 
 [latency.clean]               # turn latency, ms, per profile
 p50 = 2000
@@ -33,8 +34,9 @@ barge-in = 100
 Without `--policy`, every case must pass. An unknown name anywhere in the file is an error, so
 a typo cannot turn a limit off.
 
-- A case passes the policy only if it passed in every repeat. A case allowed to fail still fails
-  the check when `--previous` shows it passing in every repeat there.
+- A case passes the policy only if it passed in every repeat, or, allowed to decline, was
+  unsupported or passed in every repeat. A case allowed to fail or decline still fails the check
+  when `--previous` shows it passing in every repeat there.
 - A limit holds unless even the lowest true value the [error bar](calibration.md#error-bars)
   allows is over it: the detector's bias never fails a build. A turn the agent never answered
   counts as later than any limit, and a limit on a call that did not complete fails. A limit on

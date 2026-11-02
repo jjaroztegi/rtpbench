@@ -1,11 +1,11 @@
 """`rtpbench check`: pass or fail a target run against a policy, for CI.
 
-A policy (TOML) sets which cases may fail, limits on turn latency and barge-in per profile, and
-how far they may grow from an earlier run's check.json. Limits read the error bar in the
-agent's favour: a percentile fails only when even the lowest true value its bar allows is over.
-A regression fails only when the change in median is over the tolerance across its whole 95%
-interval, resampling calls and then turns within them: turn-to-turn and call-to-call noise
-stays inside it, and the bars, the same for both runs of a profile and codec, cancel.
+A policy (TOML) sets which cases may fail or decline, limits on turn latency and barge-in per
+profile, and how far they may grow from an earlier run's check.json. Limits read the error bar
+in the agent's favour: a percentile fails only when even the lowest true value its bar allows
+is over. A regression fails only when the change in median is over the tolerance across its
+whole 95% interval, resampling calls and then turns within them: turn-to-turn and call-to-call
+noise stays inside it, and the bars, the same for both runs of a profile and codec, cancel.
 """
 
 import json
@@ -24,6 +24,12 @@ RESAMPLES = 2000
 # fewer turns a side and the interval is too narrow for the noise: compared on the baseline,
 # single barge-in calls (2-5 of each interjection) failed often with nothing changed
 MIN_TURNS = 10
+# a case's policy value: the verdicts it allows (None: any), and what the detail calls them
+ALLOW = {
+    "pass": ({"pass"}, ""),
+    "unsupported": ({"pass", "unsupported"}, "decline"),
+    "fail": (None, "fail"),
+}
 
 
 class InputError(ValueError):
@@ -42,8 +48,8 @@ def load(path: Path) -> dict[str, Any]:
     _known(policy, {"cases", "latency", "barge-in", "regression"}, "policy")
     _known(policy.get("cases", {}), set(cases.CASES), "[cases]")
     for case, want in policy.get("cases", {}).items():
-        if want not in ("pass", "fail"):
-            raise InputError(f"[cases] {case} = {want!r}: pass or fail")
+        if want not in ALLOW:
+            raise InputError(f"[cases] {case} = {want!r}: {', '.join(ALLOW)}")
     _known(policy.get("latency", {}), set(PROFILES), "[latency]")
     for profile, limits in policy.get("latency", {}).items():
         _limits(limits, PROFILE_KEYS, f"[latency.{profile}]")
@@ -211,14 +217,18 @@ def evaluate(
         for case, got in by_case.items():
             mix = cases.verdicts([{"verdict": v} for v in got])
             passed = all(v == "pass" for v in got)
-            if expect.get(case, "pass") == "pass":
+            allowed, verb = ALLOW[expect.get(case, "pass")]
+            if not verb:
                 row(profile, case, passed, mix + ("" if passed else ", expected to pass"))
             elif passed:
-                row(profile, case, None, f"{mix}, allowed to fail: the policy can expect a pass")
+                row(profile, case, None, f"{mix}, allowed to {verb}: the policy can expect a pass")
+            elif allowed is not None and not set(got) <= allowed:
+                row(profile, case, False, f"{mix}, only allowed to {verb}")
             elif (prev := was.get(profile, {}).get(case)) and all(v == "pass" for v in prev):
-                row(profile, case, False, f"{mix}, allowed to fail, but passed in the previous run")
+                was_pass = "but passed in the previous run"
+                row(profile, case, False, f"{mix}, allowed to {verb}, {was_pass}")
             else:
-                row(profile, case, True, f"{mix}, allowed to fail")
+                row(profile, case, True, f"{mix}, allowed to {verb}")
 
     for profile, limits in policy.get("latency", {}).items():
         entry = now["latency"].get(profile)

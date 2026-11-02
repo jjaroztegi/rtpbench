@@ -17,14 +17,18 @@ without a carrier in front, on a mock engine that holds the AI engine's share of
 
 | | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at b95f5af | Asterisk + [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) |
 | --- | --- | --- | --- |
-| cases failed of 24 | 6, and 1 inconclusive | 7, and 2 inconclusive | 4, and 3 inconclusive |
+| cases failed of 24 | 5, and 2 unsupported | 5, 3 unsupported and 1 inconclusive | 4, and 3 inconclusive |
 | turn latency, clean, p50 | 1833 ms | 1511 ms | 1588 ms |
 | its own media path per turn, p50 | 335 ms | 9 ms | 88 ms |
 | stops for an interruption, clean, p50 | 306 ms | 24 ms | never |
 
 The counts take every profile, direct and through the carrier. Run direct only, as
-`target NAME --mock` does by default, LiveKit fails 5: `late-offer` fails only through the
+`target NAME --mock` does by default, LiveKit fails 4: `late-offer` fails only through the
 carrier. All three pass the 3 cases for lost SIP messages, run direct on a clean network.
+Unsupported is an optional feature declined as its RFC allows, with the call unharmed:
+LiveKit refuses DTMF by SIP INFO (405), AI Voice Connector CE refuses it (501) and negotiates no
+RFC 4733 events, and neither takes session timers. LiveKit does negotiate RFC 4733 events, but
+the digit never reaches the engine: a failure.
 
 - LiveKit keeps sending audio to a held caller in every kind of hold, AI Voice Connector CE when
   held with `c=0.0.0.0`, and both answer a re-INVITE that changes codec with the old codec. AVA
@@ -40,9 +44,10 @@ carrier. All three pass the 3 cases for lost SIP messages, run direct on a clean
   stops for an interruption: it keeps the caller's audio from the engine while it speaks. Over
   AudioSocket under packet loss, the engine sometimes got silence instead of the caller, so 5 more
   cases fail now and then.
-- AI Voice Connector CE's main branch fixed 4 of the 11 cases it failed in the baseline (a failed
+- AI Voice Connector CE's main branch fixed 4 of the 10 cases it failed in the baseline (a failed
   transfer no longer hangs up on the caller; compact headers, a bare `a=ssrc` and SIP over TCP
-  are taken). It still refuses an INVITE without SDP and answers no re-INVITE without one.
+  are taken), and now declines a DTMF INFO with 501 where it left it unanswered. It still
+  refuses an INVITE without SDP and answers no re-INVITE without one.
 
 The details, commands, conditions and raw runs are in [the baseline](results/baseline),
 [AI Voice Connector CE at b95f5af](results/aivc-b95f5af), [Asterisk + AVA](results/ava) and

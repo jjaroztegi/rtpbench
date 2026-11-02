@@ -5,13 +5,20 @@ uv run --extra vad rtpbench cases                      # prove every case agains
 uv run --extra vad rtpbench cases --profiles clean,lte,lte-bad --runs 10
 ```
 
-Each case ([`cases.py`](../src/rtpbench/cases.py)) is a scripted call with a verdict (pass, fail
-or inconclusive) and timings, each timing with its [error bar](calibration.md#error-bars).
-`rtpbench cases` runs every case against the reference agent once with a behaviour that should
-pass it and once with each behaviour that should fail it (for `timer`, also once without the
-extension, which is inconclusive), so the case itself is proven; the command fails on any
-unexpected verdict. `rtpbench target` runs them against an agent
-([targets](targets.md)).
+Each case ([`cases.py`](../src/rtpbench/cases.py)) is a scripted call with a verdict (pass, fail,
+inconclusive or unsupported) and timings, each timing with its
+[error bar](calibration.md#error-bars). `rtpbench cases` runs every case against the reference
+agent once with a behaviour that should pass it and once with each behaviour that should fail or
+decline it, so the case itself is proven; the command fails on any unexpected verdict.
+`rtpbench target` runs them against an agent ([targets](targets.md)).
+
+Unsupported is a clean decline of an optional feature, where the RFC makes declining a correct
+answer, and fails nothing else: a single-law offer refused 488 or 606 (RFC 3261 21.4.26,
+21.6.4); a DTMF INFO refused 405, 415, 469 or 501 (legacy INFO, RFC 6086); an answer without
+telephone-event (RFC 4733); a 2xx without Session-Expires or `Require: timer` (RFC 4028 9); a
+codec-change re-INVITE refused 488 while the call goes on in its law (RFC 3261 14.2).
+Inconclusive is a case that could not get far enough to tell, and wins over unsupported; any
+failed check makes the case fail.
 
 With `--runs N`, repeat k uses seed + k − 1. Verdicts are counted ("pass 10/10"); a case whose
 verdict changes between repeats reads "flips: pass 7, fail 3", and fails the reference run.
@@ -37,7 +44,7 @@ names.
 | `refer-fail` | as `refer`, but the target is busy (`486 Busy Here`): the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
 | `codec-pcmu` | the caller offers PCMU alone: the answer has PCMU (RFC 3264 6.1; it may list formats the offer lacked, which the agent cannot send) and the agent's RTP is PCMU |
 | `codec-pcma` | the same with PCMA |
-| `timer` | session timers offered (90 s, caller refreshes), refreshed once at half time, then not again: the 2xx takes them (RFC 4028), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE 45-90 s after the refresh. The offer says `Supported: timer`, not `Require`, so an agent without timers (a 2xx without Session-Expires) is inconclusive (RFC 4028 9: the extension is optional) |
+| `timer` | session timers offered (90 s, caller refreshes), refreshed once at half time, then not again: the 2xx takes them (RFC 4028), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE 45-90 s after the refresh. The offer says `Supported: timer`, not `Require`, so an agent without timers (a 2xx without Session-Expires) is unsupported |
 | `ssrc-change` | after the greeting the caller's audio becomes a new RTP source (RFC 3550 8): the agent replies to a question within 10 s |
 | `reinvite` | after the greeting, a session refresh by re-INVITE with the same SDP: 2xx `sendrecv`, media undisturbed, a reply within 10 s |
 | `reinvite-nosdp` | a re-INVITE without SDP, as PBXs send to move or audit media (RFC 3261 14.1): the 2xx offers the call's codec, the caller answers in the ACK, media undisturbed, a reply within 10 s |

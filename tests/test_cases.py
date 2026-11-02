@@ -110,9 +110,13 @@ def test_answer_without_g711_hangs_up(pair: tuple[socket.socket, socket.socket])
 
 
 def test_verdict() -> None:
+    declined = Check("d", False, declined=True)
     assert Result([Check("a", True), Check("b", None)]).verdict == "inconclusive"
     assert Result([Check("a", False), Check("b", None)]).verdict == "fail"
     assert Result([Check("a", True)]).verdict == "pass"
+    assert Result([Check("a", True), declined]).verdict == "unsupported"
+    assert Result([declined, Check("b", None)]).verdict == "inconclusive"
+    assert Result([declined, Check("b", False)]).verdict == "fail"
 
 
 def msg(first: str, cseq: str) -> sip.Message:
@@ -504,17 +508,79 @@ def test_refer_whose_transfer_failed_is_inconclusive(frag: str, verdict: str) ->
     assert lost.checks[-1].ok
 
 
-def test_timer_without_the_extension_is_inconclusive() -> None:
+def test_timer_without_the_extension_is_unsupported() -> None:
     invite = sip.Message("INVITE sip:agent@x SIP/2.0", [("CSeq", "1 INVITE"), *cases.TIMER])
     ok = sip.Message("SIP/2.0 200 OK", [("CSeq", "1 INVITE")])
     r = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
-    assert r.verdict == "inconclusive"
+    assert r.verdict == "unsupported"
     assert r.checks[0].detail == cases.NO_TIMER
     assert cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite)], [], [])).verdict == "fail"
     ok.headers.append(("Require", "100rel, timer"))  # says it takes timers, gives no interval
     broken = cases.check_timer(Wire({"pt": 0}, None, [(1, True, invite), (2, False, ok)], [], []))
     assert broken.verdict == "fail"
-    assert cases.expected("unsupported") == "inconclusive"
+    assert cases.expected("unsupported") == "unsupported"
+
+
+def _info_call(status: str | None) -> Wire:
+    """A dtmf-info call: the INFO, its response (`status`, or none), no agent speech after."""
+    info = sip.Message(
+        "INFO sip:agent@x SIP/2.0", [("Via", "SIP/2.0/UDP x;branch=z9hG4bK1"), ("CSeq", "2 INFO")]
+    )
+    msgs = [(1, True, info)]
+    if status:
+        msgs.append((2, False, sip.response(info, int(status.split()[0]), status.split(" ", 1)[1])))
+    return Wire({"pt": 0}, None, msgs, [], [])
+
+
+@pytest.mark.parametrize(
+    ("status", "verdict"),
+    [
+        ("405 Method Not Allowed", "unsupported"),
+        ("415 Unsupported Media Type", "unsupported"),
+        ("469 Bad Info Package", "unsupported"),
+        ("501 Not Implemented", "unsupported"),
+        ("200 OK", "fail"),  # taken, and no reaction: the digit was lost
+        ("487 Request Terminated", "fail"),
+        (None, "fail"),
+    ],
+)
+def test_dtmf_info_declined_or_lost(status: str | None, verdict: str) -> None:
+    assert cases.check_dtmf_info(_info_call(status)).verdict == verdict
+
+
+def test_dtmf_rfc4733_without_telephone_event_is_unsupported() -> None:
+    sdp = sip.sdp("127.0.0.1", 4000, [0], "sendrecv", (1, 1), dtmf=False)
+    ok = sip.Message("SIP/2.0 200 OK", [("CSeq", "1 INVITE")], sdp)
+    r = cases.check_dtmf_rfc4733(Wire({"pt": 0}, None, [(1, False, ok)], [], []))
+    assert r.verdict == "unsupported"
+    ok.body = sip.sdp("127.0.0.1", 4000, [0], "sendrecv", (1, 1), dtmf=True)
+    r = cases.check_dtmf_rfc4733(Wire({"pt": 0}, None, [(1, False, ok)], [], []))
+    assert r.checks[0].ok
+    assert not r.checks[0].declined
+
+
+def test_codec_change_refused_is_unsupported_only_while_the_call_goes_on() -> None:
+    invite = sip.Message(
+        "INVITE sip:agent@x SIP/2.0",
+        [("Via", "SIP/2.0/UDP x;branch=z9hG4bK2"), ("CSeq", "2 INVITE")],
+        b"v=0\r\nc=IN IP4 127.0.0.1\r\nm=audio 4000 RTP/AVP 8\r\n",
+    )
+    first = sip.Message("INVITE sip:agent@x SIP/2.0", [("Via", "SIP/2.0/UDP x;branch=z9hG4bK1")])
+    msgs = [(0, True, first), (10**9, True, invite)]
+    msgs.append((10**9 + 1, False, sip.response(invite, 488, "Not Acceptable Here")))
+    pcmu = [
+        (10**9 + k * 20_000_000, rtp.Packet(0, k, k * 160, 1, False, b"\xff" * 160))
+        for k in range(50)
+    ]
+
+    def judged(down: analyze.Timed) -> Result:
+        return cases.check_codec_change(Wire({"pt": 0, "ssrc": 0}, None, msgs, [], down))
+
+    r = judged(pcmu)  # PCMU goes on; the question is never asked here, so inconclusive
+    assert [c.ok for c in r.checks[:2]] == [False, True]
+    assert r.checks[0].declined
+    assert r.verdict == "inconclusive"
+    assert judged([]).verdict == "fail"  # the session did not carry on
 
 
 def test_untransferable_only_when_no_session_offered_a_callable_tool(tmp_path: Path) -> None:

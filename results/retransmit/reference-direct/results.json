@@ -11,7 +11,8 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "INVITE copy answered within 1000 ms",
@@ -20,19 +21,22 @@
     "span": [
      1792598329362268499,
      1792598329362481899
-    ]
+    ],
+    "declined": false
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null
+    "span": null,
+    "declined": false
    }
   ],
   "timings": [
@@ -79,7 +83,8 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "INVITE copy answered within 1000 ms",
@@ -88,19 +93,22 @@
     "span": [
      1792598337444065551,
      1792598337444324051
-    ]
+    ],
+    "declined": false
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "one final response to the INVITE",
     "ok": false,
     "detail": "503 Service Unavailable without a To-tag, then 200 OK",
-    "span": null
+    "span": null,
+    "declined": false
    }
   ],
   "timings": [
@@ -147,7 +155,8 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "INVITE copy answered within 1000 ms",
@@ -156,19 +165,22 @@
     "span": [
      1792598345403905453,
      1792598347967572832
-    ]
+    ],
+    "declined": false
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null
+    "span": null,
+    "declined": false
    }
   ],
   "timings": [
@@ -215,25 +227,29 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "agent hangs up within 10 s",
@@ -242,7 +258,8 @@
     "span": [
      1792598368692913428,
      1792598368693196488
-    ]
+    ],
+    "declined": false
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -251,7 +268,8 @@
     "span": [
      1792598367163740130,
      1792598367666921820
-    ]
+    ],
+    "declined": false
    }
   ],
   "timings": [
@@ -312,13 +330,15 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null
+    "span": null,
+    "declined": false
    },
    {
     "name": "agent hangs up within 10 s",
@@ -327,7 +347,8 @@
     "span": [
      1792598386066322196,
      1792598396066322196
-    ]
+    ],
+    "declined": false
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -336,7 +357,8 @@
     "span": [
      1792598386066322196,
      1792598387066322196
-    ]
+    ],
+    "declined": false
    }
   ],
   "timings": [
@@ -372,7 +394,8 @@
     "span": [
      1792598441532362028,
      1792598442035004907
-    ]
+    ],
+    "declined": false
    }
   ],
   "timings": [
@@ -408,7 +431,8 @@
     "span": [
      1792598460401983784,
      1792598461401983784
-    ]
+    ],
+    "declined": false
    }
   ],
   "timings": [],

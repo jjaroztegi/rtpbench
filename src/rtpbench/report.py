@@ -16,7 +16,7 @@ CSS = """
 :root { color-scheme: light dark; --surface: #fcfcfb; --page: #f9f9f7; --ink: #0b0b0b;
   --ink2: #52514e; --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7;
   --border: rgba(11,11,11,.10); --caller: #2a78d6; --agent: #eb6834;
-  --pass: #0ca30c; --fail: #d03b3b; --inconclusive: #fab219; }
+  --pass: #0ca30c; --fail: #d03b3b; --inconclusive: #fab219; --unsupported: #898781; }
 @media (prefers-color-scheme: dark) { :root { --surface: #1a1a19; --page: #0d0d0d;
   --ink: #f0efec; --ink2: #c3c2b7; --grid: #2c2c2a; --axis: #383835;
   --border: rgba(255,255,255,.10); --caller: #3987e5; --agent: #d95926; } }
@@ -35,6 +35,7 @@ td.t { min-width: 330px; } .n { font-variant-numeric: tabular-nums; white-space:
 .v { white-space: nowrap; }
 .icon { font-weight: 700; } .pass .icon { color: var(--pass); }
 .fail .icon { color: var(--fail); } .inconclusive .icon { color: var(--inconclusive); }
+.unsupported .icon { color: var(--unsupported); }
 a { color: inherit; } svg { display: block; width: 100%; min-width: 720px; height: auto; }
 svg text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--ink2); }
 svg .lane { fill: var(--ink2); font-size: 12px; } svg .grid { stroke: var(--grid); }
@@ -60,7 +61,7 @@ INDEX_CSS = """
 .m td a { text-decoration: none; } .m td:first-child { white-space: nowrap; }
 .sets { margin-top: 16px; }
 """
-ICON = {"pass": "✓", "fail": "✗", "inconclusive": "?"}
+ICON = {"pass": "✓", "fail": "✗", "inconclusive": "?", "unsupported": "⊘"}
 
 
 def _verdict(v: str) -> str:
@@ -372,8 +373,9 @@ def index(root: Path, markdown: str | None = None) -> str:
     parts = [
         "<h1>rtpbench results</h1>",
         '<p class="meta">Reference columns: calls with the expected verdict over every behaviour '
-        "of a case (the good agent passes, each bad one fails). Target columns: verdicts over "
-        "every profile and repeat. Each links to the case's first call.</p>",
+        "of a case (the good agent passes, each bad one fails, each decline is unsupported). "
+        "Target columns: verdicts over every profile and repeat. Each links to the case's first "
+        "call.</p>",
     ]
     for folder in sorted(sets.keys() | others.keys()):
         rel = folder.relative_to(root).as_posix()

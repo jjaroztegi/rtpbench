@@ -10,7 +10,7 @@
 | bye-lost | good | pass | pass | BYE to its copy: 502.6 ms (-0.4/+0.4) | - | - |
 | bye-lost | once | fail | fail | - | BYE resent within 1000 ms (timer E) (none) | - |
 
-Every case proven over 1 repeat(s): good passes, bad fails.
+Every case proven over 1 repeat(s): good passes, bad fails, a decline is unsupported.
 
 Error bars: true value = measured - error, error within
 
