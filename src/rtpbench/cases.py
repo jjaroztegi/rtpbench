@@ -1174,7 +1174,7 @@ def check_codec(w: Wire) -> Result:
     have a format from the offer, and MAY list others it cannot use yet), and the agent's RTP
     carries it. Refused with DECLINE_OFFER instead (`judge`): unsupported."""
     r = Result()
-    pt = w.log["offered"][0]
+    pt = _offered(w)
     name = g711.NAMES[pt]
     ok = w.find(_is_2xx_invite, sent=False)
     r.checks.append(Check(f"{name}-only offer answered 2xx", ok is not None))
@@ -1186,6 +1186,25 @@ def check_codec(w: Wire) -> Result:
     detail = " ".join(map(str, got)) or "no agent RTP"
     r.checks.append(Check(f"agent RTP is {name}", got == [pt], f"payload types {detail}"))
     return r
+
+
+def _offered(w: Wire) -> int:
+    """The single law a codec case offered: from the caller's log, or, when the call failed
+    (whose log lacks it), from the INVITE it sent."""
+    if "offered" in w.log:
+        return int(w.log["offered"][0])
+    invite = w.find(lambda m: m.method == "INVITE", sent=True)
+    assert invite is not None  # a final response came to it
+    return sip.parse_sdp(invite[1].body).pts[0]
+
+
+def _refused(w: Wire) -> Result | None:
+    """A codec case's offer refused with DECLINE_OFFER, the check named as in `check_codec`."""
+    final = w.find(_final("INVITE"), sent=False)
+    if final is None or final[1].status not in DECLINE_OFFER:
+        return None
+    name = g711.NAMES[_offered(w)]
+    return Result([Check(f"{name}-only offer answered 2xx", False, final[1].first, declined=True)])
 
 
 def check_timer(w: Wire) -> Result:
@@ -1641,10 +1660,8 @@ def judge(run: Path, profile: str = "clean") -> Result:
     w = load(run, profile)
     if "error" in w.log:
         # a single-law offer refused as RFC 3261 allows: the agent does not take that law alone
-        final = w.find(_final("INVITE"), sent=False)
-        if final and final[1].status in DECLINE_OFFER and CASES[w.log["case"]].check is check_codec:
-            declined = Check("single-law offer answered 2xx", False, final[1].first, declined=True)
-            return Result([declined])
+        if CASES[w.log["case"]].check is check_codec and (refused := _refused(w)):
+            return refused
         return Result([Check("call completed", False, w.log["error"])])
     r = CASES[w.log["case"]].check(w)
     if (silent := no_media(w)) is not None:
@@ -1942,7 +1959,12 @@ def summarize(out: Path, runs: list[Run]) -> tuple[str, list[dict[str, Any]], bo
         r = judge(out / run.run, run.profile)
         timed: list[Check | Timing] = [*r.checks, *r.timings]
         names = sorted({x.name for x in timed if stepped(x)})
-        records.append(run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": names})
+        record = run._asdict() | {"verdict": r.verdict} | asdict(r) | {"stepped": names}
+        # `declined` only where true, so records of sets without a decline stay as they were
+        record["checks"] = [
+            {k: v for k, v in c.items() if k != "declined" or v} for c in record["checks"]
+        ]
+        records.append(record)
     reference = bool(records) and records[0]["behaviour"] is not None
     head = ["case", "agent", "expected"] if reference else ["case"]
     head += ["result", "timings, ms (error bar)", "failed checks"]

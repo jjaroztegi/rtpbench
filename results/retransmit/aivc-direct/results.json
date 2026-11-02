@@ -11,22 +11,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -73,29 +70,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -104,8 +97,7 @@
     "span": [
      1792597600635523451,
      1792597600646907596
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -114,8 +106,7 @@
     "span": [
      1792597599086099290,
      1792597599607416972
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -179,8 +170,7 @@
     "span": [
      1792597614053605970,
      1792597614541153977
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -213,22 +203,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -275,29 +262,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -306,8 +289,7 @@
     "span": [
      1792597631512226317,
      1792597631528422015
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -316,8 +298,7 @@
     "span": [
      1792597629927377117,
      1792597630485131088
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -381,8 +362,7 @@
     "span": [
      1792597644950637237,
      1792597645427303509
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -415,22 +395,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -477,29 +454,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -508,8 +481,7 @@
     "span": [
      1792597662366865086,
      1792597662369797487
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -518,8 +490,7 @@
     "span": [
      1792597660789158518,
      1792597661340383137
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -583,8 +554,7 @@
     "span": [
      1792597675796446761,
      1792597676271129832
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -617,22 +587,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -679,29 +646,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -710,8 +673,7 @@
     "span": [
      1792597693235120053,
      1792597693239495546
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -720,8 +682,7 @@
     "span": [
      1792597691658727585,
      1792597692205318182
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -785,8 +746,7 @@
     "span": [
      1792597706619323916,
      1792597707148797264
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -819,22 +779,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -881,29 +838,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -912,8 +865,7 @@
     "span": [
      1792597724021171892,
      1792597724028708926
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -922,8 +874,7 @@
     "span": [
      1792597722488597454,
      1792597722993238100
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -987,8 +938,7 @@
     "span": [
      1792597737428269244,
      1792597737925746357
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1021,22 +971,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -1083,29 +1030,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -1114,8 +1057,7 @@
     "span": [
      1792597754797096375,
      1792597754811501022
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -1124,8 +1066,7 @@
     "span": [
      1792597753270632079,
      1792597753769800323
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1189,8 +1130,7 @@
     "span": [
      1792597768231065048,
      1792597768703124519
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1223,22 +1163,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -1285,29 +1222,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -1316,8 +1249,7 @@
     "span": [
      1792597785575426457,
      1792597785596532738
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -1326,8 +1258,7 @@
     "span": [
      1792597784055634974,
      1792597784547668405
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1391,8 +1322,7 @@
     "span": [
      1792597799057508392,
      1792597799494152916
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1425,22 +1355,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -1487,29 +1414,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -1518,8 +1441,7 @@
     "span": [
      1792597816456897978,
      1792597816475103227
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -1528,8 +1450,7 @@
     "span": [
      1792597814934549043,
      1792597815429985905
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1593,8 +1514,7 @@
     "span": [
      1792597829899360281,
      1792597830474617722
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1627,22 +1547,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -1689,29 +1606,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -1720,8 +1633,7 @@
     "span": [
      1792597847418221324,
      1792597847438201434
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -1730,8 +1642,7 @@
     "span": [
      1792597845957497988,
      1792597846390726420
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1795,8 +1706,7 @@
     "span": [
      1792597860858798822,
      1792597861335415866
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1829,22 +1739,19 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "no provisional response after the final",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "one final response to the INVITE",
     "ok": true,
     "detail": "200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [
@@ -1891,29 +1798,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -1922,8 +1825,7 @@
     "span": [
      1792597878198396206,
      1792597878201589118
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "REFER resent within 1000 ms (timer E)",
@@ -1932,8 +1834,7 @@
     "span": [
      1792597876680731512,
      1792597877171651603
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -1997,8 +1898,7 @@
     "span": [
      1792597891557725041,
      1792597892009350223
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [

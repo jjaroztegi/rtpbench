@@ -11,15 +11,13 @@
     "name": "call answered",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent speaks first",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent speaks within 2000 ms",
@@ -28,8 +26,7 @@
     "span": [
      1792516313828380466,
      1792516314372406587
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -62,15 +59,13 @@
     "name": "agent was talking at the BYE",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "BYE answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent RTP stops within 500 ms",
@@ -79,8 +74,7 @@
     "span": [
      1792516322787387959,
      1792516322788771411
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -127,8 +121,7 @@
     "name": "CANCEL sent while ringing",
     "ok": null,
     "detail": "final response 3 ms after the first provisional, before a CANCEL",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [],
@@ -146,29 +139,25 @@
     "name": "sendonly hold: 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "sendonly hold: answer recvonly or inactive",
     "ok": true,
     "detail": "recvonly",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "resume from sendonly: 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "resume from sendonly: answer sendrecv",
     "ok": true,
     "detail": "sendrecv",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "sendonly hold: no agent RTP",
@@ -177,8 +166,7 @@
     "span": [
      1792516335428522040,
      1792516338429180116
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "resume from sendonly: agent RTP within 1000 ms",
@@ -187,8 +175,7 @@
     "span": [
      1792516338431948950,
      1792516338431686741
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "resume from sendonly: same RTP stream",
@@ -197,36 +184,31 @@
     "span": [
      1792516334931906969,
      1792516338911457010
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "inactive hold: 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "inactive hold: answer inactive",
     "ok": false,
     "detail": "recvonly",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "resume from inactive: 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "resume from inactive: answer sendrecv",
     "ok": true,
     "detail": "sendrecv",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "inactive hold: no agent RTP",
@@ -235,8 +217,7 @@
     "span": [
      1792516341435269055,
      1792516344435982020
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "resume from inactive: agent RTP within 1000 ms",
@@ -245,8 +226,7 @@
     "span": [
      1792516344438800863,
      1792516344452816972
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "resume from inactive: same RTP stream",
@@ -255,8 +235,7 @@
     "span": [
      1792516340951479544,
      1792516344931428561
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -406,8 +385,7 @@
     "name": "INFO answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 408 Request Timeout",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent reacts within 5000 ms",
@@ -416,8 +394,7 @@
     "span": [
      1792516370062849353,
      1792516375062849353
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -450,29 +427,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 200 OK) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent hangs up within 10 s",
@@ -481,8 +454,7 @@
     "span": [
      1792516423139356597,
      1792516423156707510
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -529,29 +501,25 @@
     "name": "agent transfers (REFER)",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "Refer-To is a SIP or tel URI",
     "ok": true,
     "detail": "sip:operator@operator",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 100 Trying) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "NOTIFY (SIP/2.0 486 Busy Here) answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent keeps the call for 10 s",
@@ -560,8 +528,7 @@
     "span": [
      1792516436276302225,
      1792516436294982704
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "agent speaks within 5000 ms",
@@ -570,8 +537,7 @@
     "span": [
      1792516436276302225,
      1792516441276302225
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -623,8 +589,7 @@
     "name": "call completed",
     "ok": false,
     "detail": "SIP/2.0 500 Server Internal Error",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [],
@@ -642,8 +607,7 @@
     "name": "call completed",
     "ok": false,
     "detail": "INVITE timed out",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [],
@@ -661,8 +625,7 @@
     "name": "call completed",
     "ok": false,
     "detail": "SIP/2.0 500 Server Internal Error",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [],
@@ -680,8 +643,7 @@
     "name": "call answered 2xx",
     "ok": true,
     "detail": "",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent replies within 10000 ms",
@@ -690,8 +652,7 @@
     "span": [
      1792516485809683513,
      1792516487340782590
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -724,8 +685,7 @@
     "name": "caller's RTP switched source",
     "ok": true,
     "detail": "2",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "agent replies within 10000 ms",
@@ -734,8 +694,7 @@
     "span": [
      1792516498155476173,
      1792516499664020511
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -768,15 +727,13 @@
     "name": "refresh answered 2xx",
     "ok": true,
     "detail": "SIP/2.0 200 OK",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "refresh answer sendrecv",
     "ok": true,
     "detail": "sendrecv",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "media undisturbed by the refresh",
@@ -785,8 +742,7 @@
     "span": [
      1792516507108242688,
      1792516510110320181
-    ],
-    "declined": false
+    ]
    },
    {
     "name": "agent replies within 10000 ms",
@@ -795,8 +751,7 @@
     "span": [
      1792516510705743796,
      1792516512214687611
-    ],
-    "declined": false
+    ]
    }
   ],
   "timings": [
@@ -843,15 +798,13 @@
     "name": "2xx offers the call's codec",
     "ok": false,
     "detail": "no SDP",
-    "span": null,
-    "declined": false
+    "span": null
    },
    {
     "name": "refresh answered 2xx",
     "ok": false,
     "detail": "SIP/2.0 487 Request Terminated",
-    "span": null,
-    "declined": false
+    "span": null
    }
   ],
   "timings": [],

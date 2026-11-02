@@ -4,8 +4,8 @@
   steps, network profiles and their sources
 - [Conformance cases](cases.md): what each case checks, and which run through the carrier
 - [Targets, your own agent, the mock engine and the carrier](targets.md)
-- [CI](ci.md): pass or fail a target run against a policy: the cases it may fail or decline, latency and
-  barge-in limits, regression from an earlier run
+- [CI](ci.md): pass or fail a target run against a policy: the cases it may fail or decline,
+  latency and barge-in limits, regression from an earlier run
 
 Commands here run from a clone (`uv run`); installed, `rtpbench` alone does the same.
 

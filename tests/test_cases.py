@@ -559,6 +559,23 @@ def test_dtmf_rfc4733_without_telephone_event_is_unsupported() -> None:
     assert not r.checks[0].declined
 
 
+@pytest.mark.parametrize(
+    ("status", "refused"), [("488 Not Acceptable Here", True), ("486 Busy Here", False)]
+)
+def test_a_refused_single_law_offer_keeps_the_cases_check_name(status: str, refused: bool) -> None:
+    sdp = sip.sdp("127.0.0.1", 4000, [g711.PCMA])
+    invite = sip.Message("INVITE sip:agent@x SIP/2.0", [("CSeq", "1 INVITE")], sdp)
+    final = sip.Message(f"SIP/2.0 {status}", [("CSeq", "1 INVITE")])
+    log = {"case": "codec-pcma", "error": f"SIP/2.0 {status}", "pt": 8}  # a failed call's log
+    r = cases._refused(Wire(log, None, [(1, True, invite), (2, False, final)], [], []))
+    if not refused:
+        assert r is None
+        return
+    assert r is not None
+    assert r.verdict == "unsupported"
+    assert r.checks[0].name == "PCMA-only offer answered 2xx"  # as check_codec names it
+
+
 def test_codec_change_refused_is_unsupported_only_while_the_call_goes_on() -> None:
     invite = sip.Message(
         "INVITE sip:agent@x SIP/2.0",
