@@ -199,8 +199,9 @@ What the agent has to meet:
 The split of turn latency into uplink, engine and downlink needs the mock's log on the
 captures' clock: run the mock on the host that runs `rtpbench target`, and write its log into
 the run's directory (DIR is the run's `--out`, which also has `conditions.json` record the mock
-as the engine; or copy `realtime.jsonl` and `realtime/` there and run `rtpbench report`). End-to-end turn latency comes from the caller's capture alone and
-does not depend on where the mock runs.
+as the engine; or copy `realtime.jsonl` and `realtime/` there and run `rtpbench report`).
+End-to-end turn latency comes from the caller's capture alone and does not depend on where the
+mock runs.
 
 ## Carrier
 

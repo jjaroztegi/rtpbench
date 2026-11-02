@@ -872,9 +872,7 @@ def target(
                 with log.open("rb") as src, tmp.open("wb") as dst:
                     dst.writelines(line.replace(b"\r\x1b[K", b"") for line in src)
                 tmp.replace(log)
-    if (
-        is_uri(name) and (out / "realtime.jsonl").exists()
-    ):  # the agent's engine: a mock logging here
+    if is_uri(name) and (out / "realtime.jsonl").exists():  # a mock logging here: the engine
         conds["engine"] = realtime.conditions()
     (out / "conditions.json").write_text(json.dumps(_finish(conds, steps), indent=1))
     progress.phase("judging")
