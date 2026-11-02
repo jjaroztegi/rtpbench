@@ -12,7 +12,8 @@ one (always the same clips). A turn that starts while it answers cancels the ans
 VAD does. Audio goes out in 100 ms deltas, kept LEAD_NS ahead of real time.
 
 Every answer is logged (`/out/realtime.jsonl`) with when the caller's speech ended as heard
-here and when the first audio went out, on the clock captures stamp: a target's turn latency
+here and when the first audio went out, as captures stamp time (CLOCK_REALTIME, steps and all;
+it runs on `CLOCK`, which does not step): a target's turn latency
 then splits into its uplink, this engine's known share and its downlink (`decompose`). What
 arrives is recorded as it arrived (`/out/realtime/<session>.raw`, `.idx`), so the summary can
 say what a target did to the caller's audio (`uplink`) as to the engine's (`downlink`).
@@ -33,7 +34,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
 from rtpbench import g711, speech
-from rtpbench.clock import CLOCK
+from rtpbench.clock import CLOCK, Steps
 from rtpbench.voice import GATE
 
 PORT = 8000
@@ -205,8 +206,8 @@ def _upsample(pcm: list[int]) -> bytes:
 class Session:
     """One WebSocket connection: a conversation."""
 
-    def __init__(self, writer: asyncio.StreamWriter, lines: Lines, log: Path) -> None:
-        self.writer, self.lines, self.log = writer, lines, log
+    def __init__(self, writer: asyncio.StreamWriter, lines: Lines, log: Path, steps: Steps) -> None:
+        self.writer, self.lines, self.log, self.steps = writer, lines, log, steps
         self.id = _id("sess")
         self.session: dict[str, Any] = {"type": "realtime", "object": "realtime.session"}
         self.pt: int | None = None  # G.711 law, or None for 24 kHz PCM16
@@ -231,6 +232,11 @@ class Session:
         await self.writer.drain()
 
     def note(self, record: dict[str, Any]) -> None:
+        """Log `record`, its times (`*_ns`) as captures stamp them."""
+        record = {
+            k: self.steps.wall(v) if k.endswith("_ns") and isinstance(v, int) else v
+            for k, v in record.items()
+        }
         with self.log.open("a") as f:
             f.write(json.dumps({"session": self.id} | record) + "\n")
 
@@ -279,7 +285,7 @@ class Session:
             self.kept = raw.open("ab"), idx.open("a")
         fmt = "pcm16" if self.pt is None else g711.NAMES[self.pt].lower()
         self.kept[0].write(audio)
-        self.kept[1].write(f"{arrival} {len(audio)} {fmt}\n")
+        self.kept[1].write(f"{self.steps.wall(arrival)} {len(audio)} {fmt}\n")
         for f in self.kept:
             f.flush()  # whole appends on disk, however the engine is stopped
 
@@ -519,7 +525,7 @@ class Session:
 
 def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
     """Serve sessions until killed; log to out/realtime.jsonl; touch `ready` once listening."""
-    lines = Lines()
+    lines, steps = Lines(), Steps()
     out.mkdir(parents=True, exist_ok=True)
     log = out / "realtime.jsonl"
 
@@ -529,7 +535,7 @@ def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
         except asyncio.IncompleteReadError, KeyError, ConnectionError:
             writer.close()
             return
-        s = Session(writer, lines, log)
+        s = Session(writer, lines, log, steps)
         s.note({"event": "connect", "request": request.split(" ")[1], "at_ns": CLOCK.now()})
         await s.send({"type": "session.created", "session": s.session | {"id": s.id}})
         try:
