@@ -18,7 +18,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.4, 0.8] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1833.4 [1812.4, 1846.6] ms (-44.6/+3.2) n=10 | - |
 | reinvite-nosdp | pass 10/10 | refresh re-INVITE to 2xx: 0.3 [0.3, 2.0] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1828.4 [1807.1, 1841.6] ms (-44.6/+3.2) n=10 | - |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.4 [0.3, 2.3] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 125 packets) |
-| codec-change | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMA (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
 
 ### lte
 
@@ -40,7 +40,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.5] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1930.8 [1873.2, 1963.7] ms (-43.3/+3.6) n=10 | - |
 | reinvite-nosdp | pass 10/10 | refresh re-INVITE to 2xx: 0.3 [0.3, 0.5] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1931.4 [1903.9, 1982.5] ms (-43.3/+3.6) n=10 | - |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.4 [0.3, 0.8] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.4 [0.3, 0.4] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 124 packets) |
-| codec-change | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMA (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
 
 ### lte-bad
 
@@ -62,7 +62,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.4 [0.3, 0.4] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 2083.1 [1931.0, 2183.1] ms (-60.9/+15.5) n=10 | - |
 | reinvite-nosdp | pass 10/10 | refresh re-INVITE to 2xx: 0.3 [0.3, 0.4] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 2150.5 [1928.0, 2231.7] ms (-60.9/+15.5) n=10 | - |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.4 [0.3, 0.6] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.3 [0.3, 0.4] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 119 packets) |
-| codec-change | fail 10/10 | - | answer has PCMA alone (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMA (10/10: 0); agent RTP is PCMA after it (10/10: payload types 0); agent replies within 10000 ms (10/10) |
 
 
 Error bars: true value = measured - error, error within

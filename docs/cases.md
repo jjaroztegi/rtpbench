@@ -35,14 +35,14 @@ names.
 | `dtmf-info` | the same by SIP INFO (`application/dtmf-relay`): 2xx, the agent says something within 5 s |
 | `refer` | the caller asks for a person: REFER with a SIP or tel Refer-To, 202, NOTIFY sipfrag 100, a real call to the target, NOTIFY with its final response, both NOTIFYs answered 2xx, the agent hangs up within 10 s. If the target does not answer 2xx, inconclusive, with its status: the agent should then take the call back, as `refer-fail` checks |
 | `refer-fail` | as `refer`, but the target is busy (`486 Busy Here`): the agent takes the call back (RFC 5589 6.3): no BYE for 10 s, and it speaks within 5 s of the failure NOTIFY |
-| `codec-pcmu` | the caller offers PCMU alone: answered with PCMU alone (RFC 3264 6.1) and the agent's RTP is PCMU |
+| `codec-pcmu` | the caller offers PCMU alone: the answer has PCMU (RFC 3264 6.1; it may list formats the offer lacked, which the agent cannot send) and the agent's RTP is PCMU |
 | `codec-pcma` | the same with PCMA |
 | `timer` | session timers offered (90 s, caller refreshes), refreshed once at half time, then not again: the 2xx takes them (RFC 4028), the refresh gets 2xx with media undisturbed, the agent ends the session by BYE 45-90 s after the refresh. The offer says `Supported: timer`, not `Require`, so an agent without timers (a 2xx without Session-Expires) is inconclusive (RFC 4028 9: the extension is optional) |
 | `ssrc-change` | after the greeting the caller's audio becomes a new RTP source (RFC 3550 8): the agent replies to a question within 10 s |
 | `reinvite` | after the greeting, a session refresh by re-INVITE with the same SDP: 2xx `sendrecv`, media undisturbed, a reply within 10 s |
 | `reinvite-nosdp` | a re-INVITE without SDP, as PBXs send to move or audit media (RFC 3261 14.1): the 2xx offers the call's codec, the caller answers in the ACK, media undisturbed, a reply within 10 s |
 | `hold-zero` | hold the RFC 2543 way, `c=0.0.0.0` and no direction attribute, then resume (RFC 3264 8.4): 2xx, no agent RTP while held, RTP back within 1 s as the same stream |
-| `codec-change` | a re-INVITE offers the other G.711 law alone and the caller switches on the 2xx: the answer has that law alone, the agent's RTP switches, a reply within 10 s |
+| `codec-change` | a re-INVITE offers the other G.711 law alone and the caller switches on the 2xx: the answer has that law, the agent's RTP switches, a reply within 10 s |
 | `large-invite` | an INVITE over 1300 bytes goes over TCP (RFC 3261 18.1.1 MUST): answered 2xx over TCP and a reply within 10 s; a refused connection is retried over UDP, for the record. Not over TCP or TLS |
 | `refer-lost` | as `refer`, but the caller leaves the agent's first REFER unanswered, as if lost: a copy within 1 s (2*T1; over UDP timer E fires at T1, RFC 3261 17.1.2.2), then the transfer as in `refer`. Without a copy, the caller waits for the agent's timer F (32 s) and notes whether it spoke again. Not over TCP or TLS |
 | `bye-lost` | as `refer`, but the caller leaves the agent's BYE after the transfer unanswered: a copy within 1 s. Inconclusive if the agent never hangs up. Not over TCP or TLS |

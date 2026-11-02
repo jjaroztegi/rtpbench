@@ -18,7 +18,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.7 [0.6, 1.0] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1508.3 [1508.0, 1509.1] ms (-11.0/+133.0) n=10 | - |
 | reinvite-nosdp | fail 10/10 | - | 2xx offers the call's codec (10/10: no SDP); refresh answered 2xx (10/10: SIP/2.0 487 Request Terminated) |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.8 [0.6, 2.1] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.8 [0.6, 0.9] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 125 packets) |
-| codec-change | fail 10/10 | - | answer has PCMU alone (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMU (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
 
 ### lte
 
@@ -40,7 +40,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.7 [0.6, 0.8] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1588.6 [1581.4, 1607.3] ms (-14.1/+131.0) n=10 | - |
 | reinvite-nosdp | fail 10/10 | - | 2xx offers the call's codec (10/10: no SDP); refresh answered 2xx (10/10: SIP/2.0 487 Request Terminated) |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.7 [0.6, 0.9] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.7 [0.7, 0.8] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 122 packets) |
-| codec-change | fail 10/10 | - | answer has PCMU alone (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMU (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
 
 ### lte-bad
 
@@ -62,7 +62,7 @@
 | reinvite | pass 10/10 | refresh re-INVITE to 2xx: 0.7 [0.6, 0.9] ms (-0.4/+0.4) n=10<br>end of the question to agent speech: 1604.7 [1539.5, 1639.5] ms (-22.9/+141.5) n=10 | - |
 | reinvite-nosdp | fail 10/10 | - | 2xx offers the call's codec (10/10: no SDP); refresh answered 2xx (10/10: SIP/2.0 487 Request Terminated) |
 | hold-zero | fail 10/10 | c=0.0.0.0 hold: re-INVITE to 2xx: 0.7 [0.6, 0.9] ms (-0.4/+0.4) n=10<br>resume from c=0.0.0.0: re-INVITE to 2xx: 0.7 [0.6, 0.8] ms (-0.4/+0.4) n=10 | c=0.0.0.0 hold: no agent RTP (10/10: 117 packets) |
-| codec-change | fail 10/10 | - | answer has PCMU alone (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
+| codec-change | fail 10/10 | - | answer has PCMU (10/10: 8); agent RTP is PCMU after it (10/10: payload types 8); agent replies within 10000 ms (10/10) |
 
 
 Error bars: true value = measured - error, error within

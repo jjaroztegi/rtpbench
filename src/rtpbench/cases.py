@@ -1154,8 +1154,9 @@ def _transfer(w: Wire, r: Result) -> int | None:
 
 
 def check_codec(w: Wire) -> Result:
-    """The offer had one G.711 law: answered 2xx with that format alone (RFC 3264 6.1: the
-    answer's formats MUST come from the offer), and the agent's RTP carries it."""
+    """The offer had one G.711 law: answered 2xx with that law (RFC 3264 6.1: the answer MUST
+    have a format from the offer, and MAY list others it cannot use yet), and the agent's RTP
+    carries it."""
     r = Result()
     pt = w.log["offered"][0]
     name = g711.NAMES[pt]
@@ -1164,7 +1165,7 @@ def check_codec(w: Wire) -> Result:
     if ok is None:
         return r
     answer = sip.parse_sdp(ok[1].body).pts
-    r.checks.append(Check(f"answer has {name} alone", answer == [pt], " ".join(map(str, answer))))
+    r.checks.append(Check(f"answer has {name}", pt in answer, " ".join(map(str, answer))))
     got = sorted({p.pt for _, p in w.down})
     detail = " ".join(map(str, got)) or "no agent RTP"
     r.checks.append(Check(f"agent RTP is {name}", got == [pt], f"payload types {detail}"))
@@ -1341,8 +1342,8 @@ def check_reinvite(w: Wire) -> Result:
 
 
 def check_codec_change(w: Wire) -> Result:
-    """A re-INVITE offering the other G.711 law alone: 2xx with that law alone (RFC 3264 6.1),
-    agent RTP in it from then on, and the agent replies to a question asked in it within 10 s."""
+    """A re-INVITE offering the other G.711 law alone: 2xx with that law (RFC 3264 6.1), agent
+    RTP in it from then on, and the agent replies to a question asked in it within 10 s."""
     r = Result()
     invites: dict[str, tuple[int, sip.Message]] = {}
     for t, out, m in w.msgs:
@@ -1360,7 +1361,7 @@ def check_codec_change(w: Wire) -> Result:
     if resp is None or not ok:
         return r
     answer = sip.parse_sdp(resp[1].body).pts
-    r.checks.append(Check(f"answer has {name} alone", answer == [law], " ".join(map(str, answer))))
+    r.checks.append(Check(f"answer has {name}", law in answer, " ".join(map(str, answer))))
     after = {p.pt for u, p in w.down if u > resp[0] + MEDIA_GRACE_MS * 1e6}
     detail = "payload types " + (" ".join(map(str, sorted(after))) or "none")
     r.checks.append(Check(f"agent RTP is {name} after it", after == {law}, detail))
