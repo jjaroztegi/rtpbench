@@ -232,6 +232,11 @@ class Stack:
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
             if uri:
                 self.services += ["carrier", "carrier-media", "carrier-sip"]
+            # digest credentials: in front of a bundled agent the carrier demands them of the
+            # caller; in front of one at a URI it answers the agent's challenge with them
+            role = "UAC" if uri else "AUTH"
+            for k in ("USER", "PASSWORD"):
+                self.env[f"RTPBENCH_CARRIER_{role}_{k}"] = os.environ.get(f"RTPBENCH_SIP_{k}", "")
         self.carrier = carrier is not None
         if tls:
             where = out / "tls"
@@ -758,7 +763,7 @@ def target(
     from rtpbench import cases as cs
     from rtpbench import realtime
     from rtpbench.caller import ADVERTISE_PORTS, parse_uri
-    from rtpbench.sip import secure
+    from rtpbench.sip import secure, transport
 
     out.mkdir(parents=True, exist_ok=True)
     out = out.resolve()
@@ -803,6 +808,7 @@ def target(
             )
             if carrier:
                 stack.env["RTPBENCH_CARRIER_PORT"] = str(port)
+                stack.env["RTPBENCH_CARRIER_TRANSPORT"] = transport(name).lower()
         else:
             proxy_tls = False
             stack = Stack(out, name, "target" if carrier else None, mock, tls=tls, srtp=srtp)

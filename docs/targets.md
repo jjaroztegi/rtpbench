@@ -228,8 +228,10 @@ In front of your own agent, the carrier calls the URI's user, host and port over
 address in Docker and through Docker's gateway, so the agent's leg is outside netem as with a
 bundled target. Its offer carries its address inside Docker, so an agent on another host must
 send its replies and audio back to where the carrier's came from (symmetric RTP): the carrier
-takes no `--network` or `--advertise`. Nor does it call over TCP, TLS or SRTP, or answer a digest
-challenge.
+takes no `--network` or `--advertise`. It calls over TCP when the URI says `;transport=tcp`, not
+over TLS or SRTP, and answers the agent's digest challenge to the INVITE with
+`RTPBENCH_SIP_USER` and `RTPBENCH_SIP_PASSWORD`, as a trunk does; the caller's leg is then not
+challenged.
 
 ```sh
 uv run --extra vad rtpbench cases --carrier --tls --srtp
@@ -251,8 +253,10 @@ uv run --extra vad rtpbench cases --carrier
 ```
 
 With both variables set, the caller answers a 401 or 407 to any request it sends with digest
-credentials (RFC 7616: MD5 or SHA-256, qop auth or none) and sends it again, once; the carrier
-demands them, MD5 on the INVITE and SHA-256 inside the dialog. A challenged request, its
+credentials (RFC 7616: MD5 or SHA-256, qop auth or none) and sends it again, once. In front of
+the reference agent or a bundled target the carrier demands them, MD5 on the INVITE and SHA-256
+inside the dialog; in front of an agent at a URI it answers that agent's challenge with them
+instead, and its own capture holds the digest. A challenged request, its
 challenge and their ACK are left out when a case is judged, so verdicts and timings read as
 without credentials. `conditions.json` records `sip_auth`, never the values; the captures hold
 the user name and, per request, a digest of the password that a dictionary attack can test, so
