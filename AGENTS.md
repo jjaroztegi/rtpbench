@@ -27,7 +27,9 @@ uv run mypy
 ## Commits and pull requests
 
 - Conventional commits in plain language: `feat(timing): measure turn latency from RTP`.
-- One problem per PR. Body: the problem in a sentence or two, the change, and how it was verified.
+- One problem per PR. Body: the problem in a sentence or two, the change, and how it was verified,
+  in 200 words at most (`pr-body.yml` checks it). The squash merge keeps the body as the commit
+  message.
 
 ## Documentation
 

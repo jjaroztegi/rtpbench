@@ -1,0 +1,25 @@
+name: PR body
+
+# AGENTS.md: the problem, the change and how it was verified, in 200 words at most. The squash
+# merge keeps the body in main's history, so a long one is caught before it lands.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  body:
+    name: PR body
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          words=$(printf '%s' "$BODY" | wc -w)
+          if [ "$words" -eq 0 ]; then
+            echo "::error::empty body"; exit 1
+          elif [ "$words" -gt 200 ]; then
+            echo "::error::$words words, over 200: cut to the problem, the change and how it was verified"; exit 1
+          fi
