@@ -1,7 +1,7 @@
 {
- "date": "2026-10-20T07:36:51+00:00",
- "commit": "v0.1.0-21-g4161aa1",
- "image": "rtpbench:0397e3c41635",
+ "date": "2026-11-03T04:28:16+00:00",
+ "commit": "v0.3.0",
+ "image": "rtpbench:12ddda5e7bf9",
  "kernel": "6.8.0-147-generic",
  "cpus": 16,
  "docker": "29.9.1",
@@ -10,12 +10,14 @@
  "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
  "cpu_governor": "performance",
  "load_start": [
-  3.21,
-  4.34,
-  4.75
+  5.55,
+  5.06,
+  4.66
  ],
  "seed": 1,
  "sip_auth": false,
+ "tls": false,
+ "srtp": null,
  "netem_per_direction": {
   "clean": "",
   "delay": "delay 40ms",
@@ -32,10 +34,14 @@
  ],
  "runs": 1,
  "carrier": false,
+ "builds": {
+  "router": "ghcr.io/jjaroztegi/rtpbench:12ddda5e7bf9"
+ },
  "clock_steps": [],
+ "clock_rate_ppm": 0.0,
  "load_end": [
-  3.48,
-  3.89,
-  4.07
+  2.76,
+  2.87,
+  3.07
  ]
 }

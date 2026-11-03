@@ -1,0 +1,68 @@
+{
+ "date": "2026-11-02T22:24:40+00:00",
+ "commit": "v0.3.0",
+ "image": "rtpbench:12ddda5e7bf9",
+ "kernel": "6.8.0-147-generic",
+ "cpus": 16,
+ "docker": "29.9.1",
+ "python": "Python 3.14.8",
+ "tcpdump": "tcpdump version 4.99.5",
+ "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+ "cpu_governor": "performance",
+ "load_start": [
+  2.79,
+  2.36,
+  1.65
+ ],
+ "seed": 1,
+ "sip_auth": false,
+ "tls": false,
+ "srtp": null,
+ "netem_per_direction": {
+  "clean": "",
+  "delay": "delay 40ms",
+  "jitter": "delay 40ms 10ms distribution normal",
+  "loss": "loss 3%",
+  "mobile": "delay 60ms 20ms distribution normal loss 3%",
+  "lte": "delay 40ms 3ms distribution normal loss gemodel 0.505% 50% rate 100mbit",
+  "lte-bad": "delay 36ms 30ms distribution normal loss gemodel 3.2% 48% rate 100mbit"
+ },
+ "profiles": [
+  "clean",
+  "lte",
+  "lte-bad"
+ ],
+ "runs": 10,
+ "target": "ava",
+ "carrier": true,
+ "mock": true,
+ "engine": {
+  "mock": "rtpbench.realtime",
+  "hangover_ms": 1000.0,
+  "delay_ms": 500.0,
+  "lead_ms": 500.0,
+  "clips": [
+   "tts-ljspeech-s00",
+   "tts-ljspeech-long"
+  ]
+ },
+ "settings": {
+  "AVA_EGRESS_PACER": "true",
+  "AVA_TRANSPORT": "websocket"
+ },
+ "images": "CONTAINER                         REPOSITORY                                 TAG                        PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-2b149d-agent-1           ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-asterisk-1        ghcr.io/jjaroztegi/rtpbench-ava-asterisk   22.8-cert4-c089455aed0a    linux/amd64         74f0ea571c7f        326MB               2 hours ago\nrtpbench-2b149d-caller-1          ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-carrier-1         ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-carrier-media-1   ghcr.io/jjaroztegi/rtpbench-rtpengine      12.5.1.31-a3fc89e49b18     linux/amd64         e05043f8d214        295MB               2 hours ago\nrtpbench-2b149d-carrier-sip-1     ghcr.io/jjaroztegi/rtpbench-opensips       3.6.9-1-tls-fce28b9ecaf2   linux/amd64         450cc6789249        266MB               2 hours ago\nrtpbench-2b149d-engine-1          ghcr.io/jjaroztegi/rtpbench-ava            ba52df9-91a997b32363       linux/amd64         c78338249027        462MB               2 hours ago\nrtpbench-2b149d-operator-1        ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-realtime-1        ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-router-1          ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-2b149d-target-1          ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9               linux/amd64         b5bb325ff8bb        165MB               24 minutes ago",
+ "builds": {
+  "asterisk": "ghcr.io/jjaroztegi/rtpbench-ava-asterisk:22.8-cert4-c089455aed0a",
+  "carrier-media": "ghcr.io/jjaroztegi/rtpbench-rtpengine:12.5.1.31-a3fc89e49b18",
+  "carrier-sip": "ghcr.io/jjaroztegi/rtpbench-opensips:3.6.9-1-tls-fce28b9ecaf2",
+  "engine": "ghcr.io/jjaroztegi/rtpbench-ava:ba52df9-91a997b32363",
+  "router": "ghcr.io/jjaroztegi/rtpbench:12ddda5e7bf9"
+ },
+ "clock_steps": [],
+ "clock_rate_ppm": 0.0,
+ "load_end": [
+  6.35,
+  6.66,
+  5.54
+ ]
+}

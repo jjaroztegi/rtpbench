@@ -10,9 +10,9 @@ Turn latency, ms: caller's labelled end to the agent's first speech (webrtcvad),
 
 | profile | runs | answered | p5 | p50 | p95 | run medians | across a clock step | onset error bar |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| clean | 10 | 120/120 | 1444 | 1572 | 1582 | 1570 .. 1573 | 0 | [-3.2, +44.6] webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5) |
-| lte | 10 | 120/120 | 1525 | 1650 | 1666 | 1644 .. 1653 | 0 | [-3.6, +43.3] webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech, seeds 1-5) |
-| lte-bad | 10 | 119/120 | 1498 | 1643 | 1726 | 1599 .. 1658 | 0 | [-15.5, +60.9] webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech, seeds 1-5) |
+| clean | 10 | 120/120 | 1445 | 1570 | 1582 | 1570 .. 1573 | 0 | [-3.2, +44.6] webrtcvad onset, p5..p95, PCMU, clean (calibrate --speech, seeds 1-5) |
+| lte | 10 | 120/120 | 1525 | 1652 | 1664 | 1644 .. 1654 | 0 | [-3.6, +43.3] webrtcvad onset, p5..p95, PCMU, lte (calibrate --speech, seeds 1-5) |
+| lte-bad | 10 | 119/120 | 1504 | 1634 | 1704 | 1619 .. 1654 | 0 | [-15.5, +60.9] webrtcvad onset, p5..p95, PCMU, lte-bad (calibrate --speech, seeds 1-5) |
 
 Each turn: a line of PROFILE/REPEAT/latency/turns.jsonl (results.json holds the cases only; rtpbench check gathers the turns into check.json).
 
@@ -28,24 +28,24 @@ Barge-in: whether the agent stopped within 2 s of the interjection's onset, and 
 | lte | interrupt | 10 | 0/51 | 0% .. 0% | - | - | - | 0 | 0 | [-81.9, +0.0] gate stop time, p5..p95, PCMU, lte (calibrate --barge-in, seeds 1-5) |
 | lte | backchannel | 10 | 0/25 | 0% .. 0% | - | - | - | 0 | 0 | [-81.9, +0.0] gate stop time, p5..p95, PCMU, lte (calibrate --barge-in, seeds 1-5) |
 | lte | cough | 10 | 0/24 | 0% .. 0% | - | - | - | 0 | 0 | [-81.9, +0.0] gate stop time, p5..p95, PCMU, lte (calibrate --barge-in, seeds 1-5) |
-| lte-bad | interrupt | 10 | 0/51 | 0% .. 0% | - | - | - | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
-| lte-bad | backchannel | 10 | 0/25 | 0% .. 0% | - | - | - | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
+| lte-bad | interrupt | 10 | 1/50 | 0% .. 17% | 1443 | 1443 | 1443 | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
+| lte-bad | backchannel | 10 | 1/25 | 0% .. 33% | 1045 | 1045 | 1045 | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
 | lte-bad | cough | 10 | 0/24 | 0% .. 0% | - | - | - | 0 | 0 | [-104.9, +0.0] gate stop time, p5..p95, PCMU, lte-bad (calibrate --barge-in, seeds 1-5) |
 
 Per clip: stopped / turns, over the same turns, and those left out as ended before; interruptions are the caller's lines (--lines), backchannels and coughs the corpus's.
 
 | interjection | clip | words | clean | lte | lte-bad |
 | --- | --- | --- | --- | --- | --- |
-| interrupt | interrupt-00 |  | 0/17 | 0/17 | 0/17 |
+| interrupt | interrupt-00 |  | 0/17 | 0/17 | 0/16 |
 | interrupt | interrupt-01 |  | 0/14 | 0/14 | 0/14 |
-| interrupt | interrupt-02 |  | 0/12 | 0/12 | 0/12 |
+| interrupt | interrupt-02 |  | 0/12 | 0/12 | 1/12 |
 | interrupt | interrupt-03 |  | 0/8 | 0/8 | 0/8 |
 | backchannel | tts-ald-bc | Ajá | 0/2 | 0/2 | 0/2 |
 | backchannel | tts-cori-bc | Yeah | 0/3 | 0/3 | 0/3 |
 | backchannel | tts-davefx-bc | Vale | 0/1 | 0/1 | 0/1 |
 | backchannel | tts-libritts0-bc | Okay | 0/4 | 0/4 | 0/4 |
 | backchannel | tts-libritts3-bc | Uh-huh | 0/1 | 0/1 | 0/1 |
-| backchannel | tts-ljspeech-bc | Uh-huh | 0/6 | 0/6 | 0/6 |
+| backchannel | tts-ljspeech-bc | Uh-huh | 0/6 | 0/6 | 1/6 |
 | backchannel | tts-sharvardf-bc | Vale | 0/5 | 0/5 | 0/5 |
 | backchannel | tts-sharvardm-bc | Sí, sí | 0/3 | 0/3 | 0/3 |
 | cough | cough-c1-1 |  | 0/3 | 0/3 | 0/3 |
@@ -65,9 +65,9 @@ Turn latency on the mock engine, split where it heard the end of the caller's sp
 
 | profile | turns | wire latency | uplink | engine | downlink |
 | --- | --- | --- | --- | --- | --- |
-| clean | 120 | 1572 [1444, 1582] | 1 [-112, 5] | 1501 [1500, 1502] | 71 [37, 79] |
-| lte | 120 | 1650 [1525, 1666] | 40 [-73, 48] | 1501 [1500, 1502] | 109 [77, 121] |
-| lte-bad | 119 | 1643 [1498, 1726] | 40 [-82, 92] | 1501 [1500, 1502] | 103 [44, 156] |
+| clean | 120 | 1570 [1445, 1582] | 1 [-111, 5] | 1501 [1500, 1502] | 72 [39, 79] |
+| lte | 120 | 1652 [1525, 1664] | 40 [-71, 47] | 1501 [1500, 1502] | 112 [76, 120] |
+| lte-bad | 119 | 1634 [1504, 1704] | 40 [-75, 94] | 1501 [1500, 1502] | 95 [42, 153] |
 
 ## RTP pacing
 
@@ -75,17 +75,17 @@ The agent's RTP as the caller received it, ms, median [min, max] over calls: lat
 
 | profile | calls | late, p99 | jitter |
 | --- | --- | --- | --- |
-| clean | 20 | 2.7 [1.9, 33.4] | 0.30 [0.26, 0.35] |
-| lte | 20 | 16.1 [14.2, 60.9] | 3.32 [3.14, 3.42] |
-| lte-bad | 20 | 106.2 [101.0, 111.3] | 19.97 [18.96, 20.62] |
+| clean | 20 | 2.3 [1.6, 2.9] | 0.29 [0.21, 0.37] |
+| lte | 20 | 16.2 [14.6, 17.2] | 3.30 [3.14, 3.38] |
+| lte-bad | 20 | 106.3 [100.4, 115.6] | 19.98 [19.22, 20.66] |
 
 Pauses: where the agent stopped sending RTP for a second or more and went on with the same stream, outside a hold (silence suppression, RFC 3551 4.1), median [min, max]: per call; how far the RTP clock fell behind across each, ms (the pause less what the timestamps advanced: 0 if they kept time, as RFC 3550 5.1 requires); and how many packets after one carry the marker bit, as 4.1 asks. A carrier that hangs up on RTP inactivity may hang up on these.
 
 | profile | calls | pauses | clock behind | marker |
 | --- | --- | --- | --- | --- |
-| clean | 20 | 11 [10, 12] | 0 [0, 1] | 220/220 |
-| lte | 20 | 11 [10, 12] | 0 [-15, 7] | 218/220 |
-| lte-bad | 20 | 10 [10, 12] | -2 [-89, 102] | 204/219 |
+| clean | 20 | 11 [10, 12] | 1 [-0, 1] | 220/220 |
+| lte | 20 | 11 [10, 12] | 1 [-14, 12] | 219/220 |
+| lte-bad | 20 | 11 [9, 12] | -5 [-97, 106] | 200/219 |
 
 ## Engine audio as the caller received it
 
@@ -94,8 +94,8 @@ The mock engine's answers as the caller received them (completed answers in the 
 | profile | answers | unchanged | distortion, dB | moved | gain, dB | 3.4-4 kHz, dB |
 | --- | --- | --- | --- | --- | --- | --- |
 | clean | 200 | 0 | 25.8 [25.8, 29.6] | 0 | -0.2 [-0.2, -0.2] | -1.2 [-2.3, -1.2] |
-| lte | 198 | 0 | 25.8 [21.2, 36.0] | 1, up to 5 ms | -0.2 [-0.2, -0.2] | -2.0 [-2.6, -0.9] |
-| lte-bad | 190 | 0 | 35.3 [18.5, 36.9] | 13, up to 59 ms | -0.2 [-0.3, -0.2] | -2.2 [-2.9, +10.1] |
+| lte | 200 | 0 | 25.8 [20.3, 36.0] | 0 | -0.2 [-0.2, -0.2] | -2.1 [-2.6, -0.8] |
+| lte-bad | 191 | 0 | 34.9 [17.3, 36.5] | 7, up to 38 ms | -0.2 [-0.2, -0.2] | -2.2 [-2.8, +10.1] |
 
 ## Caller audio as the engine received it
 
@@ -104,5 +104,5 @@ The caller's lines in the latency and barge-in calls as the mock engine received
 | profile | lines | unchanged | distortion, dB | moved | gain, dB | 3.4-4 kHz, dB | above 4 kHz, dB | full scale | missing 20 ms | appends, ms |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | clean | 220 | 0 | 24.9 [15.9, 42.1] | 0 | -0.5 [-0.6, -0.3] | -5.6 [-5.9, -5.2] | -25.2 [-31.0, -22.1] | 0 | 0.1%: 20 silence | 20 [20, 20] |
-| lte | 214 | 0 | 22.0 [-0.5, 42.7] | 66, up to 60 ms | -0.5 [-4.3, -0.3] | -5.6 [-6.0, -4.0] | -25.3 [-31.0, -22.1] | 0 | 0.5%: 27 silence, 45 other | 20 [20, 20] |
-| lte-bad | 162 | 0 | 9.9 [-2.2, 41.8] | 115, up to 60 ms | -1.2 [-7.5, -0.3] | -5.5 [-10.0, +1.2] | -25.2 [-31.1, -21.5] | 0 | 3.2%: 67 silence, 212 other | 20 [20, 20] |
+| lte | 217 | 0 | 20.8 [-2.2, 42.1] | 83, up to 60 ms | -0.5 [-5.4, -0.3] | -5.6 [-11.7, -3.5] | -25.3 [-31.0, -22.0] | 0 | 0.8%: 27 silence, 86 other | 20 [20, 20] |
+| lte-bad | 154 | 0 | 8.9 [-2.8, 42.7] | 108, up to 60 ms | -1.4 [-6.7, -0.3] | -5.5 [-11.1, -1.6] | -25.5 [-31.0, -22.1] | 0 | 3.1%: 53 silence, 198 other | 20 [20, 20] |

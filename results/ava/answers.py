@@ -8,9 +8,9 @@ unpacked direct sets. Per set:
   split by whether the line began while the agent was sending, each with how many of them the
   mock heard (a turn of its ended with the line); the interjections and how many the agent
   stopped for;
-- on a clean network, the answers of the latency calls (the agent's RTP, split where it was
-  silent for 0.5 s): their packets, and the loudest of the last three packets (RMS of 20 ms,
-  dBFS; -inf is digital silence);
+- on a clean network, the answers of the latency calls (the agent's RTP, split where it sent
+  no sound for 0.5 s, `answers`): their packets, and the loudest of the last three packets (RMS
+  of 20 ms, dBFS; -inf is digital silence);
 - for each interjection the agent stopped for, the times that bear on why, in seconds from the
   call's INVITE (the origin of a report's timeline).
 
@@ -36,13 +36,19 @@ HEARD_NS = 500_000_000  # the mock's turn ends within this of the end of the lin
 
 
 def answers(down: analyze.Timed, shortest: int = ANSWER_MIN) -> list[analyze.Timed]:
-    out: list[analyze.Timed] = []
-    for t, p in down:
-        if p.pt in g711.NAMES:
-            if out and t - out[-1][-1][0] <= SILENT_NS:
-                out[-1].append((t, p))
+    """The agent's answers: its audio from one sound to the last before SILENT_NS without any
+    (no packets, or over WebSocket the digital silence Asterisk fills each gap with), with
+    every packet in between."""
+    audio = [(t, p) for t, p in down if p.pt in g711.NAMES]
+    spans: list[list[int]] = []
+    for t, p in audio:
+        silence = abs(g711.decode(p.pt, bytes([g711.SILENCE[p.pt]]))[0])  # A-law's is not 0
+        if any(abs(s) > silence for s in g711.decode(p.pt, p.payload)):
+            if spans and t - spans[-1][1] <= SILENT_NS:
+                spans[-1][1] = t
             else:
-                out.append([(t, p)])
+                spans.append([t, t])
+    out = [[(t, p) for t, p in audio if a <= t <= b] for a, b in spans]
     return [a for a in out if len(a) >= shortest]
 
 
