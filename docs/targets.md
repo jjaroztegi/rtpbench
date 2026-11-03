@@ -150,6 +150,13 @@ When the agent's audio never arrives, a latency or barge-in call ends after its 
 reply time and the summary says so, and a failed case gets the check `agent RTP arrived`, both
 with the address our offer gave.
 
+The latency call speaks its first line 10 s after the call is answered and each next one 15 s
+after the one before ends, whatever the agent does in between. An agent that prompts a silent
+caller sooner (many do a few seconds after their greeting) speaks over the next line; if it
+drops what the caller says meanwhile, that turn goes unanswered, and an idle hang-up ends the
+call early. Lengthen the agent's idle timeout for the run or let the caller interrupt its
+prompts, and say so with its results.
+
 `--lines DIR` replaces the caller's lines ([`corpus/lines/en`](../corpus/README.md)) with ones in
 your agent's language, under the same file names: `turn-NN.wav` for the latency call,
 `prompt-NN.wav` and `interrupt-NN.wav` for barge-in, `prompt.wav` and `transfer.wav` for the
