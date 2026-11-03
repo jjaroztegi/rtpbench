@@ -219,23 +219,27 @@ def checkout(path: Path, out: Path | None = None) -> dict[str, Any]:
     directory `out` aside): what a target built from it (`--source`) records."""
     commit = _git(path, "rev-parse", "HEAD").strip()
     aside = _aside(path, out)
-    changed = [
-        e[3:]
-        for e in _git(path, "status", "--porcelain", "-z", "--untracked-files=all").split("\0")
-        if e[3:]
-    ]
+    fields = iter(_git(path, "status", "--porcelain", "-z", "--untracked-files=all").split("\0"))
+    changed = []
+    for e in fields:
+        if e[3:]:
+            changed.append(e[3:])
+        if set(e[:2]) & {"R", "C"} and (origin := next(fields, "")):  # a field of its own
+            changed.append(origin)
     return {"commit": commit, "dirty": any(not aside(name) for name in changed)}
 
 
 def snapshot(path: Path, out: Path | None, dest: Path) -> None:
     """Copy into `dest` what a target builds from the checkout `path`: the files git tracks and
     those it would (untracked, not ignored), as they are now; not .git, not the results
-    directory `out`."""
+    directory `out`, not __pycache__ (which _build_hash leaves out too)."""
     aside = _aside(path, out)
     names = _git(path, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
     for name in dict.fromkeys(names.split("\0")):
         src = path / name
-        if not name or aside(name) or not (src.exists() or src.is_symlink()):  # deleted
+        if not name or aside(name) or "__pycache__" in name.split("/"):
+            continue
+        if not (src.exists() or src.is_symlink()):  # deleted
             continue
         (dest / name).parent.mkdir(parents=True, exist_ok=True)
         if src.is_dir() and not src.is_symlink():  # a submodule
@@ -310,13 +314,15 @@ class Stack:
         if target and mock:
             self.files.append(ROOT / "mock" / "compose.yaml")
             self.env |= MOCK[target]
-        self.source: Path | None = None
+        self.source: Path | None = None  # the copy built from
+        self.checkout: dict[str, Any] = {}  # what it was copied from, as it was then
         if target and source:
             self.files.append(ROOT / "targets" / target / "source.yaml")
+            self.checkout = checkout(source, out)
             self.source = Path(tempfile.mkdtemp(prefix="rtpbench-source-"))
             snapshot(source, out, self.source)
             self.env["RTPBENCH_SOURCE"] = str(self.source)
-            self.env["RTPBENCH_SOURCE_COMMIT"] = checkout(source)["commit"][:7]
+            self.env["RTPBENCH_SOURCE_COMMIT"] = self.checkout["commit"][:7]
         if carrier:
             self.files.append(ROOT / "carrier" / "compose.yaml")
             self.env["RTPBENCH_CARRIER_NEXT"] = carrier
@@ -976,7 +982,7 @@ def target(
                 stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
                 conds["engine"] = realtime.conditions() if mock else _engine(settings)
                 if source:
-                    conds["source"] = checkout(source, out)
+                    conds["source"] = stack.checkout
                 if mock and (own := {k: v for k, v in settings.items() if k not in MOCK[name]}):
                     conds["settings"] = _engine(own)  # the target's own, such as AVA's pacer
                 uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")
