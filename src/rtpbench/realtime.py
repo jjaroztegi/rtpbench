@@ -124,9 +124,24 @@ class Lines:
 # --- WebSocket (RFC 6455, server side: text frames out, masked frames in) ---
 
 
-async def _handshake(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> str:
+async def _handshake(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> str | None:
+    """The request line once the WebSocket is open, or None for a plain HTTP request."""
     head = (await reader.readuntil(b"\r\n\r\n")).decode(errors="replace").split("\r\n")
     headers = {k.strip().lower(): v.strip() for k, _, v in (h.partition(":") for h in head[1:])}
+    if "sec-websocket-key" not in headers:
+        # Some agents check their key against the model list before they connect.
+        method, _, rest = head[0].partition(" ")
+        path = rest.partition(" ")[0]
+        found = method == "GET" and path.split("?")[0].rstrip("/").endswith("/models")
+        body = b'{"object": "list", "data": []}' if found else b""
+        status = "200 OK" if found else "404 Not Found"
+        writer.write(
+            f"HTTP/1.1 {status}\r\nContent-Type: application/json\r\n"
+            f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
+            + body
+        )
+        await writer.drain()
+        return None
     key = headers["sec-websocket-key"].encode()
     accept = base64.b64encode(hashlib.sha1(key + _GUID).digest()).decode()
     writer.write(
@@ -532,7 +547,9 @@ def serve(out: Path, port: int = PORT, ready: Path | None = None) -> None:
     async def connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             request = await _handshake(reader, writer)
-        except asyncio.IncompleteReadError, KeyError, ConnectionError:
+        except asyncio.IncompleteReadError, ConnectionError:
+            request = None
+        if request is None:
             writer.close()
             return
         s = Session(writer, lines, log, steps)
