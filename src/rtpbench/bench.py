@@ -518,9 +518,10 @@ def _host(cmd: str) -> str:
 
 
 def _commit() -> str:
-    """Counted from a release (results' wave tags would otherwise name the commit); installed,
-    the release itself: there is no checkout to describe."""
-    if ROOT == PACKAGE:
+    """Counted from a release (results' wave tags would otherwise name the commit); without a
+    checkout to describe (installed, or the action's copy of a commit, which has no .git), the
+    version it declares: the image tag names the code."""
+    if not (ROOT / ".git").exists():  # not `git describe`: it would find any repository above
         from importlib.metadata import version
 
         return f"v{version('rtpbench')}"

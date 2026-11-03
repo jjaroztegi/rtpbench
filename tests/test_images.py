@@ -122,3 +122,10 @@ def test_a_target_built_from_a_checkout_is_tagged_by_its_commit_and_files(
     assert tag() != clean
     with pytest.raises(ValueError, match="not a git checkout"):
         bench.checkout(tmp_path)
+
+
+def test_a_copy_without_git_records_its_version_as_the_commit(root: Path) -> None:
+    from importlib.metadata import version
+
+    assert not (root / ".git").exists()  # as the action unpacks a commit
+    assert bench._commit() == f"v{version('rtpbench')}"
