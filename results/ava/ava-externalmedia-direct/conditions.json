@@ -1,7 +1,7 @@
 {
- "date": "2026-10-20T05:29:38+00:00",
- "commit": "v0.1.0-21-g4161aa1",
- "image": "rtpbench:0397e3c41635",
+ "date": "2026-11-02T22:24:19+00:00",
+ "commit": "v0.3.0",
+ "image": "rtpbench:12ddda5e7bf9",
  "kernel": "6.8.0-147-generic",
  "cpus": 16,
  "docker": "29.9.1",
@@ -10,12 +10,14 @@
  "host": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
  "cpu_governor": "performance",
  "load_start": [
-  4.46,
-  5.31,
-  5.32
+  1.63,
+  2.12,
+  1.56
  ],
  "seed": 1,
  "sip_auth": false,
+ "tls": false,
+ "srtp": null,
  "netem_per_direction": {
   "clean": "",
   "delay": "delay 40ms",
@@ -48,11 +50,17 @@
   "AVA_EGRESS_PACER": "true",
   "AVA_TRANSPORT": "externalmedia"
  },
- "images": "CONTAINER                    REPOSITORY          TAG                 PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-f7dd90-agent-1      <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago\nrtpbench-f7dd90-asterisk-1   <none>              <none>              linux/amd64         a2fcc8ea6ba1        326MB               42 minutes ago\nrtpbench-f7dd90-caller-1     <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago\nrtpbench-f7dd90-engine-1     <none>              <none>              linux/amd64         ff6b68c408d7        459MB               12 hours ago\nrtpbench-f7dd90-operator-1   <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago\nrtpbench-f7dd90-realtime-1   <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago\nrtpbench-f7dd90-router-1     <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago\nrtpbench-f7dd90-target-1     <none>              <none>              linux/amd64         94aed0c14b48        138MB               16 minutes ago",
+ "images": "CONTAINER                    REPOSITORY                                 TAG                       PLATFORM            IMAGE ID            SIZE                CREATED\nrtpbench-4d5cd1-agent-1      ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-4d5cd1-asterisk-1   ghcr.io/jjaroztegi/rtpbench-ava-asterisk   22.8-cert4-c089455aed0a   linux/amd64         74f0ea571c7f        326MB               2 hours ago\nrtpbench-4d5cd1-caller-1     ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-4d5cd1-engine-1     ghcr.io/jjaroztegi/rtpbench-ava            ba52df9-91a997b32363      linux/amd64         c78338249027        462MB               2 hours ago\nrtpbench-4d5cd1-operator-1   ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-4d5cd1-realtime-1   ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-4d5cd1-router-1     ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago\nrtpbench-4d5cd1-target-1     ghcr.io/jjaroztegi/rtpbench                12ddda5e7bf9              linux/amd64         b5bb325ff8bb        165MB               24 minutes ago",
+ "builds": {
+  "asterisk": "ghcr.io/jjaroztegi/rtpbench-ava-asterisk:22.8-cert4-c089455aed0a",
+  "engine": "ghcr.io/jjaroztegi/rtpbench-ava:ba52df9-91a997b32363",
+  "router": "ghcr.io/jjaroztegi/rtpbench:12ddda5e7bf9"
+ },
  "clock_steps": [],
+ "clock_rate_ppm": 0.0,
  "load_end": [
-  2.97,
-  2.53,
-  2.57
+  4.82,
+  4.21,
+  4.19
  ]
 }

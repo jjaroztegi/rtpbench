@@ -18,11 +18,12 @@ without a carrier in front, on a mock engine that holds the AI engine's share of
 | | [LiveKit](https://github.com/livekit/sip) | [AI Voice Connector CE](https://github.com/OpenSIPS/opensips-ai-voice-connector-ce) at b95f5af | Asterisk + [AVA](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) |
 | --- | --- | --- | --- |
 | cases failed of 24 | 5, and 2 unsupported | 5, 3 unsupported and 1 inconclusive | 4, and 3 inconclusive |
-| turn latency, clean, p50 | 1833 ms | 1511 ms | 1588 ms |
+| turn latency, clean, p50 | 1833 ms | 1511 ms | 1589 ms |
 | its own media path per turn, p50 | 335 ms | 9 ms | 88 ms |
 | stops for an interruption, clean, p50 | 306 ms | 24 ms | never |
 
-The counts take every profile, direct and through the carrier. Run direct only, as
+The counts take every profile, direct and through the carrier, and AVA as it ships, over
+AudioSocket. Run direct only, as
 `target NAME --mock` does by default, LiveKit fails 4: `late-offer` fails only through the
 carrier. All three pass the 3 cases for lost SIP messages, run direct on a clean network.
 Unsupported is an optional feature declined as its RFC allows, with the call unharmed:
@@ -32,7 +33,8 @@ the digit never reaches the engine: a failure.
 
 - LiveKit keeps sending audio to a held caller in every kind of hold, AI Voice Connector CE when
   held with `c=0.0.0.0`, and both answer a re-INVITE that changes codec with the old codec. AVA
-  sends RTP only while it speaks, so whether its media resumes after a hold cannot be judged.
+  sends RTP only while it speaks, so whether its media resumes after a hold cannot be judged,
+  except over Asterisk's WebSocket channel, where Asterisk keeps sending to a held caller.
 - LiveKit's extra latency is its own media path: 326 ms per turn more than AI Voice Connector
   CE's, against 322 ms between their turn latencies.
 - LiveKit's RTP falls 20 ms behind its own timestamps 4 s into every call, so a receiver needs a
@@ -40,10 +42,12 @@ the digit never reaches the engine: a failure.
 - AI Voice Connector CE delivers the engine's speech sample for sample. LiveKit re-encodes it on
   the way, through its WebRTC room, and on a clean network stretches or cuts a pause by 20-40 ms
   in 6% of answers (10% in a second wave).
-- AVA, as its golden configuration ships, cuts the last 0.8 s of every answer, and it never
-  stops for an interruption: it keeps the caller's audio from the engine while it speaks. Over
-  AudioSocket under packet loss, the engine sometimes got silence instead of the caller, so 5 more
-  cases fail now and then.
+- AVA, as its golden configuration ships, cuts the last 0.6 s of speech from every answer, over
+  each of its three transports, and over Asterisk's WebSocket channel its pacer also breaks every
+  answer with 7-10 short silences. It never stops for an interruption: it keeps the caller's
+  audio from the engine while it speaks. Over AudioSocket under packet loss, the engine sometimes
+  got silence instead of the caller (a squelch AVA has fixed since), so 5 more cases flip now
+  and then.
 - AI Voice Connector CE's main branch fixed 4 of the 10 cases it failed in the baseline (a failed
   transfer no longer hangs up on the caller; compact headers, a bare `a=ssrc` and SIP over TCP
   are taken), and now declines a DTMF INFO with 501 where it left it unanswered. It still
@@ -86,7 +90,7 @@ defaults and valid names.
 
 - [Calibration](docs/calibration.md): error bars, clock steps, network profiles and their sources
 - [Conformance cases](docs/cases.md): what each case checks
-- [Targets, your own agent, the mock engine and the carrier](docs/targets.md)
+- [Targets (and adding one), your own agent, the mock engine and the carrier](docs/targets.md)
 - [CI](docs/ci.md): pass or fail your agent's run against a policy
 
 ## Development

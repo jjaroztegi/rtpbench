@@ -8,9 +8,9 @@ unpacked direct sets. Per set:
   split by whether the line began while the agent was sending, each with how many of them the
   mock heard (a turn of its ended with the line); the interjections and how many the agent
   stopped for;
-- on a clean network, the answers of the latency calls (the agent's RTP, split where it was
-  silent for 0.5 s): their packets, and the loudest of the last three packets (RMS of 20 ms,
-  dBFS; -inf is digital silence);
+- on a clean network, the answers of the latency calls (the agent's RTP, split where it sent
+  no sound for 0.5 s, `answers`): their packets, and the loudest of the last three packets (RMS
+  of 20 ms, dBFS; -inf is digital silence);
 - for each interjection the agent stopped for, the times that bear on why, in seconds from the
   call's INVITE (the origin of a report's timeline).
 
