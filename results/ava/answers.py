@@ -36,13 +36,18 @@ HEARD_NS = 500_000_000  # the mock's turn ends within this of the end of the lin
 
 
 def answers(down: analyze.Timed, shortest: int = ANSWER_MIN) -> list[analyze.Timed]:
-    out: list[analyze.Timed] = []
-    for t, p in down:
-        if p.pt in g711.NAMES:
-            if out and t - out[-1][-1][0] <= SILENT_NS:
-                out[-1].append((t, p))
+    """The agent's answers: its audio from one sound to the last before SILENT_NS without any
+    (no packets, or over WebSocket the digital silence Asterisk fills each gap with), with
+    every packet in between."""
+    audio = [(t, p) for t, p in down if p.pt in g711.NAMES]
+    spans: list[list[int]] = []
+    for t, p in audio:
+        if any(g711.decode(p.pt, p.payload)):
+            if spans and t - spans[-1][1] <= SILENT_NS:
+                spans[-1][1] = t
             else:
-                out.append([(t, p)])
+                spans.append([t, t])
+    out = [[(t, p) for t, p in audio if a <= t <= b] for a, b in spans]
     return [a for a in out if len(a) >= shortest]
 
 
