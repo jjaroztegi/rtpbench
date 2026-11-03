@@ -82,6 +82,22 @@ def test_a_port_in_use_is_one_line_naming_the_option(tmp_path: Path) -> None:
     assert "\n" not in str(e.value)
 
 
+def test_a_model_list_request_gets_an_empty_list(engine: tuple[int, Path]) -> None:
+    port, _ = engine
+
+    async def get(path: str) -> bytes:
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.write(f"GET {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer x\r\n\r\n".encode())
+        reply = await reader.read()
+        writer.close()
+        return reply
+
+    head, _, body = asyncio.run(get("/v1/models")).partition(b"\r\n\r\n")
+    assert head.startswith(b"HTTP/1.1 200")
+    assert json.loads(body) == {"object": "list", "data": []}
+    assert asyncio.run(get("/v1/realtime")).startswith(b"HTTP/1.1 404")
+
+
 def test_lines_are_told_apart_and_answered() -> None:
     lines = realtime.Lines()
     for name in ("transfer", "prompt-03", "turn-05", "interrupt-01"):

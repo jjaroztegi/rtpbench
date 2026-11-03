@@ -272,6 +272,8 @@ What the agent has to meet:
   agent that sends the preview shape (`input_audio_format`) is heard as 24 kHz PCM16.
 - An endpoint it accepts. The mock ignores the path, the query and any auth header. Over plain
   `ws` that header crosses the network in clear: give the agent a dummy key, not a live token.
+  An HTTP `GET` of a path ending in `/models` gets an empty model list, for an agent that checks
+  its key that way before it connects; any other plain HTTP request gets a 404.
   An agent that takes only `wss` URLs under its provider's host names and verifies TLS needs
   both overridden on its side: that host name resolving to the mock (a hosts entry or DNS),
   and a TLS proxy in front of the mock with a certificate for that name from a CA the agent
