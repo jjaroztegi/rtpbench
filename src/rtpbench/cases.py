@@ -366,6 +366,8 @@ def _hold(dial: Dial, seed: int, offers: list[tuple[str, str | None]]) -> dict[s
         if s.remote_bye:
             break
         m.muted = direction == "inactive"
+        if m.muted:  # the sender builds each packet a tick ahead: let the last one out first
+            s.wait(lambda: s.remote_bye, 2 * rtp.PTIME_NS / 1e9)
         s.reinvite(direction, conn=conn)
         s.wait(lambda: s.remote_bye, HOLD_S)
     s.hangup()
