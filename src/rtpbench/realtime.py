@@ -935,7 +935,8 @@ def uplink(out: Path) -> str:
             continue
         st = analyze.stream(up, w.log["pt"])
         for turn in w.log["turns"]:
-            for spans in (turn.get("prompt_speech"), turn["speech"]):
+            # a barge-in turn whose prompt got no reply has no interjection
+            for spans in (turn.get("prompt_speech"), turn.get("speech")):
                 if not spans:
                     continue
                 a, b = st.index(w.log["seq0"], spans[0][0]), st.index(w.log["seq0"], spans[-1][1])
