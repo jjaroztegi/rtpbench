@@ -42,7 +42,8 @@ def answers(down: analyze.Timed, shortest: int = ANSWER_MIN) -> list[analyze.Tim
     audio = [(t, p) for t, p in down if p.pt in g711.NAMES]
     spans: list[list[int]] = []
     for t, p in audio:
-        if any(g711.decode(p.pt, p.payload)):
+        silence = abs(g711.decode(p.pt, bytes([g711.SILENCE[p.pt]]))[0])  # A-law's is not 0
+        if any(abs(s) > silence for s in g711.decode(p.pt, p.payload)):
             if spans and t - spans[-1][1] <= SILENT_NS:
                 spans[-1][1] = t
             else:

@@ -47,8 +47,8 @@ Published:
 - [Lost SIP messages](../results/retransmit): the three retransmission cases on LiveKit, AI
   Voice Connector CE and AVA, on a mock engine, direct
 - [Asterisk + AVA](../results/ava): Asterisk and AVA over AudioSocket, ExternalMedia and
-  Asterisk's WebSocket channel with AVA's egress pacer, and over AudioSocket and WebSocket without
-  it, on a mock engine, direct and through a carrier
+  Asterisk's WebSocket channel with AVA's egress pacer, direct and through a carrier, and over
+  AudioSocket and WebSocket without it, direct, on a mock engine
 - [SIP over TLS and SRTP](../results/tls-srtp): this host's timing error with both, direct and
   through the carrier, the cases proven on the reference agent over them, and AI Voice Connector
   CE behind a carrier that takes them
