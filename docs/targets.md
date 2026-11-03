@@ -61,9 +61,11 @@ upstream's own Dockerfile, as the project builds it: AI Voice Connector CE for `
 `ava`, and for `livekit` the SIP bridge ([livekit/sip](https://github.com/livekit/sip)), whose
 server and Agents worker stay pinned. Everything else in the target (OpenSIPS, Asterisk, the
 configuration in `targets/NAME`) stays as published, so a change that needs another
-configuration fails here. The image is tagged with the checkout's commit and a hash of every
-file in it (`.git` too): a changed file builds a new image, an unchanged checkout reuses it.
-`conditions.json` records the commit and whether the checkout had changes on top (`source`).
+configuration fails here. It builds from the files git sees in the checkout (tracked, and
+untracked but not ignored) as they are, without `.git` or the run's own results directory, and
+the image is tagged with the commit and a hash of those files: a changed file builds a new
+image, an unchanged checkout reuses it. `conditions.json` records the commit and whether the
+checkout had changes on top (`source`).
 Upstream's Dockerfile pins less than the published build does (packages resolve when it
 builds), so a run from a checkout of the pinned commit is not the published target.
 

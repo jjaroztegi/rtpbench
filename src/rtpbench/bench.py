@@ -9,6 +9,7 @@ import secrets
 import shlex
 import shutil
 import subprocess
+import tempfile
 import textwrap
 import time
 from collections.abc import Callable, Iterator, Sequence
@@ -196,15 +197,51 @@ def _image_tag() -> str:
     return "rtpbench:" + h.hexdigest()[:12]
 
 
-def checkout(path: Path) -> dict[str, Any]:
-    """The commit a git checkout is at, and whether it has changes on top: what a target built
-    from it (`--source`) records."""
-    git = ["git", "-C", str(path)]
-    head = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True)
-    if head.returncode:
-        raise ValueError(f"not a git checkout: {head.stderr.strip()}")
-    status = subprocess.run([*git, "status", "--porcelain"], capture_output=True, text=True)
-    return {"commit": head.stdout.strip(), "dirty": bool(status.stdout.strip())}
+def _git(path: Path, *args: str) -> str:
+    res = subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True)
+    if res.returncode:
+        raise ValueError(f"not a git checkout: {res.stderr.strip()}")
+    return res.stdout
+
+
+def _aside(path: Path, out: Path | None) -> Callable[[str], bool]:
+    """Whether a path in the checkout `path`, as git gives it, is in the results directory
+    `out`: a run writes there, so it is no part of the target."""
+    try:
+        rel = out.resolve().relative_to(path.resolve()).as_posix() + "/" if out else None
+    except ValueError:  # not inside the checkout
+        rel = None
+    return lambda name: rel is not None and (name + "/").startswith(rel)
+
+
+def checkout(path: Path, out: Path | None = None) -> dict[str, Any]:
+    """The commit a git checkout is at, and whether it has changes on top (the results
+    directory `out` aside): what a target built from it (`--source`) records."""
+    commit = _git(path, "rev-parse", "HEAD").strip()
+    aside = _aside(path, out)
+    changed = [
+        e[3:]
+        for e in _git(path, "status", "--porcelain", "-z", "--untracked-files=all").split("\0")
+        if e[3:]
+    ]
+    return {"commit": commit, "dirty": any(not aside(name) for name in changed)}
+
+
+def snapshot(path: Path, out: Path | None, dest: Path) -> None:
+    """Copy into `dest` what a target builds from the checkout `path`: the files git tracks and
+    those it would (untracked, not ignored), as they are now; not .git, not the results
+    directory `out`."""
+    aside = _aside(path, out)
+    names = _git(path, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    for name in dict.fromkeys(names.split("\0")):
+        src = path / name
+        if not name or aside(name) or not (src.exists() or src.is_symlink()):  # deleted
+            continue
+        (dest / name).parent.mkdir(parents=True, exist_ok=True)
+        if src.is_dir() and not src.is_symlink():  # a submodule
+            shutil.copytree(src, dest / name, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        else:
+            shutil.copy2(src, dest / name, follow_symlinks=False)
 
 
 def _build_hash(build: dict[str, Any]) -> str:
@@ -235,7 +272,8 @@ class Stack:
     `tls`, out/tls holds a test certificate for the stack's TLS servers, and ca.pem, what the
     caller trusts: `ca`, or with no `uri` the stack's test CA; else the caller trusts the
     system's certificates. With `srtp`, the caller offers SRTP with these suites. With
-    `source`, a git checkout, the target builds from it (targets/<name>/source.yaml)."""
+    `source`, a git checkout, the target builds from a copy of its files that `down` removes
+    (targets/<name>/source.yaml)."""
 
     def __init__(
         self,
@@ -272,9 +310,12 @@ class Stack:
         if target and mock:
             self.files.append(ROOT / "mock" / "compose.yaml")
             self.env |= MOCK[target]
+        self.source: Path | None = None
         if target and source:
             self.files.append(ROOT / "targets" / target / "source.yaml")
-            self.env["RTPBENCH_SOURCE"] = str(source.resolve())
+            self.source = Path(tempfile.mkdtemp(prefix="rtpbench-source-"))
+            snapshot(source, out, self.source)
+            self.env["RTPBENCH_SOURCE"] = str(self.source)
             self.env["RTPBENCH_SOURCE_COMMIT"] = checkout(source)["commit"][:7]
         if carrier:
             self.files.append(ROOT / "carrier" / "compose.yaml")
@@ -402,6 +443,8 @@ class Stack:
 
     def down(self) -> None:
         self.compose("down", "-t", "0", "-v", "--remove-orphans", check=False)
+        if self.source:
+            shutil.rmtree(self.source, ignore_errors=True)
         # the test certificate's key is no use to judging; the CAs stay with the results
         (Path(self.env["RTPBENCH_OUT"]) / "tls" / "server.key").unlink(missing_ok=True)
 
@@ -933,7 +976,7 @@ def target(
                 stack.sh("target", f"ip route replace {caller_ip} via {router_ip}")
                 conds["engine"] = realtime.conditions() if mock else _engine(settings)
                 if source:
-                    conds["source"] = checkout(source)
+                    conds["source"] = checkout(source, out)
                 if mock and (own := {k: v for k, v in settings.items() if k not in MOCK[name]}):
                     conds["settings"] = _engine(own)  # the target's own, such as AVA's pacer
                 uri, proxy = f"sip:{user}@{target_ip}", stack.entry("operator")

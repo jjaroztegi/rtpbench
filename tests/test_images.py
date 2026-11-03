@@ -68,27 +68,40 @@ def test_editing_a_build_changes_its_image_s_tag_and_an_unrelated_file_none(root
 @pytest.mark.parametrize(
     ("target", "service"), [("aivc", "engine"), ("ava", "engine"), ("livekit", "sip")]
 )
-def test_a_target_built_from_a_checkout_is_tagged_by_its_commit_and_content(
+def test_a_target_built_from_a_checkout_is_tagged_by_its_commit_and_files(
     root: Path, tmp_path: Path, target: str, service: str
 ) -> None:
     src = tmp_path / "checkout"
     src.mkdir()
     (src / "main.py").write_text("print('hi')\n")
+    (src / ".gitignore").write_text(".venv/\n")
     git = ["git", "-C", str(src), "-c", "user.name=t", "-c", "user.email=t@t"]
     for cmd in (["init", "-q"], ["add", "."], ["commit", "-qm", "x"]):
         subprocess.run([*git, *cmd], check=True)
-    commit = bench.checkout(src)
-    assert commit["dirty"] is False
+    out = src / "results" / "run"  # a run's results inside the checkout: no part of it
+    out.mkdir(parents=True)
 
     def tag() -> str:
-        return Stack(root / "out", target, carrier="agent", source=src).builds()[service]
+        stack = Stack(out, target, carrier="agent", source=src)
+        try:
+            return stack.builds()[service]
+        finally:
+            shutil.rmtree(stack.source or "")
 
     pinned = builds(root, target).get(service, "")
     clean = tag()
+    commit = bench.checkout(src, out)
     assert re.fullmatch(rf".+:{commit['commit'][:7]}-[0-9a-f]{{12}}", clean), clean
     assert clean != pinned
-    (src / "main.py").write_text("print('changed')\n")  # uncommitted: same commit, new content
-    assert bench.checkout(src)["dirty"] is True
+    (out / "caller.pcap").write_bytes(b"x")
+    (src / ".venv").mkdir()
+    (src / ".venv" / "lib.py").write_text("ignored\n")
+    assert tag() == clean
+    assert bench.checkout(src, out)["dirty"] is False
+    assert bench.checkout(src)["dirty"] is True  # the results are untracked files to git
+
+    (src / "main.py").write_text("print('changed')\n")  # uncommitted: same commit, new files
+    assert bench.checkout(src, out)["dirty"] is True
     assert tag() != clean
     with pytest.raises(ValueError, match="not a git checkout"):
         bench.checkout(tmp_path)
