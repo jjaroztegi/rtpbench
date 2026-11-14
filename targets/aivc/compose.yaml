@@ -13,12 +13,12 @@ services:
     command: sleep infinity
 
   opensips:
-    image: opensips/opensips:3.6@sha256:81a7fa3c7bdbceaadb7cb869ff7ac3f34efb2d95cd7fecb3b689d7b6b1eb0672
+    image: opensips/opensips:4.0@sha256:e1d8151b96c00d52c9bd8f102ebc9e7c90fc4e44fe8df117b56009bebbeff7a0
     network_mode: service:target
     depends_on: [target]
     volumes: ["./targets/aivc/opensips.cfg:/etc/opensips/opensips.cfg:ro"]
     healthcheck:
-      test: opensips-cli -x mi sr_get_status core | grep -q running
+      test: opensips-cli -x mi status_report:get core | grep -q running
       interval: 1s
       retries: 20
 
@@ -54,7 +54,7 @@ services:
         - -c
         - >-
           import json, socket; s = socket.socket(2, 2); s.settimeout(1);
-          s.sendto(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "subscribers_list",
+          s.sendto(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "evi:subscribers",
           "params": ["E_UA_SESSION"]}).encode(), ("127.0.0.1", 8080));
           assert json.loads(s.recv(65535))["result"]["Event"]["Subscribers"]
       interval: 1s
